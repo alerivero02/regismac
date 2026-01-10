@@ -241,12 +241,16 @@ export const logout = (req, res) => {
     if (err) {
       return res.status(500).json({ error: "Error al cerrar sesión" });
     }
-    req.session.destroy((err) => {
-      if (err) {
-        return res.status(500).json({ error: "Error al destruir sesión" });
-      }
+    if (req.session) {
+      req.session.destroy((err) => {
+        if (err) {
+          return res.status(500).json({ error: "Error al destruir sesión" });
+        }
+        res.json({ message: "Sesión cerrada correctamente" });
+      });
+    } else {
       res.json({ message: "Sesión cerrada correctamente" });
-    });
+    }
   });
 };
 

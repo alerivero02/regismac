@@ -28,6 +28,8 @@
   "author": "Alexander Rivero <al.rivero2021@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "dotenv": "^17.2.3"
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "@prisma/client": "^6.1.0"
   }
 }

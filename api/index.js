@@ -75,4 +75,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-module.exports = app;
+// Export handler function for Vercel
+module.exports = (req, res) => {
+  return app(req, res);
+};

@@ -75,16 +75,30 @@ async function getApp() {
         console.error('❌ Error cause:', error.cause);
       }
       // No lanzar el error, crear una app mínima para manejar errores
-      const express = await import('express');
-      app = express.default();
-      app.use((req, res) => {
-        res.status(500).json({ 
-          error: 'Application initialization failed',
-          message: process.env.NODE_ENV === 'production' 
-            ? undefined 
-            : error.message
+      try {
+        const express = await import('express');
+        const expressDefault = express.default || express;
+        app = typeof expressDefault === 'function' ? expressDefault() : new expressDefault();
+        if (!app || typeof app.use !== 'function') {
+          throw new Error('No se pudo crear app de Express');
+        }
+        app.use((req, res) => {
+          res.status(500).json({ 
+            error: 'Application initialization failed',
+            message: process.env.NODE_ENV === 'production' 
+              ? undefined 
+              : error.message
+          });
         });
-      });
+      } catch (expressError) {
+        console.error('❌ Error al crear app mínima de Express:', expressError);
+        // Crear un objeto mínimo que funcione como app
+        app = {
+          use: () => {},
+          locals: {},
+          listen: () => {}
+        };
+      }
     }
   }
   return app;
@@ -95,48 +109,50 @@ export default async function handler(req, res) {
   let responseSent = false;
   let timeout;
   
+  // Función helper para enviar respuesta de forma segura
+  const safeSend = (status, data) => {
+    if (!responseSent && !res.headersSent) {
+      try {
+        responseSent = true;
+        if (timeout) clearTimeout(timeout);
+        return res.status(status).json(data);
+      } catch (e) {
+        console.error('Error al enviar respuesta:', e);
+      }
+    }
+  };
+  
   try {
     console.log(`=== Nueva petición: ${req.method} ${req.url} ===`);
     
     timeout = setTimeout(() => {
       if (!responseSent && !res.headersSent) {
-        responseSent = true;
         console.error('⚠️  Timeout: La petición tardó demasiado');
-        try {
-          res.status(504).json({ error: 'Request timeout' });
-        } catch (e) {
-          console.error('Error al enviar respuesta de timeout:', e);
-        }
+        safeSend(504, { error: 'Request timeout' });
       }
     }, 25000); // 25 segundos (Vercel tiene límite de 30s para funciones)
     
     const sendErrorResponse = (error, status = 500) => {
-      if (!responseSent && !res.headersSent) {
-        responseSent = true;
-        if (timeout) clearTimeout(timeout);
-        console.error('=== ERROR EN HANDLER ===');
-        console.error('Error:', error);
-        console.error('Error name:', error?.name);
-        console.error('Error message:', error?.message);
-        console.error('Error stack:', error?.stack);
-        if (error.cause) {
-          console.error('Error cause:', error.cause);
-        }
-        try {
-          // Para endpoints de auth, devolver 401 si no hay autenticación
-          if (req.url?.includes('/auth/me') && (!error || error.message?.includes('No autenticado'))) {
-            return res.status(401).json({ error: 'No autenticado' });
-          }
-          return res.status(status).json({
-            error: 'Internal server error',
-            message: process.env.NODE_ENV === 'production' 
-              ? 'An error occurred' 
-              : error?.message || 'Unknown error'
-          });
-        } catch (e) {
-          console.error('Error al enviar respuesta de error:', e);
-        }
+      console.error('=== ERROR EN HANDLER ===');
+      console.error('Error:', error);
+      console.error('Error name:', error?.name);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      if (error.cause) {
+        console.error('Error cause:', error.cause);
       }
+      
+      // Para endpoints de auth, devolver 401 si no hay autenticación
+      if (req.url?.includes('/auth/me')) {
+        return safeSend(401, { error: 'No autenticado' });
+      }
+      
+      return safeSend(status, {
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'production' 
+          ? 'An error occurred' 
+          : error?.message || 'Unknown error'
+      });
     };
 
     try {
@@ -149,29 +165,32 @@ export default async function handler(req, res) {
         req.app = expressApp;
       }
       
+      // Verificar que expressApp sea válido
+      if (!expressApp) {
+        console.error('❌ expressApp es null o undefined');
+        safeSend(500, { error: 'Application not initialized' });
+        return;
+      }
+      
       // Wrapper para asegurar que siempre se maneje el error
       return new Promise((resolve) => {
         try {
-          expressApp(req, res, (err) => {
+          // Express app puede ser llamada directamente como función
+          // En Express 5, el app es una función que acepta (req, res, next)
+          const result = expressApp(req, res, (err) => {
             if (timeout) clearTimeout(timeout);
             if (err) {
               console.error('Error en expressApp callback:', err);
-              if (!responseSent && !res.headersSent) {
-                responseSent = true;
-                try {
-                  // Para endpoints de auth, devolver 401 si no hay autenticación
-                  if (req.url?.includes('/auth/me') && (!err || err.message?.includes('No autenticado'))) {
-                    return res.status(401).json({ error: 'No autenticado' });
-                  }
-                  res.status(err.status || 500).json({
-                    error: err.message || 'Internal server error',
-                    message: process.env.NODE_ENV === 'production' 
-                      ? undefined 
-                      : err.message
-                  });
-                } catch (e) {
-                  console.error('Error al enviar respuesta:', e);
-                }
+              // Para endpoints de auth, devolver 401 si no hay autenticación
+              if (req.url?.includes('/auth/me')) {
+                safeSend(401, { error: 'No autenticado' });
+              } else {
+                safeSend(err.status || 500, {
+                  error: err.message || 'Internal server error',
+                  message: process.env.NODE_ENV === 'production' 
+                    ? undefined 
+                    : err.message
+                });
               }
               resolve();
             } else {
@@ -182,10 +201,20 @@ export default async function handler(req, res) {
               resolve();
             }
           });
-        } catch (err) {
+          
+          // Si expressApp retorna una Promise, manejarla
+          if (result && typeof result.then === 'function') {
+            result.catch((err) => {
+              if (timeout) clearTimeout(timeout);
+              console.error('Error en Promise de expressApp:', err);
+              sendErrorResponse(err);
+              resolve();
+            });
+          }
+        } catch (callError) {
           if (timeout) clearTimeout(timeout);
-          console.error('Error al ejecutar expressApp:', err);
-          sendErrorResponse(err);
+          console.error('Error al llamar expressApp:', callError);
+          sendErrorResponse(callError);
           resolve();
         }
       });
@@ -200,23 +229,16 @@ export default async function handler(req, res) {
     console.error('❌ ERROR CRÍTICO EN HANDLER:', criticalError);
     console.error('❌ Stack:', criticalError?.stack);
     
-    if (!responseSent && !res.headersSent) {
-      try {
-        // Para endpoints de auth, devolver 401 si no hay autenticación
-        if (req.url?.includes('/auth/me')) {
-          res.status(401).json({ error: 'No autenticado' });
-        } else {
-          res.status(500).json({ 
-            error: 'Internal server error',
-            message: process.env.NODE_ENV === 'production' 
-              ? 'An error occurred' 
-              : criticalError?.message || 'Unknown error'
-          });
-        }
-      } catch (e) {
-        console.error('Error crítico al enviar respuesta:', e);
-      }
+    // Para endpoints de auth, devolver 401 si no hay autenticación
+    if (req.url?.includes('/auth/me')) {
+      safeSend(401, { error: 'No autenticado' });
+    } else {
+      safeSend(500, { 
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'production' 
+          ? 'An error occurred' 
+          : criticalError?.message || 'Unknown error'
+      });
     }
   }
 }
-

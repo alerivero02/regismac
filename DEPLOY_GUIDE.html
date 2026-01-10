@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 RegisMAC - Deployment Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+        .step {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        .step.active {
+            background: #e7f3ff;
+            border-left-color: #4CAF50;
+            box-shadow: 0 4px 12px rgba(76, 175, 80, 0.2);
+        }
+        .step.completed {
+            background: #e8f5e9;
+            border-left-color: #4CAF50;
+        }
+        .step-number {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .step.active .step-number {
+            background: #4CAF50;
+            animation: pulse 2s infinite;
+        }
+        .step.completed .step-number {
+            background: #4CAF50;
+        }
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .step-title {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .step-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.6;
+        }
+        .alert-box {
+            background: #fff3cd;
+            border: 2px solid #ffc107;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            display: none;
+        }
+        .alert-box.show {
+            display: block;
+            animation: slideIn 0.3s;
+        }
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: all 0.3s;
+            margin-top: 10px;
+        }
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .btn:active {
+            transform: translateY(0);
+        }
+        .status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .status.pending {
+            background: #ffc107;
+            color: #333;
+        }
+        .status.active {
+            background: #17a2b8;
+            color: white;
+        }
+        .status.completed {
+            background: #28a745;
+            color: white;
+        }
+        .code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 RegisMAC Deployment</h1>
+        <p class="subtitle">Guía paso a paso - Trabajando juntos</p>
+
+        <div class="step active" id="step1">
+            <span class="step-number">1</span>
+            <span class="status active">EN PROGRESO</span>
+            <div class="step-title">Neon Database - Iniciar Sesión</div>
+            <div class="step-description">
+                <p>1. Haz clic en el botón "GitHub" en la página de Neon</p>
+                <p>2. Inicia sesión en GitHub si es necesario</p>
+                <p>3. Autoriza Neon para acceder a tu cuenta</p>
+                <p><strong>Cuando hayas iniciado sesión, haz clic en el botón de abajo:</strong></p>
+            </div>
+            <div class="alert-box" id="alert1">
+                ✅ ¡Perfecto! Continuando con el siguiente paso...
+            </div>
+            <button class="btn" onclick="completeStep(1)">✅ Ya inicié sesión en Neon</button>
+        </div>
+
+        <div class="step" id="step2">
+            <span class="step-number">2</span>
+            <span class="status pending">PENDIENTE</span>
+            <div class="step-title">Neon Database - Crear Proyecto</div>
+            <div class="step-description">
+                <p>Voy a crear el proyecto automáticamente...</p>
+            </div>
+        </div>
+
+        <div class="step" id="step3">
+            <span class="step-number">3</span>
+            <span class="status pending">PENDIENTE</span>
+            <div class="step-title">GitHub - Crear Repositorio</div>
+            <div class="step-description">
+                <p>Voy a crear el repositorio y hacer push del código...</p>
+            </div>
+        </div>
+
+        <div class="step" id="step4">
+            <span class="step-number">4</span>
+            <span class="status pending">PENDIENTE</span>
+            <div class="step-title">Vercel - Iniciar Sesión</div>
+            <div class="step-description">
+                <p>1. Te redirigiré a Vercel</p>
+                <p>2. Inicia sesión con GitHub</p>
+                <p><strong>Cuando hayas iniciado sesión, haz clic en el botón:</strong></p>
+            </div>
+            <div class="alert-box" id="alert4">
+                ✅ ¡Perfecto! Continuando con la configuración de Vercel...
+            </div>
+            <button class="btn" onclick="completeStep(4)" style="display:none;" id="btn4">✅ Ya inicié sesión en Vercel</button>
+        </div>
+
+        <div class="step" id="step5">
+            <span class="step-number">5</span>
+            <span class="status pending">PENDIENTE</span>
+            <div class="step-title">Vercel - Configurar Proyecto</div>
+            <div class="step-description">
+                <p>Voy a configurar el proyecto automáticamente...</p>
+            </div>
+        </div>
+
+        <div class="step" id="step6">
+            <span class="step-number">6</span>
+            <span class="status pending">PENDIENTE</span>
+            <div class="step-title">Variables de Entorno</div>
+            <div class="step-description">
+                <p>Configurando variables de entorno en Vercel...</p>
+            </div>
+        </div>
+
+        <div class="step" id="step7">
+            <span class="step-number">7</span>
+            <span class="status pending">PENDIENTE</span>
+            <div class="step-title">Migraciones de Base de Datos</div>
+            <div class="step-description">
+                <p>Ejecutando migraciones de Prisma...</p>
+            </div>
+        </div>
+
+        <div class="step" id="step8">
+            <span class="step-number">8</span>
+            <span class="status pending">PENDIENTE</span>
+            <div class="step-title">✅ Deployment Completado</div>
+            <div class="step-description">
+                <p>¡Tu aplicación está en línea!</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function completeStep(stepNum) {
+            const step = document.getElementById(`step${stepNum}`);
+            const alert = document.getElementById(`alert${stepNum}`);
+            
+            step.classList.remove('active');
+            step.classList.add('completed');
+            step.querySelector('.status').textContent = 'COMPLETADO';
+            step.querySelector('.status').classList.remove('pending', 'active');
+            step.querySelector('.status').classList.add('completed');
+            
+            if (alert) {
+                alert.classList.add('show');
+            }
+            
+            // Activar siguiente paso
+            if (stepNum < 8) {
+                const nextStep = document.getElementById(`step${stepNum + 1}`);
+                nextStep.classList.add('active');
+                nextStep.querySelector('.status').textContent = 'EN PROGRESO';
+                nextStep.querySelector('.status').classList.remove('pending');
+                nextStep.querySelector('.status').classList.add('active');
+                
+                if (stepNum === 4) {
+                    document.getElementById('btn4').style.display = 'none';
+                }
+            }
+            
+            // Notificar al sistema
+            if (window.parent && window.parent.postMessage) {
+                window.parent.postMessage({ type: 'step_completed', step: stepNum }, '*');
+            }
+        }
+
+        // Escuchar mensajes del sistema
+        window.addEventListener('message', function(event) {
+            if (event.data && event.data.type === 'activate_step') {
+                const stepNum = event.data.step;
+                const step = document.getElementById(`step${stepNum}`);
+                if (step) {
+                    step.classList.add('active');
+                    step.querySelector('.status').textContent = 'EN PROGRESO';
+                    step.querySelector('.status').classList.remove('pending');
+                    step.querySelector('.status').classList.add('active');
+                    
+                    if (stepNum === 4) {
+                        document.getElementById('btn4').style.display = 'block';
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

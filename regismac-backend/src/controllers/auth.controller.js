@@ -92,6 +92,16 @@ export const googleCallback = async (req, res, next) => {
     try {
       const googleUser = req.user;
       
+      if (!googleUser) {
+        console.error('❌ No se recibió el usuario de Google OAuth');
+        return res.redirect(`${frontendURL}/login?error=auth_failed`);
+      }
+
+      if (!req.app || !req.app.locals || !req.app.locals.prisma) {
+        console.error('❌ Prisma no está disponible en req.app.locals');
+        return res.redirect(`${frontendURL}/login?error=server_error`);
+      }
+      
       const { UsuariosService } = await import("../services/usuarios.service.js");
       const service = new UsuariosService(req.app.locals.prisma);
 

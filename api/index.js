@@ -3,6 +3,22 @@ import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
+async function parseBody(req) {
+  return new Promise((resolve) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(JSON.parse(body));
+      } catch {
+        resolve({});
+      }
+    });
+  });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -25,7 +41,8 @@ export default async function handler(req, res) {
         return res.status(405).json({ error: 'Método no permitido' });
       }
 
-      const { email, password } = req.body;
+      const body = await parseBody(req);
+      const { email, password } = body;
 
       if (!email || !password) {
         return res.status(400).json({ error: 'Email y contraseña requeridos' });

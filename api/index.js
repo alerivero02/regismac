@@ -105,7 +105,7 @@ async function getApp() {
 }
 
 export default async function handler(req, res) {
-  // Asegurar que siempre se envíe una respuesta
+  // SIEMPRE devolver una respuesta, incluso si todo falla
   let responseSent = false;
   let timeout;
   
@@ -115,12 +115,15 @@ export default async function handler(req, res) {
       try {
         responseSent = true;
         if (timeout) clearTimeout(timeout);
-        return res.status(status).json(data);
+        res.status(status).json(data);
       } catch (e) {
-        console.error('Error al enviar respuesta:', e);
+        console.error('Error crítico al enviar respuesta:', e);
       }
     }
   };
+  
+  // Para endpoints de auth/me, devolver 401 directamente si hay cualquier problema
+  const isAuthMe = req.url?.includes('/auth/me');
   
   try {
     console.log(`=== Nueva petición: ${req.method} ${req.url} ===`);
@@ -128,9 +131,13 @@ export default async function handler(req, res) {
     timeout = setTimeout(() => {
       if (!responseSent && !res.headersSent) {
         console.error('⚠️  Timeout: La petición tardó demasiado');
-        safeSend(504, { error: 'Request timeout' });
+        if (isAuthMe) {
+          safeSend(401, { error: 'No autenticado' });
+        } else {
+          safeSend(504, { error: 'Request timeout' });
+        }
       }
-    }, 25000); // 25 segundos (Vercel tiene límite de 30s para funciones)
+    }, 25000);
     
     const sendErrorResponse = (error, status = 500) => {
       console.error('=== ERROR EN HANDLER ===');
@@ -142,8 +149,8 @@ export default async function handler(req, res) {
         console.error('Error cause:', error.cause);
       }
       
-      // Para endpoints de auth, devolver 401 si no hay autenticación
-      if (req.url?.includes('/auth/me')) {
+      // Para endpoints de auth, SIEMPRE devolver 401
+      if (isAuthMe) {
         return safeSend(401, { error: 'No autenticado' });
       }
       
@@ -160,29 +167,37 @@ export default async function handler(req, res) {
       const expressApp = await getApp();
       console.log('App obtenida, manejando petición...');
       
+      if (!expressApp) {
+        console.error('❌ expressApp es null o undefined');
+        if (isAuthMe) {
+          return safeSend(401, { error: 'No autenticado' });
+        }
+        return safeSend(500, { error: 'Application not initialized' });
+      }
+      
       // Asegurar que req.app esté disponible
       if (!req.app) {
         req.app = expressApp;
       }
       
-      // Verificar que expressApp sea válido
-      if (!expressApp) {
-        console.error('❌ expressApp es null o undefined');
-        safeSend(500, { error: 'Application not initialized' });
-        return;
-      }
-      
       // Wrapper para asegurar que siempre se maneje el error
       return new Promise((resolve) => {
+        let promiseResolved = false;
+        
+        const markResolved = () => {
+          if (!promiseResolved) {
+            promiseResolved = true;
+            resolve();
+          }
+        };
+        
         try {
           // Express app puede ser llamada directamente como función
-          // En Express 5, el app es una función que acepta (req, res, next)
-          const result = expressApp(req, res, (err) => {
+          expressApp(req, res, (err) => {
             if (timeout) clearTimeout(timeout);
             if (err) {
               console.error('Error en expressApp callback:', err);
-              // Para endpoints de auth, devolver 401 si no hay autenticación
-              if (req.url?.includes('/auth/me')) {
+              if (isAuthMe) {
                 safeSend(401, { error: 'No autenticado' });
               } else {
                 safeSend(err.status || 500, {
@@ -192,30 +207,20 @@ export default async function handler(req, res) {
                     : err.message
                 });
               }
-              resolve();
+              markResolved();
             } else {
               if (!responseSent) {
                 responseSent = true;
               }
               console.log('Petición manejada correctamente');
-              resolve();
+              markResolved();
             }
           });
-          
-          // Si expressApp retorna una Promise, manejarla
-          if (result && typeof result.then === 'function') {
-            result.catch((err) => {
-              if (timeout) clearTimeout(timeout);
-              console.error('Error en Promise de expressApp:', err);
-              sendErrorResponse(err);
-              resolve();
-            });
-          }
         } catch (callError) {
           if (timeout) clearTimeout(timeout);
           console.error('Error al llamar expressApp:', callError);
           sendErrorResponse(callError);
-          resolve();
+          markResolved();
         }
       });
     } catch (error) {
@@ -229,8 +234,8 @@ export default async function handler(req, res) {
     console.error('❌ ERROR CRÍTICO EN HANDLER:', criticalError);
     console.error('❌ Stack:', criticalError?.stack);
     
-    // Para endpoints de auth, devolver 401 si no hay autenticación
-    if (req.url?.includes('/auth/me')) {
+    // Para endpoints de auth, SIEMPRE devolver 401
+    if (isAuthMe) {
       safeSend(401, { error: 'No autenticado' });
     } else {
       safeSend(500, { 

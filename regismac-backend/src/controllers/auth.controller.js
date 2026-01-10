@@ -17,7 +17,7 @@ function getFrontendURL(req, host = null) {
   return `http://${backendHost.split(':')[0]}:5173`;
 }
 
-export const googleAuth = (req, res, next) => {
+export const googleAuth = async (req, res, next) => {
   try {
     if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
       console.error('❌ Google OAuth no configurado: faltan variables de entorno');

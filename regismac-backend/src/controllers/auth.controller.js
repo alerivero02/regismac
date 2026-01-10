@@ -259,10 +259,19 @@ export const getCurrentUser = async (req, res, next) => {
     // Verificar que req.user existe y tiene los campos necesarios
     if (req.user && req.user.id_usuario) {
       try {
-        // Verificar que Prisma esté disponible
-        if (!req.app || !req.app.locals || !req.app.locals.prisma) {
-          console.error('❌ Prisma no está disponible en getCurrentUser');
-          // Si no hay Prisma, devolver el usuario de la sesión
+        // Verificar que Prisma esté disponible de forma segura
+        let prisma = null;
+        try {
+          if (req.app && req.app.locals && req.app.locals.prisma) {
+            prisma = req.app.locals.prisma;
+          }
+        } catch (e) {
+          console.warn('⚠️  No se pudo acceder a req.app.locals.prisma:', e.message);
+        }
+
+        // Si no hay Prisma disponible, devolver el usuario de la sesión
+        if (!prisma) {
+          console.warn('⚠️  Prisma no disponible, devolviendo usuario de sesión');
           const { password, ...usuarioSinPassword } = req.user;
           return res.json({
             ...usuarioSinPassword,
@@ -271,36 +280,52 @@ export const getCurrentUser = async (req, res, next) => {
         }
 
         // Obtener el usuario completo de la base de datos para verificar si tiene contraseña
-        const { UsuariosService } = await import("../services/usuarios.service.js");
-        const service = new UsuariosService(req.app.locals.prisma);
-        const usuarioCompleto = await service.findById(req.user.id_usuario);
-        
-        // Devolver usuario sin password pero con indicador si tiene password
-        const { password, ...usuarioSinPassword } = usuarioCompleto || req.user;
-        const usuarioRespuesta = {
-          ...usuarioSinPassword,
-          tiene_password: !!password, // Indicador booleano si tiene contraseña
-        };
-        
-        return res.json(usuarioRespuesta);
+        try {
+          const { UsuariosService } = await import("../services/usuarios.service.js");
+          const service = new UsuariosService(prisma);
+          const usuarioCompleto = await service.findById(req.user.id_usuario);
+          
+          // Devolver usuario sin password pero con indicador si tiene password
+          const { password, ...usuarioSinPassword } = usuarioCompleto || req.user;
+          const usuarioRespuesta = {
+            ...usuarioSinPassword,
+            tiene_password: !!password, // Indicador booleano si tiene contraseña
+          };
+          
+          return res.json(usuarioRespuesta);
+        } catch (dbError) {
+          console.error('❌ Error en getCurrentUser al obtener usuario de BD:', dbError);
+          console.error('❌ Stack:', dbError.stack);
+          // Si hay error de BD, devolver el usuario de la sesión
+          const { password, ...usuarioSinPassword } = req.user;
+          return res.json({
+            ...usuarioSinPassword,
+            tiene_password: !!req.user.password
+          });
+        }
       } catch (error) {
-        console.error('❌ Error en getCurrentUser al obtener usuario de BD:', error);
+        console.error('❌ Error en getCurrentUser:', error);
         console.error('❌ Stack:', error.stack);
-        // Si hay error, devolver el usuario de la sesión
-        const { password, ...usuarioSinPassword } = req.user;
-        return res.json({
-          ...usuarioSinPassword,
-          tiene_password: !!req.user.password
-        });
+        // Si hay error, devolver el usuario de la sesión como fallback
+        if (req.user) {
+          const { password, ...usuarioSinPassword } = req.user;
+          return res.json({
+            ...usuarioSinPassword,
+            tiene_password: !!req.user.password
+          });
+        }
+        // Si no hay usuario, devolver 401
+        return res.status(401).json({ error: "No autenticado" });
       }
     } else {
       // No hay sesión activa o el usuario no está autenticado
       return res.status(401).json({ error: "No autenticado" });
     }
   } catch (error) {
-    console.error('❌ Error en getCurrentUser:', error);
+    console.error('❌ Error crítico en getCurrentUser:', error);
     console.error('❌ Stack:', error.stack);
-    return next(error);
+    // En caso de error crítico, devolver 401 en lugar de 500
+    return res.status(401).json({ error: "No autenticado" });
   }
 };
 

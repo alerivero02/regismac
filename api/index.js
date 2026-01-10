@@ -68,10 +68,22 @@ export default async function handler(req, res) {
   
   // Asegurar que siempre se envíe una respuesta
   let responseSent = false;
+  const timeout = setTimeout(() => {
+    if (!responseSent && !res.headersSent) {
+      responseSent = true;
+      console.error('⚠️  Timeout: La petición tardó demasiado');
+      try {
+        res.status(504).json({ error: 'Request timeout' });
+      } catch (e) {
+        console.error('Error al enviar respuesta de timeout:', e);
+      }
+    }
+  }, 25000); // 25 segundos (Vercel tiene límite de 30s para funciones)
   
   const sendErrorResponse = (error, status = 500) => {
     if (!responseSent && !res.headersSent) {
       responseSent = true;
+      clearTimeout(timeout);
       console.error('=== ERROR EN HANDLER ===');
       console.error('Error:', error);
       console.error('Error name:', error?.name);
@@ -101,23 +113,46 @@ export default async function handler(req, res) {
     // Wrapper para asegurar que siempre se maneje el error
     return new Promise((resolve) => {
       try {
+        // Asegurar que req.app esté disponible
+        if (!req.app) {
+          req.app = expressApp;
+        }
+        
         expressApp(req, res, (err) => {
+          clearTimeout(timeout);
           if (err) {
             console.error('Error en expressApp callback:', err);
-            sendErrorResponse(err);
+            if (!responseSent && !res.headersSent) {
+              responseSent = true;
+              try {
+                res.status(err.status || 500).json({
+                  error: err.message || 'Internal server error',
+                  message: process.env.NODE_ENV === 'production' 
+                    ? undefined 
+                    : err.message
+                });
+              } catch (e) {
+                console.error('Error al enviar respuesta:', e);
+              }
+            }
             resolve();
           } else {
+            if (!responseSent) {
+              responseSent = true;
+            }
             console.log('Petición manejada correctamente');
             resolve();
           }
         });
       } catch (err) {
+        clearTimeout(timeout);
         console.error('Error al ejecutar expressApp:', err);
         sendErrorResponse(err);
         resolve();
       }
     });
   } catch (error) {
+    clearTimeout(timeout);
     console.error('Error en handler try-catch:', error);
     sendErrorResponse(error);
   }

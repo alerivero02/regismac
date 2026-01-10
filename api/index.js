@@ -1,43 +1,19 @@
-// Handler MÍNIMO - Solo para /api/auth/me devolver 401 directamente
-// Sin importar nada de la app para verificar que el handler funciona
-
-async function handler(req, res) {
-  // SIEMPRE devolver una respuesta
-  let responseSent = false;
-  
-  const safeSend = (status, data) => {
-    if (!responseSent && !res.headersSent) {
-      try {
-        responseSent = true;
-        res.status(status).json(data);
-      } catch (e) {
-        console.error('Error crítico al enviar respuesta:', e);
-      }
-    }
-  };
-  
+// Handler ULTRA SIMPLE - Solo devolver respuesta sin ninguna lógica
+export default async function handler(req, res) {
   try {
-    console.log(`=== Handler MÍNIMO: ${req.method} ${req.url} ===`);
-    
-    // Para /api/auth/me, devolver 401 directamente sin importar nada
-    if (req.url?.includes('/auth/me')) {
-      console.log('Endpoint /api/auth/me - devolviendo 401');
-      return safeSend(401, { error: 'No autenticado' });
+    // Para /api/auth/me, devolver 401 directamente
+    if (req.url?.includes('/auth/me') || req.url?.includes('/api/auth/me')) {
+      return res.status(401).json({ error: 'No autenticado' });
     }
     
     // Para otros endpoints, intentar cargar la app
     try {
-      console.log('Importando app.js...');
       const appModule = await import('../regismac-backend/src/app.js');
-      console.log('App module importado');
-      
       const expressApp = appModule.default;
-      if (!expressApp) {
-        console.error('❌ App module no exporta un default válido');
-        return safeSend(500, { error: 'Application not initialized' });
-      }
       
-      console.log('App obtenida, manejando petición...');
+      if (!expressApp) {
+        return res.status(500).json({ error: 'Application not initialized' });
+      }
       
       // Asegurar que req.app esté disponible
       if (!req.app) {
@@ -49,89 +25,44 @@ async function handler(req, res) {
         expressApp.locals.prisma = null;
       }
       
-      // Wrapper para asegurar que siempre se maneje el error
-      return new Promise((resolve) => {
-        let promiseResolved = false;
-        
-        const markResolved = () => {
-          if (!promiseResolved) {
-            promiseResolved = true;
-            resolve();
-          }
-        };
-        
-        try {
-          expressApp(req, res, (err) => {
-            if (err) {
-              console.error('Error en expressApp callback:', err);
-              if (req.url?.includes('/auth/me')) {
-                safeSend(401, { error: 'No autenticado' });
-              } else {
-                safeSend(err.status || 500, {
-                  error: err.message || 'Internal server error',
-                  message: process.env.NODE_ENV === 'production' 
-                    ? undefined 
-                    : err.message
-                });
-              }
-              markResolved();
-            } else {
-              if (!responseSent) {
-                responseSent = true;
-              }
-              console.log('Petición manejada correctamente');
-              markResolved();
-            }
-          });
-        } catch (callError) {
-          console.error('Error al llamar expressApp:', callError);
-          if (req.url?.includes('/auth/me')) {
-            safeSend(401, { error: 'No autenticado' });
-          } else {
-            safeSend(500, {
-              error: 'Internal server error',
-              message: process.env.NODE_ENV === 'production' 
-                ? 'An error occurred' 
-                : callError?.message || 'Unknown error'
-            });
-          }
-          markResolved();
-        }
-      });
+      // Llamar expressApp
+      return expressApp(req, res);
     } catch (appError) {
-      console.error('❌ Error al importar app.js:', appError);
-      console.error('❌ Error name:', appError?.name);
-      console.error('❌ Error message:', appError?.message);
-      console.error('❌ Error stack:', appError?.stack);
+      console.error('Error al importar app.js:', appError);
       
       // Si falla la importación, devolver 401 para /auth/me
-      if (req.url?.includes('/auth/me')) {
-        return safeSend(401, { error: 'No autenticado' });
+      if (req.url?.includes('/auth/me') || req.url?.includes('/api/auth/me')) {
+        return res.status(401).json({ error: 'No autenticado' });
       }
       
-      return safeSend(500, {
+      return res.status(500).json({
         error: 'Application initialization failed',
         message: process.env.NODE_ENV === 'production' 
-          ? 'An error occurred' 
+          ? undefined 
           : appError?.message || 'Unknown error'
       });
     }
-  } catch (criticalError) {
-    console.error('❌ ERROR CRÍTICO EN HANDLER:', criticalError);
-    console.error('❌ Stack:', criticalError?.stack);
+  } catch (error) {
+    console.error('ERROR CRÍTICO:', error);
     
     // Para /api/auth/me, SIEMPRE devolver 401
-    if (req.url?.includes('/auth/me')) {
-      safeSend(401, { error: 'No autenticado' });
+    if (req.url?.includes('/auth/me') || req.url?.includes('/api/auth/me')) {
+      try {
+        return res.status(401).json({ error: 'No autenticado' });
+      } catch (e) {
+        // Si incluso esto falla, no hacer nada
+      }
     } else {
-      safeSend(500, { 
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'production' 
-          ? 'An error occurred' 
-          : criticalError?.message || 'Unknown error'
-      });
+      try {
+        return res.status(500).json({ 
+          error: 'Internal server error',
+          message: process.env.NODE_ENV === 'production' 
+            ? undefined 
+            : error?.message || 'Unknown error'
+        });
+      } catch (e) {
+        // Si incluso esto falla, no hacer nada
+      }
     }
   }
 }
-
-export default handler;

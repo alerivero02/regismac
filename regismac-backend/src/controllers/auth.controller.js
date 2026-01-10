@@ -192,13 +192,21 @@ export const googleCallback = async (req, res, next) => {
       };
       req.login(usuarioConToken, (loginErr) => {
         if (loginErr) {
-          return next(loginErr);
+          console.error('❌ Error al hacer login:', loginErr);
+          return res.redirect(`${frontendURL}/login?error=auth_failed`);
         }
         // Redirigir al frontend usando la URL detectada
         res.redirect(`${frontendURL}/`);
       });
     } catch (error) {
-      return next(error);
+      console.error('❌ Error en googleCallback:', error);
+      console.error('❌ Stack:', error.stack);
+      console.error('❌ Error details:', {
+        message: error.message,
+        name: error.name,
+        code: error.code
+      });
+      return res.redirect(`${frontendURL}/login?error=server_error`);
     }
   });
 };

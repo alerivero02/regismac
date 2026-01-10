@@ -1,4 +1,5 @@
-export default function handler(req, res) {
+// Handler absolutamente básico para Vercel
+module.exports = function handler(req, res) {
   try {
     if (req.url && (req.url.includes('/auth/me') || req.url.includes('/api/auth/me'))) {
       res.status(401).json({ error: 'No autenticado' });
@@ -8,4 +9,4 @@ export default function handler(req, res) {
   } catch (error) {
     res.status(500).json({ error: 'Internal server error' });
   }
-}
+};

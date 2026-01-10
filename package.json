@@ -5,6 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:render": "cd regismac-backend && npm install && npx prisma generate && cd ../regismac-frontend && npm install && npm run build",
+    "start": "node server.js",
     "build": "cd regismac-frontend && npm install && npm run build",
     "build:backend": "cd regismac-backend && npm install && npx prisma generate",
     "postinstall": "npm run build:backend",

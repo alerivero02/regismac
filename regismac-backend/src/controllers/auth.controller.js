@@ -255,6 +255,7 @@ export const logout = (req, res) => {
 };
 
 export const getCurrentUser = async (req, res, next) => {
+  // SIEMPRE devolver una respuesta, incluso si hay errores
   try {
     // Verificar que req.user existe y tiene los campos necesarios
     if (req.user && req.user.id_usuario) {
@@ -324,8 +325,14 @@ export const getCurrentUser = async (req, res, next) => {
   } catch (error) {
     console.error('❌ Error crítico en getCurrentUser:', error);
     console.error('❌ Stack:', error.stack);
-    // En caso de error crítico, devolver 401 en lugar de 500
-    return res.status(401).json({ error: "No autenticado" });
+    // En caso de error crítico, SIEMPRE devolver 401 en lugar de 500
+    // Esto evita que se propague el error y cause un 500
+    try {
+      return res.status(401).json({ error: "No autenticado" });
+    } catch (e) {
+      // Si incluso esto falla, al menos loguear el error
+      console.error('❌ Error crítico al enviar respuesta 401:', e);
+    }
   }
 };
 

@@ -25,6 +25,9 @@ regismac-backend/backups/
 # Scripts (no necesarios en producción)
 regismac-backend/scripts/
 
+# Backend entry point (no se usa en Vercel, solo api/index.js)
+regismac-backend/index.js
+
 # Tests
 **/*.test.js
 **/*.spec.js

@@ -1,57 +1,11 @@
-// Importación segura de Prisma - no fallar si no está disponible
-let PrismaClient = null;
-let prismaModuleLoaded = false;
-
-async function loadPrismaClient() {
-  if (prismaModuleLoaded) {
-    return PrismaClient;
-  }
-  try {
-    const module = await import('@prisma/client');
-    PrismaClient = module.PrismaClient;
-    prismaModuleLoaded = true;
-    return PrismaClient;
-  } catch (prismaImportError) {
-    console.warn('⚠️  No se pudo importar PrismaClient:', prismaImportError.message);
-    PrismaClient = null;
-    prismaModuleLoaded = true;
-    return null;
-  }
-}
-
-let prisma;
+// Handler simplificado SIN Prisma - Prisma es completamente opcional
 let app;
-
-async function getPrisma() {
-  if (!PrismaClient) {
-    await loadPrismaClient();
-    if (!PrismaClient) {
-      throw new Error('PrismaClient no está disponible');
-    }
-  }
-  if (!prisma) {
-    if (!process.env.DATABASE_URL) {
-      throw new Error('DATABASE_URL environment variable is not set');
-    }
-    
-    prisma = new PrismaClient({
-      log: process.env.NODE_ENV === 'production' ? ['error'] : ['error', 'warn'],
-      datasources: {
-        db: {
-          url: process.env.DATABASE_URL,
-        },
-      },
-    });
-  }
-  return prisma;
-}
 
 async function getApp() {
   if (!app) {
     try {
-      console.log('=== Inicializando aplicación ===');
+      console.log('=== Inicializando aplicación (SIN Prisma) ===');
       console.log('Variables de entorno disponibles:', {
-        DATABASE_URL: process.env.DATABASE_URL ? 'Sí' : 'No',
         SESSION_SECRET: process.env.SESSION_SECRET ? 'Sí' : 'No',
         NODE_ENV: process.env.NODE_ENV,
         GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'Sí' : 'No',
@@ -70,27 +24,16 @@ async function getApp() {
       }
       console.log('App default export obtenido');
       
-      // Intentar inicializar Prisma, pero no fallar si no está disponible
-      try {
-        console.log('Obteniendo instancia de Prisma...');
-        const prismaInstance = await getPrisma();
-        console.log('Prisma obtenido');
-        
-        if (app.locals) {
-          app.locals.prisma = prismaInstance;
-          console.log('✅ Prisma configurado en app.locals');
-        } else {
-          console.warn('⚠️  app.locals no está disponible');
-        }
-      } catch (prismaError) {
-        console.error('⚠️  Error al inicializar Prisma (continuando sin Prisma):', prismaError.message);
-        // No lanzar error, continuar sin Prisma
-        if (app.locals) {
-          app.locals.prisma = null;
-        }
+      // NO inicializar Prisma - dejarlo como null
+      // Los controladores ya manejan el caso cuando Prisma no está disponible
+      if (app.locals) {
+        app.locals.prisma = null;
+        console.log('⚠️  Prisma deshabilitado - app funcionará sin base de datos');
+      } else {
+        console.warn('⚠️  app.locals no está disponible');
       }
       
-      console.log('=== Aplicación inicializada correctamente ===');
+      console.log('=== Aplicación inicializada correctamente (SIN Prisma) ===');
     } catch (error) {
       console.error('❌ Error al importar o inicializar la aplicación:', error);
       console.error('❌ Error name:', error?.name);
@@ -120,7 +63,7 @@ async function getApp() {
         // Crear un objeto mínimo que funcione como app
         app = {
           use: () => {},
-          locals: {},
+          locals: { prisma: null },
           listen: () => {}
         };
       }

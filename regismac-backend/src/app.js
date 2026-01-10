@@ -36,7 +36,8 @@ app.use(helmet({
 
 if (!process.env.SESSION_SECRET && process.env.NODE_ENV === 'production') {
   console.error('❌ ERROR CRÍTICO: SESSION_SECRET no está configurado. Esto es un riesgo de seguridad.');
-  process.exit(1);
+  // En serverless, no podemos usar process.exit, solo lanzar error
+  throw new Error('SESSION_SECRET no está configurado');
 }
 app.use(cors({
   origin: isDevelopment ? true : process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -79,7 +80,8 @@ const sessionSecret = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'p
 
 if (!sessionSecret) {
   console.error('❌ ERROR: SESSION_SECRET debe estar configurado en producción');
-  process.exit(1);
+  // En serverless, no podemos usar process.exit, solo lanzar error
+  throw new Error('SESSION_SECRET debe estar configurado en producción');
 }
 
 app.use(session({

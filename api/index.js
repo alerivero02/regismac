@@ -22,11 +22,17 @@ function getPrisma() {
   return prisma;
 }
 
-function getApp() {
+async function getApp() {
   if (!app) {
-    app = (await import('../regismac-backend/src/app.js')).default;
-    const prismaInstance = getPrisma();
-    app.locals.prisma = prismaInstance;
+    try {
+      const appModule = await import('../regismac-backend/src/app.js');
+      app = appModule.default;
+      const prismaInstance = getPrisma();
+      app.locals.prisma = prismaInstance;
+    } catch (error) {
+      console.error('Error al importar o inicializar la aplicación:', error);
+      throw error;
+    }
   }
   return app;
 }

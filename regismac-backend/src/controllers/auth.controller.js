@@ -27,25 +27,16 @@ export const googleAuth = async (req, res, next) => {
     }
 
     // Verificar que passport tenga la estrategia de Google configurada
-    // Si no está configurada, intentar configurarla ahora (por si las variables de entorno
-    // no estaban disponibles cuando se cargó el módulo)
     if (!passport._strategies || !passport._strategies.google) {
-      console.warn('⚠️  Estrategia de Google no encontrada, intentando configurar...');
-      // Re-importar passport para forzar reconfiguración
-      const passportModule = await import('../config/passport.js');
-      const passportInstance = passportModule.default;
-      
-      if (!passportInstance._strategies || !passportInstance._strategies.google) {
-        console.error('❌ Estrategia de Google no está configurada en Passport');
-        console.error('❌ Variables disponibles:', {
-          GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'Sí' : 'No',
-          GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'Sí' : 'No',
-          BACKEND_URL: process.env.BACKEND_URL
-        });
-        return res.status(503).json({ 
-          error: "Google OAuth non configurato. Contatta l'amministratore." 
-        });
-      }
+      console.error('❌ Estrategia de Google no está configurada en Passport');
+      console.error('❌ Variables disponibles:', {
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'Sí' : 'No',
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'Sí' : 'No',
+        BACKEND_URL: process.env.BACKEND_URL
+      });
+      return res.status(503).json({ 
+        error: "Google OAuth non configurato. Contatta l'amministratore." 
+      });
     }
     
     // Detectar si viene de una IP local (no localhost)

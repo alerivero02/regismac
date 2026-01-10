@@ -1,0 +1,8 @@
+{
+  "name": "regismac-api",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  }
+}

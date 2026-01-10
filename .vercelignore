@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Development files
+*.log
+*.env.local
+*.env.development
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database backups
+*.sql
+backups/
+regismac-backend/backups/
+
+# Scripts (no necesarios en producción)
+regismac-backend/scripts/
+
+# Tests
+**/*.test.js
+**/*.spec.js
+
+# Documentation
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+

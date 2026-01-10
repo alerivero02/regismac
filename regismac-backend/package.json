@@ -1,0 +1,54 @@
+{
+  "name": "regismac-backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "nodemon index.js",
+    "start": "node index.js",
+    "create-admin": "node scripts/createAdmin.js",
+    "import-maquinas": "node scripts/importMaquinas.js",
+    "import-tests": "node scripts/importTests.js",
+    "migrate": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "prisma:generate": "prisma generate",
+    "verificar-env": "node verificar-env.js",
+    "backup": "node scripts/backup-database.js",
+    "restore": "node scripts/restore-backup.js",
+    "import-materiali": "node scripts/importMaterialiLista.js",
+    "verificar-google": "node scripts/verificar-google-oauth.js",
+    "recalcular-fecha-estado-ok": "node scripts/recalcularFechaEstadoOk.js"
+  },
+  "keywords": [
+    "regismac",
+    "ecosun",
+    "maquinas",
+    "refrigeracion",
+    "sistema-gestion"
+  ],
+  "author": "Alexander Rivero <al.rivero2021@gmail.com>",
+  "license": "MIT",
+  "type": "module",
+  "dependencies": {
+    "@prisma/client": "^6.19.0",
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.2.1",
+    "express-session": "^1.18.2",
+    "googleapis": "^165.0.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "nodemailer": "^7.0.10",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "prisma": "^6.19.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}

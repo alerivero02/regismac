@@ -1,0 +1,444 @@
+@import "tailwindcss";
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+@theme {
+  --color-primary-50: #fef3f2;
+  --color-primary-100: #fee4e2;
+  --color-primary-200: #fececa;
+  --color-primary-300: #fdaba5;
+  --color-primary-400: #fb7a70;
+  --color-primary-500: #f97316;
+  --color-primary-600: #ea580c;
+  --color-primary-700: #c2410c;
+  --color-primary-800: #9a3412;
+  --color-primary-900: #7c2d12;
+  
+  --color-secondary-50: #fefce8;
+  --color-secondary-100: #fef9c3;
+  --color-secondary-200: #fef08a;
+  --color-secondary-300: #fde047;
+  --color-secondary-400: #facc15;
+  --color-secondary-500: #eab308;
+  --color-secondary-600: #ca8a04;
+  --color-secondary-700: #a16207;
+  --color-secondary-800: #854d0e;
+  --color-secondary-900: #713f12;
+  
+  --color-accent-50: #eff6ff;
+  --color-accent-100: #dbeafe;
+  --color-accent-200: #bfdbfe;
+  --color-accent-300: #93c5fd;
+  --color-accent-400: #60a5fa;
+  --color-accent-500: #3b82f6;
+  --color-accent-600: #2563eb;
+  --color-accent-700: #1d4ed8;
+  --color-accent-800: #1e40af;
+  --color-accent-900: #1e3a8a;
+  
+  --font-family-sans: 'Inter', system-ui, sans-serif;
+  
+  --shadow-soft: 0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04);
+  --shadow-medium: 0 4px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  --shadow-large: 0 10px 40px -10px rgba(0, 0, 0, 0.2);
+  
+  /* Sistema de tokens para responsive móvil */
+  --spacing-xs: 0.5rem;      /* 8px - Espaciado muy pequeño */
+  --spacing-sm: 0.75rem;     /* 12px - Espaciado pequeño móvil */
+  --spacing-md: 1rem;        /* 16px - Espaciado medio móvil */
+  --spacing-lg: 1.25rem;     /* 20px - Espaciado grande móvil */
+  --spacing-xl: 1.5rem;      /* 24px - Espaciado extra grande */
+  
+  --text-xs-mobile: 0.75rem;  /* 12px - Texto muy pequeño móvil */
+  --text-sm-mobile: 0.875rem; /* 14px - Texto pequeño móvil */
+  --text-base-mobile: 1rem;   /* 16px - Texto base móvil */
+  --text-lg-mobile: 1.125rem; /* 18px - Texto grande móvil */
+  --text-xl-mobile: 1.25rem;  /* 20px - Texto extra grande móvil */
+  
+  --container-padding-mobile: 0.75rem;  /* 12px - Padding contenedor móvil */
+  --container-padding-tablet: 1rem;     /* 16px - Padding contenedor tablet */
+  --container-padding-desktop: 1.5rem;  /* 24px - Padding contenedor desktop */
+  
+  --card-padding-mobile: 1rem;         /* 16px - Padding card móvil */
+  --card-padding-tablet: 1.25rem;       /* 20px - Padding card tablet */
+  --card-padding-desktop: 1.5rem;       /* 24px - Padding card desktop */
+  
+  --gap-mobile: 0.75rem;                /* 12px - Gap entre elementos móvil */
+  --gap-tablet: 1rem;                   /* 16px - Gap entre elementos tablet */
+  --gap-desktop: 1.5rem;                /* 24px - Gap entre elementos desktop */
+  
+  --touch-target-min: 44px;             /* Tamaño mínimo para elementos táctiles */
+}
+
+@layer base {
+  * {
+    @apply border-gray-200;
+  }
+  html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+  body {
+    @apply bg-gray-50 text-gray-900 font-sans antialiased;
+  }
+  #root {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+    box-sizing: border-box;
+  }
+  
+  /* Sistema responsive simple - solo mejoras básicas */
+  @media (max-width: 640px) {
+    /* Evitar overflow horizontal */
+    body, html, #root {
+      overflow-x: hidden;
+      max-width: 100vw;
+    }
+  }
+  
+  /* Mejoras de touch para móviles - botones más grandes */
+  @media (max-width: 768px) {
+    button:not(.no-touch-target) {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  }
+  
+  /* Permitir overflow visible en headers para dropdowns */
+  header {
+    overflow: visible !important;
+  }
+  
+  header > div {
+    overflow: visible !important;
+  }
+  
+  header > div > div {
+    overflow: visible !important;
+  }
+  
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-gradient-to-r from-primary-500 to-primary-600 text-white font-semibold px-4 sm:px-6 py-3 min-h-[44px] rounded-xl shadow-[var(--shadow-medium)] hover:shadow-[var(--shadow-large)] transition-all duration-200 hover:scale-[1.02] active:scale-95;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-gray-700 font-semibold px-4 sm:px-6 py-3 min-h-[44px] rounded-xl border border-gray-200 hover:bg-gray-50 transition-all duration-200 active:scale-95;
+  }
+  
+  .card {
+    @apply bg-white rounded-lg sm:rounded-xl shadow-[var(--shadow-soft)] p-4 sm:p-5 md:p-6 lg:p-8 border border-gray-100 hover:shadow-[var(--shadow-medium)] transition-all duration-300 w-full max-w-full;
+  }
+  
+  .input-field {
+    @apply w-full px-3 sm:px-4 py-2.5 sm:py-3 min-h-[44px] rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all text-sm sm:text-base;
+  }
+  
+  /* ============================================
+     SISTEMA DE CLASES UTILITARIAS RESPONSIVE
+     ============================================ */
+  
+  /* Contenedor principal responsive */
+  .mobile-container {
+    @apply w-full max-w-full overflow-x-hidden;
+    padding-left: var(--container-padding-mobile);
+    padding-right: var(--container-padding-mobile);
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-container {
+      padding-left: var(--container-padding-tablet);
+      padding-right: var(--container-padding-tablet);
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .mobile-container {
+      padding-left: var(--container-padding-desktop);
+      padding-right: var(--container-padding-desktop);
+    }
+  }
+  
+  /* Espaciado vertical consistente */
+  .mobile-spacing {
+    @apply space-y-4;
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-spacing {
+      @apply space-y-4;
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .mobile-spacing {
+      @apply space-y-6;
+    }
+  }
+  
+  /* Títulos responsive */
+  .mobile-title {
+    @apply font-bold text-gray-900 leading-tight mb-2;
+    font-size: var(--text-xl-mobile);
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-title {
+      font-size: 1.5rem; /* 24px */
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .mobile-title {
+      font-size: 2rem; /* 32px */
+    }
+  }
+  
+  /* Subtítulos responsive */
+  .mobile-subtitle {
+    @apply text-gray-600 hidden sm:block;
+    font-size: var(--text-sm-mobile);
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-subtitle {
+      font-size: 1rem; /* 16px */
+    }
+  }
+  
+  /* Header de página responsive */
+  .mobile-header {
+    @apply flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3;
+  }
+  
+  /* Card responsive mejorado */
+  .mobile-card {
+    @apply bg-white rounded-lg shadow-[var(--shadow-soft)] border border-gray-100 hover:shadow-[var(--shadow-medium)] transition-all duration-300 w-full max-w-full;
+    padding: var(--card-padding-mobile);
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-card {
+      @apply rounded-xl;
+      padding: var(--card-padding-tablet);
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .mobile-card {
+      padding: var(--card-padding-desktop);
+    }
+  }
+  
+  /* Grid responsive consistente */
+  .mobile-grid {
+    @apply grid w-full max-w-full;
+    grid-template-columns: 1fr;
+    gap: var(--gap-mobile);
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--gap-tablet);
+    }
+  }
+  
+  @media (min-width: 1024px) {
+    .mobile-grid {
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--gap-desktop);
+    }
+  }
+  
+  @media (min-width: 1280px) {
+    .mobile-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+  
+  @media (min-width: 1536px) {
+    .mobile-grid {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+  
+  /* Botones responsive */
+  .mobile-btn {
+    @apply flex items-center justify-center gap-2 font-semibold rounded-xl transition-all min-h-[44px];
+    font-size: var(--text-sm-mobile);
+    padding: 0.625rem 1rem;
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-btn {
+      font-size: 1rem; /* 16px */
+      padding: 0.75rem 1.25rem;
+    }
+  }
+  
+  /* Texto responsive */
+  .mobile-text {
+    font-size: var(--text-sm-mobile);
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-text {
+      font-size: 1rem; /* 16px */
+    }
+  }
+  
+  /* Input responsive */
+  .mobile-input {
+    @apply w-full rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all;
+    font-size: var(--text-sm-mobile);
+    padding: 0.625rem 0.875rem;
+    min-height: var(--touch-target-min);
+  }
+  
+  @media (min-width: 640px) {
+    .mobile-input {
+      font-size: 1rem; /* 16px */
+      padding: 0.75rem 1rem;
+    }
+  }
+  
+  select.input-field,
+  select[class*="border"] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: none !important;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-down {
+  from {
+    transform: translateY(-3px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalAppear {
+  0% {
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes modalDisappear {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateY(5px);
+  }
+}
+
+@keyframes backdropFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes backdropFadeOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.2s ease-out;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
+/* Ocultar scrollbar pero mantener funcionalidad */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE y Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari y Opera */
+}
+
+/* Utilidades para truncar texto en múltiples líneas */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Mejoras de touch para móviles */
+@media (hover: none) and (pointer: coarse) {
+  button, a {
+    -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
+  }
+}

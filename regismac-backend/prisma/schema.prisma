@@ -1,0 +1,139 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Tecnico {
+  id_tecnico Int       @id @default(autoincrement())
+  nome       String
+  cognome    String
+  id_usuario Int?      @unique
+  usuario    Usuario?  @relation(fields: [id_usuario], references: [id_usuario])
+  maquinas   Maquina[]
+  tests      Test[]
+}
+
+model Lotto {
+  id_lotto       Int       @id @default(autoincrement())
+  numero_lotto   String    @unique // Formato: LOTTO-YYYY-NNN (ej: LOTTO-2024-001)
+  anno           Int       // Año de fabricación/referencia
+  descrizione    String?   // Descripción opcional del lote
+  data_creazione DateTime  @default(now())
+  numero_telaio_da String? // Número de telaio inicial del rango
+  numero_telaio_a  String? // Número de telaio final del rango
+  maquinas       Maquina[]
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Maquina {
+  id_maquina           Int       @id @default(autoincrement())
+  numero_telaio        String    @unique
+  seriale_compressore  String?
+  tipo_gas             String?
+  quantita_gas         Float?
+  tipo_valvola         String?
+  regolazione_valvola  String?
+  annotazioni          String?
+  stato                String?
+  foto1                String?
+  foto2                String?
+  data_consegna        DateTime?
+  fecha_primera_prueba DateTime? // Fecha de la primera prueba realizada
+  fecha_estado_ok      DateTime? // Fecha cuando cambió a estado "ok"
+  id_tecnico           Int?
+  tecnico              Tecnico?  @relation(fields: [id_tecnico], references: [id_tecnico])
+  id_lotto             Int?
+  lotto                Lotto?    @relation(fields: [id_lotto], references: [id_lotto])
+  tests                Test[]
+}
+
+model Test {
+  id_test              Int       @id @default(autoincrement())
+  id_maquina           Int
+  maquina              Maquina   @relation(fields: [id_maquina], references: [id_maquina])
+  id_tecnico           Int?
+  tecnico              Tecnico?  @relation(fields: [id_tecnico], references: [id_tecnico])
+  temperatura_iniziale Float? // Temperatura inicial al iniciar el test
+  regolazione_vite     String? // Regolazione vite del compressore
+  tempo_0_gradi        Int?
+  tempo_meno8_gradi    Int?
+  quantita_liquido     Float?
+  humedad_ambiente     Float?
+  fecha_test           DateTime  @default(now())
+  hora_test            DateTime? // Fecha y hora específica de realización
+  observazioni         String?
+}
+
+model Usuario {
+  id_usuario           Int       @id @default(autoincrement())
+  email                String    @unique
+  nombre               String
+  apellido             String?
+  password             String? // Hash de la contraseña (opcional para usuarios de Google)
+  google_id            String?   @unique
+  google_email         String?
+  google_refresh_token String? // Refresh token de Google OAuth para renovar access tokens
+  foto                 String?
+  rol                  String    @default("tecnico") // "admin", "tecnico", "comercial"
+  estado               String    @default("pendiente") // "pendiente", "aprobado", "rechazado"
+  fecha_registro       DateTime  @default(now())
+  fecha_aprobacion     DateTime?
+  aprobado_por         Int?
+  aprobador            Usuario?  @relation("UsuarioAprobador", fields: [aprobado_por], references: [id_usuario])
+  usuarios_aprobados   Usuario[] @relation("UsuarioAprobador")
+  tecnico              Tecnico?
+  ordini               Ordine[]
+}
+
+model Materiale {
+  id_materiale     Int          @id @default(autoincrement())
+  cod_articolo      String
+  codice            String? // Codice del materiale (es: DAB 60182213H, 3045, etc.)
+  descrizione       String
+  fornitore         String
+  unita_misura      String? // "kg", "litri", "unità", etc.
+  prezzo_unitario   Float?
+  note              String?
+  stock_comprado    Float        @default(0) // Cantidad comprada
+  stock_utilizado   Float        @default(0) // Cantidad utilizada
+  stock_disponible  Float        @default(0) // Cantidad disponible (calculado: comprado - utilizado)
+  activar_alerta    Boolean      @default(true) // Si debe mostrar alerta de bajo stock
+  stock_minimo      Float?       // Cantidad mínima para activar alerta de bajo stock (configurable por admin)
+  ordiniItems       OrdineItem[]
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  @@unique([cod_articolo, fornitore])
+}
+
+model Ordine {
+  id_ordine              Int          @id @default(autoincrement())
+  id_usuario             Int? // Usuario que creó la orden (comercial)
+  usuario                Usuario?     @relation(fields: [id_usuario], references: [id_usuario])
+  stato                  String       @default("richiesto") // "richiesto", "ordinato", "in_consegna", "consegnato", "annullato"
+  data_richiesta         DateTime     @default(now())
+  data_ordine            DateTime?
+  data_consegna_prevista DateTime?
+  data_consegna          DateTime? // Fecha real de entrega cuando el estado es "consegnato"
+  note                   String?
+  items                  OrdineItem[]
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
+}
+
+model OrdineItem {
+  id_item      Int       @id @default(autoincrement())
+  id_ordine    Int
+  ordine       Ordine    @relation(fields: [id_ordine], references: [id_ordine], onDelete: Cascade)
+  id_materiale Int
+  materiale    Materiale @relation(fields: [id_materiale], references: [id_materiale])
+  quantita     Float
+  note         String? // Nota específica para este item
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}

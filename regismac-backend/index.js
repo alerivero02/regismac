@@ -19,11 +19,6 @@ app.locals.prisma = prisma;
 if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '..', 'regismac-frontend', 'dist');
   app.use(express.static(frontendPath));
-  app.get('*', (req, res) => {
-    if (!req.path.startsWith('/api')) {
-      res.sendFile(path.join(frontendPath, 'index.html'));
-    }
-  });
 }
 
 export async function reconnectPrisma() {

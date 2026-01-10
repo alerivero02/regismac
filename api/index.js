@@ -1,64 +1,68 @@
 import 'dotenv/config';
-import app from '../regismac-backend/src/app.js';
 import { PrismaClient } from '@prisma/client';
 
 let prisma;
+let app;
 
 function getPrisma() {
   if (!prisma) {
+    if (!process.env.DATABASE_URL) {
+      throw new Error('DATABASE_URL environment variable is not set');
+    }
+    
     prisma = new PrismaClient({
       log: process.env.NODE_ENV === 'production' ? ['error'] : ['error', 'warn'],
-      errorFormat: 'pretty',
       datasources: {
         db: {
           url: process.env.DATABASE_URL,
         },
       },
     });
-    
-    const gracefulShutdown = async () => {
-      try {
-        await prisma.$disconnect();
-      } catch (error) {
-        console.error('Error al desconectar Prisma:', error);
-      }
-    };
-
-    process.on('beforeExit', gracefulShutdown);
-    process.on('SIGINT', gracefulShutdown);
-    process.on('SIGTERM', gracefulShutdown);
   }
   return prisma;
 }
 
-const prismaInstance = getPrisma();
-app.locals.prisma = prismaInstance;
+function getApp() {
+  if (!app) {
+    app = (await import('../regismac-backend/src/app.js')).default;
+    const prismaInstance = getPrisma();
+    app.locals.prisma = prismaInstance;
+  }
+  return app;
+}
 
 export default async function handler(req, res) {
   try {
-    await prismaInstance.$connect();
-  } catch (error) {
-    console.error('Error conectando a Prisma:', error);
-    return res.status(500).json({ 
-      error: 'Database connection error',
-      message: process.env.NODE_ENV === 'production' 
-        ? 'Internal server error' 
-        : error.message 
-    });
-  }
-
-  return app(req, res, (err) => {
-    if (err) {
-      console.error('Error no manejado en Express:', err);
-      if (!res.headersSent) {
-        return res.status(500).json({
-          error: 'Internal server error',
-          message: process.env.NODE_ENV === 'production' 
-            ? 'An error occurred' 
-            : err.message
-        });
+    const expressApp = await getApp();
+    return expressApp(req, res, (err) => {
+      if (err) {
+        console.error('Error en Express handler:', err);
+        console.error('Error name:', err.name);
+        console.error('Error message:', err.message);
+        console.error('Error stack:', err.stack);
+        if (!res.headersSent) {
+          return res.status(500).json({
+            error: 'Internal server error',
+            message: process.env.NODE_ENV === 'production' 
+              ? 'An error occurred' 
+              : err.message
+          });
+        }
       }
+    });
+  } catch (error) {
+    console.error('Error inicializando aplicación:', error);
+    console.error('Error name:', error.name);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'production' 
+          ? 'An error occurred during initialization' 
+          : error.message
+      });
     }
-  });
+  }
 }
 

@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "rolldown-vite build",
     "lint": "eslint .",
     "preview": "vite preview"
   },

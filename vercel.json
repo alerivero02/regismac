@@ -1,7 +1,7 @@
 {
   "buildCommand": "npm run vercel-build",
   "outputDirectory": "regismac-frontend/dist",
-  "installCommand": "npm ci && cd regismac-backend && npm ci && cd ../regismac-frontend && npm ci",
+  "installCommand": "cd regismac-backend && npm ci && cd ../regismac-frontend && npm ci",
   "framework": null,
   "functions": {
     "api/index.js": {

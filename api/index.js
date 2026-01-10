@@ -1,21 +1,45 @@
-// Handler simple para Vercel que devuelve respuestas básicas
-module.exports = function handler(req, res) {
+import 'dotenv/config';
+import { PrismaClient } from '@prisma/client';
+import app from '../regismac-backend/src/app.js';
+
+// Inicializar Prisma con configuración optimizada para serverless
+const prisma = new PrismaClient({
+  log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+  errorFormat: 'minimal',
+});
+
+// Hacer Prisma disponible en toda la aplicación
+app.locals.prisma = prisma;
+
+// Handler para Vercel
+export default async function handler(req, res) {
   try {
-    // Health check
-    if (req.url && req.url.includes('/health')) {
-      res.status(200).json({ status: 'ok', message: 'API funcionando correctamente' });
-      return;
+    // Asegurar que Prisma esté conectado
+    if (!prisma.$connect) {
+      await prisma.$connect();
     }
-    
-    // Auth me endpoint
-    if (req.url && (req.url.includes('/auth/me') || req.url.includes('/api/auth/me'))) {
-      res.status(401).json({ error: 'No autenticado' });
-      return;
-    }
-    
-    // Not found
-    res.status(404).json({ error: 'Ruta no encontrada' });
+
+    // Procesar la petición con Express
+    return app(req, res);
   } catch (error) {
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error en handler de Vercel:', error);
+    
+    // Manejar errores de conexión a base de datos
+    if (error.code?.startsWith('P10')) {
+      return res.status(503).json({
+        error: 'Error de conexión a la base de datos',
+        message: 'El servicio no está disponible temporalmente'
+      });
+    }
+    
+    return res.status(500).json({
+      error: 'Error interno del servidor',
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
-};
+}
+
+// Cleanup en caso de cierre
+process.on('beforeExit', async () => {
+  await prisma.$disconnect();
+});

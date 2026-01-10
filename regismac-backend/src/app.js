@@ -121,6 +121,16 @@ app.use("/api/materiali", materialiRoutes);
 app.use("/api/ordini-materiali", ordiniMaterialiRoutes);
 app.use("/api/lotti", lottiRoutes);
 
+// Manejador de rutas no encontradas
+app.use((req, res, next) => {
+  res.status(404).json({
+    error: 'Ruta no encontrada',
+    message: `La ruta ${req.method} ${req.path} no existe`,
+    path: req.path,
+    method: req.method
+  });
+});
+
 app.use(errorHandler);
 
 export default app;

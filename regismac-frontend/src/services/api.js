@@ -119,8 +119,23 @@ async function fetchAPI(endpoint, options = {}) {
     if (!response.ok) {
       let errorMessage = data.message || data.error || `Errore ${response.status}: ${response.statusText}`;
       
+      // Manejar ruta no encontrada (404)
+      if (response.status === 404) {
+        if (errorMessage.includes('Ruta no encontrada') || errorMessage.includes('no existe')) {
+          errorMessage = `Ruta de API no encontrada: ${endpoint}. Verifica que el endpoint sea correcto.`;
+          console.error('🔴 Error 404:', {
+            endpoint,
+            url,
+            method: config.method || 'GET',
+            serverResponse: data
+          });
+        } else {
+          errorMessage = 'Risorsa non trovata';
+        }
+      }
+      
       // Manejar sesión expirada (401) - solo si realmente es un error de autenticación
-      if (response.status === 401) {
+      else if (response.status === 401) {
         // No redirigir si estamos en rutas de autenticación
         const isAuthRoute = endpoint.includes('/auth/') || endpoint.includes('/usuarios/login') || endpoint.includes('/usuarios/registro');
         

@@ -1,4 +1,4 @@
-import passport from "passport";
+import passport from "../config/passport.js";
 import { ApiError } from "../utils/apiError.js";
 import { UsuariosService } from "../services/usuarios.service.js";
 

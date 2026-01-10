@@ -103,12 +103,14 @@ if (sessionSecret) {
     },
     // En serverless, no usamos store persistente, las sesiones se guardan en cookies
   }));
+  
+  app.use(passport.initialize());
+  app.use(passport.session());
 } else {
   console.error('❌ No se puede configurar sesiones sin SESSION_SECRET');
+  // Inicializar passport sin sesiones (solo para que la app no falle)
+  app.use(passport.initialize());
 }
-
-app.use(passport.initialize());
-app.use(passport.session());
 
 app.use("/api/auth", authRoutes);
 app.use("/api/usuarios", usuariosRoutes);

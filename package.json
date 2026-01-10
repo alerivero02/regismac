@@ -8,7 +8,7 @@
     "build": "cd regismac-frontend && npm ci && npm run build",
     "build:backend": "cd regismac-backend && npm ci && npx prisma generate",
     "postinstall": "npm run build:backend",
-    "vercel-build": "cd regismac-backend && npx prisma generate && cd ../regismac-frontend && npm run build",
+    "vercel-build": "cd regismac-backend && npx prisma generate && cd ../regismac-frontend && npm install && vite build",
     "migrate:deploy": "cd regismac-backend && npx prisma migrate deploy",
     "generate-secrets": "node scripts/generate-secrets.js",
     "setup-db:prod": "cd regismac-backend && node ../scripts/setup-database-production.js"

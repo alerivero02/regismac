@@ -37,37 +37,46 @@ async function getApp() {
 }
 
 export default async function handler(req, res) {
+  // Asegurar que siempre se envíe una respuesta
+  let responseSent = false;
+  
+  const sendErrorResponse = (error, status = 500) => {
+    if (!responseSent && !res.headersSent) {
+      responseSent = true;
+      console.error('Error:', error);
+      console.error('Error name:', error?.name);
+      console.error('Error message:', error?.message);
+      console.error('Error stack:', error?.stack);
+      return res.status(status).json({
+        error: 'Internal server error',
+        message: process.env.NODE_ENV === 'production' 
+          ? 'An error occurred' 
+          : error?.message || 'Unknown error'
+      });
+    }
+  };
+
   try {
     const expressApp = await getApp();
-    return expressApp(req, res, (err) => {
-      if (err) {
-        console.error('Error en Express handler:', err);
-        console.error('Error name:', err.name);
-        console.error('Error message:', err.message);
-        console.error('Error stack:', err.stack);
-        if (!res.headersSent) {
-          return res.status(500).json({
-            error: 'Internal server error',
-            message: process.env.NODE_ENV === 'production' 
-              ? 'An error occurred' 
-              : err.message
-          });
-        }
+    
+    // Wrapper para asegurar que siempre se maneje el error
+    return new Promise((resolve) => {
+      try {
+        expressApp(req, res, (err) => {
+          if (err) {
+            sendErrorResponse(err);
+            resolve();
+          } else {
+            resolve();
+          }
+        });
+      } catch (err) {
+        sendErrorResponse(err);
+        resolve();
       }
     });
   } catch (error) {
-    console.error('Error inicializando aplicación:', error);
-    console.error('Error name:', error.name);
-    console.error('Error message:', error.message);
-    console.error('Error stack:', error.stack);
-    if (!res.headersSent) {
-      return res.status(500).json({
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'production' 
-          ? 'An error occurred during initialization' 
-          : error.message
-      });
-    }
+    sendErrorResponse(error);
   }
 }
 

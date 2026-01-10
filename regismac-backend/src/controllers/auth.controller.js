@@ -18,42 +18,60 @@ function getFrontendURL(req, host = null) {
 }
 
 export const googleAuth = (req, res, next) => {
-  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    return res.status(503).json({ 
-      error: "Google OAuth non configurato. Contatta l'amministratore." 
+  try {
+    if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+      console.error('❌ Google OAuth no configurado: faltan variables de entorno');
+      return res.status(503).json({ 
+        error: "Google OAuth non configurato. Contatta l'amministratore." 
+      });
+    }
+
+    // Verificar que passport tenga la estrategia de Google configurada
+    if (!passport._strategies || !passport._strategies.google) {
+      console.error('❌ Estrategia de Google no está configurada en Passport');
+      return res.status(503).json({ 
+        error: "Google OAuth non configurato. Contatta l'amministratore." 
+      });
+    }
+    
+    // Detectar si viene de una IP local (no localhost)
+    const referer = req.get('referer');
+    const host = req.get('host');
+    let frontendIP = null;
+    
+    if (referer) {
+      try {
+        const refererURL = new URL(referer);
+        if (refererURL.hostname && !refererURL.hostname.includes('localhost') && refererURL.hostname !== '127.0.0.1') {
+          frontendIP = refererURL.hostname;
+        }
+      } catch (e) {
+        // Ignorar errores
+      }
+    }
+    
+    if (!frontendIP && host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
+      frontendIP = host.split(':')[0];
+    }
+    
+    // Si viene de una IP local, guardar la URL del frontend en la sesión
+    if (frontendIP) {
+      req.session.originalFrontendURL = `http://${frontendIP}:5173`;
+    }
+    
+    // Usar siempre localhost para el callback (como estaba al inicio)
+    // El callback funcionará porque el servidor está escuchando en 0.0.0.0
+    return passport.authenticate("google", {
+      scope: ["profile", "email", "https://www.googleapis.com/auth/drive.file"],
+    })(req, res, next);
+  } catch (error) {
+    console.error('❌ Error en googleAuth:', error);
+    console.error('❌ Stack:', error.stack);
+    return res.status(500).json({
+      error: "Errore interno del server",
+      message: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
-  
-  // Detectar si viene de una IP local (no localhost)
-  const referer = req.get('referer');
-  const host = req.get('host');
-  let frontendIP = null;
-  
-  if (referer) {
-    try {
-      const refererURL = new URL(referer);
-      if (refererURL.hostname && !refererURL.hostname.includes('localhost') && refererURL.hostname !== '127.0.0.1') {
-        frontendIP = refererURL.hostname;
-      }
-    } catch (e) {
-      // Ignorar errores
-    }
-  }
-  
-  if (!frontendIP && host && !host.includes('localhost') && !host.includes('127.0.0.1')) {
-    frontendIP = host.split(':')[0];
-  }
-  
-  // Si viene de una IP local, guardar la URL del frontend en la sesión
-  if (frontendIP) {
-    req.session.originalFrontendURL = `http://${frontendIP}:5173`;
-  }
-  
-  // Usar siempre localhost para el callback (como estaba al inicio)
-  // El callback funcionará porque el servidor está escuchando en 0.0.0.0
-  return passport.authenticate("google", {
-    scope: ["profile", "email", "https://www.googleapis.com/auth/drive.file"],
-  })(req, res, next);
 };
 
 export const googleCallback = async (req, res, next) => {

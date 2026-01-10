@@ -58,12 +58,13 @@ export const googleAuth = (req, res, next) => {
 
 export const googleCallback = async (req, res, next) => {
   if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
-    const frontendURL = req.session?.originalFrontendURL || getFrontendURL(req);
+    const frontendURL = process.env.FRONTEND_URL || req.session?.originalFrontendURL || getFrontendURL(req);
     return res.redirect(`${frontendURL}/login?error=auth_failed`);
   }
   
-  // Usar la URL del frontend guardada en la sesión, o detectarla
-  const frontendURL = req.session?.originalFrontendURL || getFrontendURL(req);
+  // En producción, usar FRONTEND_URL de las variables de entorno
+  // En desarrollo, detectar automáticamente
+  const frontendURL = process.env.FRONTEND_URL || req.session?.originalFrontendURL || getFrontendURL(req);
   
   passport.authenticate("google", {
     failureRedirect: `${frontendURL}/login?error=auth_failed`,

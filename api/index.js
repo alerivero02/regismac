@@ -1,87 +1,67 @@
+import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
+import cors from 'cors';
 
+const app = express();
 const prisma = new PrismaClient();
 
-async function parseBody(req) {
-  return new Promise((resolve) => {
-    let body = '';
-    req.on('data', chunk => {
-      body += chunk.toString();
-    });
-    req.on('end', () => {
-      try {
-        resolve(JSON.parse(body));
-      } catch {
-        resolve({});
-      }
-    });
-  });
-}
+app.use(cors({
+  origin: '*',
+  credentials: true
+}));
 
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+app.use(express.json());
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+app.get('/api/auth/me', (req, res) => {
+  res.status(401).json({ error: 'No autenticado' });
+});
 
+app.post('/api/usuarios/login', async (req, res) => {
   try {
-    const path = req.url;
-    
-    if (path === '/api/auth/me' || path.startsWith('/api/auth/me')) {
-      return res.status(401).json({ error: 'No autenticado' });
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: 'Email y contraseña requeridos' });
     }
-    
-    if (path === '/api/usuarios/login' || path.startsWith('/api/usuarios/login')) {
-      if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Método no permitido' });
-      }
 
-      const body = await parseBody(req);
-      const { email, password } = body;
+    const usuario = await prisma.usuario.findUnique({
+      where: { email }
+    });
 
-      if (!email || !password) {
-        return res.status(400).json({ error: 'Email y contraseña requeridos' });
-      }
-
-      const usuario = await prisma.usuario.findUnique({
-        where: { email }
-      });
-
-      if (!usuario) {
-        return res.status(401).json({ error: 'Credenciales inválidas' });
-      }
-
-      if (usuario.estado !== 'aprobado') {
-        return res.status(403).json({ error: 'Usuario pendiente de aprobación' });
-      }
-
-      const validPassword = await bcrypt.compare(password, usuario.password);
-
-      if (!validPassword) {
-        return res.status(401).json({ error: 'Credenciales inválidas' });
-      }
-
-      return res.status(200).json({
-        id: usuario.id_usuario,
-        email: usuario.email,
-        nombre: usuario.nombre,
-        apellido: usuario.apellido,
-        rol: usuario.rol,
-        foto: usuario.foto
-      });
+    if (!usuario) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
     }
-    
-    return res.status(404).json({ error: 'Ruta no encontrada' });
+
+    if (usuario.estado !== 'aprobado') {
+      return res.status(403).json({ error: 'Usuario pendiente de aprobación' });
+    }
+
+    const validPassword = await bcrypt.compare(password, usuario.password);
+
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Credenciales inválidas' });
+    }
+
+    return res.status(200).json({
+      id: usuario.id_usuario,
+      email: usuario.email,
+      nombre: usuario.nombre,
+      apellido: usuario.apellido,
+      rol: usuario.rol,
+      foto: usuario.foto
+    });
   } catch (error) {
-    console.error('Error:', error);
+    console.error('Error en login:', error);
     return res.status(500).json({ 
       error: 'Error interno del servidor',
       details: error.message 
     });
   }
-}
+});
+
+app.use((req, res) => {
+  res.status(404).json({ error: 'Ruta no encontrada' });
+});
+
+export default app;

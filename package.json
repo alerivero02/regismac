@@ -24,6 +24,8 @@
     "system"
   ],
   "author": "Alexander Rivero <al.rivero2021@gmail.com>",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.2.3"
+  }
 }
-

@@ -50,7 +50,14 @@ function configureGoogleStrategy() {
 }
 
 // Configurar la estrategia al cargar el módulo
-configureGoogleStrategy();
+// En servidorless, las variables de entorno pueden no estar disponibles inmediatamente
+// Por eso intentamos configurar, pero no fallamos si no están disponibles
+try {
+  configureGoogleStrategy();
+} catch (error) {
+  console.error('❌ Error al inicializar Google OAuth strategy:', error);
+  // No lanzar error, permitir que la app se cargue sin Google OAuth
+}
 
 passport.serializeUser((user, done) => {
   done(null, user);

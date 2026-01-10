@@ -24,12 +24,29 @@ function getPrisma() {
 async function getApp() {
   if (!app) {
     try {
+      console.log('Inicializando aplicación...');
+      console.log('Variables de entorno disponibles:', {
+        DATABASE_URL: process.env.DATABASE_URL ? 'Sí' : 'No',
+        SESSION_SECRET: process.env.SESSION_SECRET ? 'Sí' : 'No',
+        NODE_ENV: process.env.NODE_ENV,
+        GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'Sí' : 'No',
+        GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET ? 'Sí' : 'No'
+      });
+      
       const appModule = await import('../regismac-backend/src/app.js');
       app = appModule.default;
+      
+      console.log('App importada correctamente');
+      
       const prismaInstance = getPrisma();
       app.locals.prisma = prismaInstance;
+      
+      console.log('Prisma configurado en app.locals');
     } catch (error) {
-      console.error('Error al importar o inicializar la aplicación:', error);
+      console.error('❌ Error al importar o inicializar la aplicación:', error);
+      console.error('❌ Error name:', error?.name);
+      console.error('❌ Error message:', error?.message);
+      console.error('❌ Error stack:', error?.stack);
       throw error;
     }
   }

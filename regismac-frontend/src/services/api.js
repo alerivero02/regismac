@@ -2,18 +2,15 @@ const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     
-    // Verificar si es una IP de red local (máxima prioridad)
     const ipMatch = hostname.match(/^(\d+\.\d+\.\d+\.\d+)$/);
     if (ipMatch && ipMatch[1]) {
       return `http://${ipMatch[1]}:3000`;
     }
     
-    // Si es una IP pero no coincidió con el regex, intentar directamente
     if (hostname && /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
       return `http://${hostname}:3000`;
     }
     
-    // Fallback: detectar desde la URL completa
     if (window.location.host) {
       const currentHost = window.location.host.split(':')[0];
       const ipMatch2 = currentHost.match(/^(\d+\.\d+\.\d+\.\d+)$/);
@@ -22,23 +19,18 @@ const getApiBaseUrl = () => {
       }
     }
     
-    // Si estamos en localhost, usar variable de entorno o localhost
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return import.meta.env.VITE_API_URL || 'http://localhost:3000';
     }
     
-    // Si es un dominio de Vercel, usar la misma URL (las APIs están en /api)
     if (hostname.includes('vercel.app') || hostname.includes('netlify.app')) {
-      // Usar la misma URL del frontend, las APIs están en /api
       return window.location.origin;
     }
     
-    // Si es un dominio de producción personalizado
     if (hostname.includes('tudominio.com')) {
       return 'https://api.tudominio.com';
     }
     
-    // Si hay VITE_API_URL, usarla (tiene prioridad)
     if (import.meta.env.VITE_API_URL) {
       return import.meta.env.VITE_API_URL;
     }
@@ -48,36 +40,25 @@ const getApiBaseUrl = () => {
 };
 
 const API_BASE_URL = getApiBaseUrl();
-
-// Variable para evitar múltiples redirecciones simultáneas
 let isRedirecting = false;
 
-// Función para manejar sesión expirada
 function handleSessionExpired() {
-  // Evitar múltiples redirecciones
   if (isRedirecting) return;
   
-  // Verificar que no estamos ya en la página de login
   const currentPath = window.location.pathname;
   if (currentPath === '/login' || currentPath === '/registro') {
     return;
   }
   
   isRedirecting = true;
-  
-  // Guardar mensaje en sessionStorage para mostrarlo en el login
   sessionStorage.setItem('sessionExpired', 'true');
-  
-  // Redirigir al login con mensaje
   window.location.href = '/login?sessionExpired=true';
   
-  // Resetear la bandera después de un tiempo para permitir nuevas redirecciones si es necesario
   setTimeout(() => {
     isRedirecting = false;
   }, 2000);
 }
 
-// Función helper para timeout de fetch
 function fetchWithTimeout(url, options = {}, timeout = 10000) {
   return Promise.race([
     fetch(url, options),
@@ -90,7 +71,7 @@ function fetchWithTimeout(url, options = {}, timeout = 10000) {
 async function fetchAPI(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   const config = {
-    credentials: 'include', // Incluir cookies para sesiones
+    credentials: 'include',
     headers: {
       ...options.headers,
     },
@@ -105,7 +86,7 @@ async function fetchAPI(endpoint, options = {}) {
   }
 
   try {
-    const response = await fetchWithTimeout(url, config, 10000); // Timeout de 10 segundos
+    const response = await fetchWithTimeout(url, config, 10000);
     
     const contentType = response.headers.get('content-type');
     let data;
@@ -119,7 +100,6 @@ async function fetchAPI(endpoint, options = {}) {
     if (!response.ok) {
       let errorMessage = data.message || data.error || `Errore ${response.status}: ${response.statusText}`;
       
-      // Manejar ruta no encontrada (404)
       if (response.status === 404) {
         if (errorMessage.includes('Ruta no encontrada') || errorMessage.includes('no existe')) {
           errorMessage = `Ruta de API no encontrada: ${endpoint}. Verifica que el endpoint sea correcto.`;
@@ -134,13 +114,8 @@ async function fetchAPI(endpoint, options = {}) {
         }
       }
       
-      // Manejar sesión expirada (401) - solo si realmente es un error de autenticación
       else if (response.status === 401) {
-        // No redirigir si estamos en rutas de autenticación
         const isAuthRoute = endpoint.includes('/auth/') || endpoint.includes('/usuarios/login') || endpoint.includes('/usuarios/registro');
-        
-        // Solo cerrar sesión si el mensaje de error indica claramente que es un problema de autenticación
-        // y no estamos en una ruta de autenticación
         const isAuthError = errorMessage.toLowerCase().includes('autenticat') || 
                            errorMessage.toLowerCase().includes('sessione') ||
                            errorMessage.toLowerCase().includes('token') ||
@@ -150,7 +125,6 @@ async function fetchAPI(endpoint, options = {}) {
           handleSessionExpired();
           errorMessage = 'Sessione scaduta. Effettua nuovamente il login.';
         } else if (!isAuthRoute) {
-          // Si es 401 pero no parece ser un error de autenticación, no cerrar sesión
           errorMessage = errorMessage || 'Errore nella richiesta. Riprova più tardi.';
         } else {
           errorMessage = 'Non autenticato. Effettua il login.';
@@ -158,7 +132,6 @@ async function fetchAPI(endpoint, options = {}) {
       } else if (errorMessage.includes('conexión') || errorMessage.includes('connessione') || errorMessage.includes('database') || errorMessage.includes('MySQL')) {
         errorMessage = 'Errore di connessione al database. Verifica che MySQL sia in esecuzione e che la configurazione in .env sia corretta.';
       } else if (errorMessage.includes('autenticado') || errorMessage.includes('autenticato')) {
-        // Solo cerrar sesión si el mensaje indica claramente que es un problema de autenticación
         const isAuthError = errorMessage.toLowerCase().includes('autenticat') || 
                            errorMessage.toLowerCase().includes('sessione') ||
                            errorMessage.toLowerCase().includes('token');
@@ -175,7 +148,6 @@ async function fetchAPI(endpoint, options = {}) {
       } else if (response.status === 503) {
         errorMessage = 'Il servizio non è disponibile. Verifica che il server sia in esecuzione.';
       } else if (response.status === 500) {
-        // No cerrar sesión por errores 500 - son errores del servidor, no de autenticación
         errorMessage = errorMessage || 'Errore interno del server. Riprova più tardi.';
       }
       

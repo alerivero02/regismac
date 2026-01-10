@@ -34,10 +34,8 @@ app.use(helmet({
   originAgentCluster: false,
 }));
 
-// Validar SESSION_SECRET pero no fallar durante la inicialización del módulo
-// El error se manejará cuando se intente usar la sesión
 if (!process.env.SESSION_SECRET && process.env.NODE_ENV === 'production') {
-  console.error('❌ WARNING: SESSION_SECRET no está configurado. Esto es un riesgo de seguridad.');
+  console.error('❌ WARNING: SESSION_SECRET no está configurado.');
 }
 app.use(cors({
   origin: isDevelopment ? true : process.env.FRONTEND_URL || 'http://localhost:5173',
@@ -80,35 +78,29 @@ const sessionSecret = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'p
 
 if (!sessionSecret) {
   console.error('❌ ERROR: SESSION_SECRET debe estar configurado en producción');
-  // En lugar de lanzar error, usar un secret temporal (solo para desarrollo/testing)
-  // En producción real, esto debería fallar, pero lo manejamos de forma más suave
   console.error('⚠️  Usando secret temporal - NO SEGURO PARA PRODUCCIÓN');
 }
 
-// Configuración de sesiones optimizada para serverless (Vercel)
-// Solo configurar sesiones si tenemos un secret válido
 if (sessionSecret) {
   app.use(session({
     secret: sessionSecret,
-    resave: false, // Cambiado a false para serverless
-    saveUninitialized: false, // Cambiado a false para serverless
+    resave: false,
+    saveUninitialized: false,
     name: 'regismac.sid',
     cookie: {
-      secure: process.env.NODE_ENV === 'production', // true en producción (HTTPS)
+      secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000,
       sameSite: process.env.NODE_ENV === 'production' ? 'lax' : false,
       path: '/',
       domain: undefined,
     },
-    // En serverless, no usamos store persistente, las sesiones se guardan en cookies
   }));
   
   app.use(passport.initialize());
   app.use(passport.session());
 } else {
   console.error('❌ No se puede configurar sesiones sin SESSION_SECRET');
-  // Inicializar passport sin sesiones (solo para que la app no falle)
   app.use(passport.initialize());
 }
 
@@ -121,7 +113,6 @@ app.use("/api/materiali", materialiRoutes);
 app.use("/api/ordini-materiali", ordiniMaterialiRoutes);
 app.use("/api/lotti", lottiRoutes);
 
-// Manejador de rutas no encontradas
 app.use((req, res, next) => {
   res.status(404).json({
     error: 'Ruta no encontrada',

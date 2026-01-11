@@ -23,7 +23,7 @@ const getApiBaseUrl = () => {
       return import.meta.env.VITE_API_URL || 'http://localhost:3000';
     }
     
-    if (hostname.includes('vercel.app') || hostname.includes('netlify.app')) {
+    if (hostname.includes('vercel.app') || hostname.includes('netlify.app') || hostname.includes('onrender.com')) {
       return window.location.origin;
     }
     

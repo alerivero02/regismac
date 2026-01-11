@@ -4,6 +4,11 @@ import session from "express-session";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import passport from "./config/passport.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 import maquinasRoutes from "./routes/maquinas.routes.js";
 import tecnicosRoutes from "./routes/tecnicos.routes.js";
@@ -112,6 +117,15 @@ app.use("/api/tests", testsRoutes);
 app.use("/api/materiali", materialiRoutes);
 app.use("/api/ordini-materiali", ordiniMaterialiRoutes);
 app.use("/api/lotti", lottiRoutes);
+
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '..', '..', 'regismac-frontend', 'dist');
+  app.use(express.static(frontendPath));
+  
+  app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
 
 app.use((req, res, next) => {
   res.status(404).json({

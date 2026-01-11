@@ -1,13 +1,7 @@
 import 'dotenv/config';
 import os from 'os';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import express from 'express';
 import app from "./src/app.js";
 import { PrismaClient } from "@prisma/client";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
@@ -15,11 +9,6 @@ const prisma = new PrismaClient({
 });
 
 app.locals.prisma = prisma;
-
-if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '..', 'regismac-frontend', 'dist');
-  app.use(express.static(frontendPath));
-}
 
 export async function reconnectPrisma() {
   try {

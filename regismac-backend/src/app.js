@@ -29,7 +29,8 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
       scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
     },
@@ -66,7 +67,7 @@ const generalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: isDevelopment ? 50 : 5,
+  max: isDevelopment ? 50 : 20,
   message: 'Troppi tentativi di accesso, riprova tra 15 minuti.',
   skipSuccessfulRequests: true,
   skip: () => !enableRateLimit,

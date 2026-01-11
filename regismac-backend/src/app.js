@@ -44,7 +44,7 @@ if (!process.env.SESSION_SECRET && process.env.NODE_ENV === 'production') {
   console.error('❌ WARNING: SESSION_SECRET no está configurado.');
 }
 app.use(cors({
-  origin: isDevelopment ? true : process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: true,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -93,13 +93,13 @@ if (sessionSecret) {
     resave: false,
     saveUninitialized: false,
     name: 'regismac.sid',
+    proxy: process.env.NODE_ENV === 'production',
     cookie: {
       secure: process.env.NODE_ENV === 'production',
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: process.env.NODE_ENV === 'production' ? 'lax' : false,
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : false,
       path: '/',
-      domain: undefined,
     },
   }));
   

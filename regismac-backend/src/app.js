@@ -53,13 +53,12 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-const enableRateLimit = isDevelopment 
-  ? process.env.ENABLE_RATE_LIMIT === 'true' 
-  : true;
+// Rate limiting configurable - puede deshabilitarse con ENABLE_RATE_LIMIT=false
+const enableRateLimit = process.env.ENABLE_RATE_LIMIT !== 'false';
 
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDevelopment ? 1000 : 100,
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: isDevelopment ? 1000 : 500, // Aumentado de 100 a 500 en producción
   message: 'Troppi tentativi, riprova più tardi.',
   standardHeaders: true,
   legacyHeaders: false,
@@ -68,10 +67,10 @@ const generalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: isDevelopment ? 50 : 50, // Aumentado de 20 a 50 en producción
+  max: isDevelopment ? 100 : 200, // Aumentado significativamente: 200 intentos en producción
   message: {
     error: 'Troppi tentativi di accesso',
-    message: 'Hai superato il limite di tentativi di accesso. Riprova tra 15 minuti.',
+    message: 'Hai superato il limite di tentativi di accesso. Riprova tra 15 minuti o usa l\'accesso con Google.',
     retryAfter: 15
   },
   standardHeaders: true,

@@ -17,6 +17,25 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Pre-warm del servicio: hacer ping inmediatamente al cargar la página de login
+    // Esto despertará el servicio ANTES de que el usuario intente hacer login
+    // Usar fire-and-forget para no bloquear la renderización
+    const preWarmServer = () => {
+      // Hacer ping silencioso sin bloquear la UI (fire-and-forget)
+      fetch(`${window.location.origin}/api/health`, {
+        method: 'GET',
+        credentials: 'include',
+        cache: 'no-cache',
+        keepalive: true // Mantener la conexión viva
+      }).catch(() => {
+        // Ignorar errores silenciosamente
+      });
+    };
+    
+    // Pre-warm inmediatamente (sin bloquear)
+    // Usar setTimeout con 0 para que se ejecute después de la renderización inicial
+    setTimeout(preWarmServer, 0);
+    
     // Verificar si ya está autenticado
     checkAuth();
     

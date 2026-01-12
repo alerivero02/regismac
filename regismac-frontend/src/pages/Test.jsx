@@ -50,6 +50,9 @@ export default function Test() {
   const [esp32PollingInterval, setEsp32PollingInterval] = useState(null);
   const [testESP32Activo, setTestESP32Activo] = useState(false);
   const [fechaHoraInicioTestESP32, setFechaHoraInicioTestESP32] = useState(null);
+  
+  // Estado para el modal del cronómetro
+  const [showCronometroModal, setShowCronometroModal] = useState(false);
 
   const [formData, setFormData] = useState({
     temperatura_iniziale: '',
@@ -759,7 +762,32 @@ export default function Test() {
       <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
         {/* Informazioni Test - Primera sección */}
         <div className="card">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Informazioni Test</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-900">Informazioni Test</h3>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowCronometroModal(true)}
+                className="px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-blue-500 text-white hover:bg-blue-600 flex items-center gap-2"
+                title="Apri cronometro"
+              >
+                <FiClock className="w-4 h-4" />
+                Cronometro
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  console.log('Botón ESP32 clickeado desde Informazioni Test, abriendo modal...');
+                  setShowESP32Modal(true);
+                }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-2"
+                title="Test automático con ESP32"
+              >
+                <FiWifi className="w-4 h-4" />
+                ESP32
+              </button>
+            </div>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -1045,20 +1073,18 @@ export default function Test() {
               </div>
             </div>
 
-            {/* Cronometro con modo manual integrado */}
+            {/* Tempi - Solo modo manual */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-gray-900">Tempi</h3>
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    onClick={() => setModoManual(false)}
-                    className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
-                      !modoManual
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
+                    onClick={() => setShowCronometroModal(true)}
+                    className="px-3 py-1 rounded text-xs font-semibold transition-all bg-blue-500 text-white hover:bg-blue-600 flex items-center gap-1"
+                    title="Apri cronometro"
                   >
+                    <FiClock className="w-3 h-3" />
                     Cronometro
                   </button>
                   <button
@@ -1076,9 +1102,7 @@ export default function Test() {
                     type="button"
                     onClick={() => {
                       console.log('Botón ESP32 clickeado, abriendo modal...');
-                      console.log('Estado showESP32Modal antes:', showESP32Modal);
                       setShowESP32Modal(true);
-                      console.log('Estado showESP32Modal después:', true);
                     }}
                     className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"
                     title="Test automático con ESP32"
@@ -1089,18 +1113,7 @@ export default function Test() {
                 </div>
               </div>
 
-              {!modoManual ? (
-                <Timer
-                  time={time}
-                  isRunning={isRunning}
-                  time0Marked={time0Marked}
-                  timeMinus8Marked={timeMinus8Marked}
-                  onStart={startTimer}
-                  onStop={stopTimer}
-                  onReset={resetTimer}
-                  onMarkTime={markTime}
-                />
-              ) : (
+              {modoManual && (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-1">
@@ -1400,6 +1413,131 @@ export default function Test() {
         type={notification.type}
         onClose={() => setNotification({ ...notification, show: false })}
       />
+
+      {/* Modal Cronómetro */}
+      {showCronometroModal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" 
+          style={{ zIndex: 9999, position: 'fixed' }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              if (isRunning) {
+                if (window.confirm('Il cronometro è in esecuzione. Vuoi chiudere comunque?')) {
+                  stopTimer();
+                  setShowCronometroModal(false);
+                }
+              } else {
+                setShowCronometroModal(false);
+              }
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative z-[10000]"
+            style={{ zIndex: 10000 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-50 p-3 rounded-xl">
+                  <FiClock className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Cronometro</h2>
+                  <p className="text-sm text-gray-600">Registra i tempi a 0°C e -8°C</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (isRunning) {
+                    if (window.confirm('Il cronometro è in esecuzione. Vuoi chiudere comunque?')) {
+                      stopTimer();
+                      setShowCronometroModal(false);
+                    }
+                  } else {
+                    setShowCronometroModal(false);
+                  }
+                }}
+                className="text-gray-400 hover:text-gray-600 p-2"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Cronómetro */}
+            <div className="mb-6">
+              <Timer
+                time={time}
+                isRunning={isRunning}
+                time0Marked={time0Marked}
+                timeMinus8Marked={timeMinus8Marked}
+                onStart={startTimer}
+                onStop={stopTimer}
+                onReset={resetTimer}
+                onMarkTime={markTime}
+              />
+            </div>
+
+            {/* Botones de acción */}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  if (time0Marked !== null && timeMinus8Marked !== null) {
+                    // Actualizar el formulario con los tiempos marcados
+                    const minutos0 = Math.floor(time0Marked / 60);
+                    const segundos0 = time0Marked % 60;
+                    const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+                    
+                    const minutosMenos8 = Math.floor(timeMinus8Marked / 60);
+                    const segundosMenos8 = timeMinus8Marked % 60;
+                    const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+                    
+                    setFormData(prev => ({
+                      ...prev,
+                      tiempo_0_manual: tiempo0Formato,
+                      tiempo_meno8_manual: tiempoMenos8Formato,
+                    }));
+                    
+                    setModoManual(true);
+                    setShowCronometroModal(false);
+                    showNotification('Tempi registrati correttamente!', 'success');
+                  } else {
+                    showNotification('Devi registrare entrambi i tempi (0°C e -8°C) prima di chiudere', 'warning');
+                  }
+                }}
+                className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                <FiCheckCircle className="w-5 h-5" />
+                <span>Usa questi tempi</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  resetTimer();
+                  setShowCronometroModal(false);
+                }}
+                className="px-6 bg-gray-500 hover:bg-gray-600 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+              >
+                <FiX className="w-5 h-5" />
+                <span>Annulla</span>
+              </button>
+            </div>
+
+            {/* Instrucciones */}
+            <div className="mt-6 p-4 bg-blue-50 rounded-xl">
+              <h4 className="font-semibold text-blue-900 mb-2">Istruzioni:</h4>
+              <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                <li>Clicca su "Avvia" per iniziare il cronometro</li>
+                <li>Quando viene raggiunto 0°C, clicca su "Segna 0°C"</li>
+                <li>Quando viene raggiunto -8°C, clicca su "Segna -8°C"</li>
+                <li>Il cronometro si fermerà automaticamente</li>
+                <li>Clicca su "Usa questi tempi" per caricare i valori nel formulario</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal ESP32 */}
       {showESP32Modal && (

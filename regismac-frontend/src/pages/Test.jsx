@@ -10,8 +10,13 @@ import {
   FiCheckCircle,
   FiChevronDown,
   FiChevronUp,
+  FiWifi,
+  FiX,
+  FiPlay,
+  FiStop,
+  FiRotateCw,
 } from 'react-icons/fi';
-import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI } from '../services/api';
+import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from '../services/api';
 import Notification from '../components/Notification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
@@ -38,6 +43,13 @@ export default function Test() {
   const [timeMinus8Marked, setTimeMinus8Marked] = useState(null);
   const [intervalId, setIntervalId] = useState(null);
   const [modoManual, setModoManual] = useState(false);
+  
+  // Estados para el modal ESP32
+  const [showESP32Modal, setShowESP32Modal] = useState(false);
+  const [esp32Estado, setEsp32Estado] = useState(null);
+  const [esp32PollingInterval, setEsp32PollingInterval] = useState(null);
+  const [testESP32Activo, setTestESP32Activo] = useState(false);
+  const [fechaHoraInicioTestESP32, setFechaHoraInicioTestESP32] = useState(null);
 
   const [formData, setFormData] = useState({
     temperatura_iniziale: '',
@@ -60,7 +72,190 @@ export default function Test() {
   useEffect(() => {
     loadData();
     loadCurrentUser();
+    
+    // Limpiar polling al desmontar
+    return () => {
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+      }
+    };
   }, []);
+
+  // Efecto para polling del estado del sensor cuando el modal está abierto
+  useEffect(() => {
+    if (showESP32Modal) {
+      console.log('Modal ESP32 abierto, iniciando polling...');
+      // Cargar estado inicial
+      sensorAPI.obtenerEstado()
+        .then(estado => {
+          console.log('Estado inicial del sensor:', estado);
+          setEsp32Estado(estado);
+        })
+        .catch(error => {
+          console.error('Error al obtener estado inicial:', error);
+        });
+    }
+    
+    if (showESP32Modal && !esp32PollingInterval) {
+      const interval = setInterval(async () => {
+        try {
+          const estado = await sensorAPI.obtenerEstado();
+          setEsp32Estado(estado);
+          
+          // Si hay un test activo y se detectaron las temperaturas, actualizar el formulario
+          if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempoMenos8Grados !== null) {
+            // Convertir segundos a formato MM:SS
+            const minutos0 = Math.floor(estado.tiempo0Grados / 60);
+            const segundos0 = estado.tiempo0Grados % 60;
+            const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+            
+            const minutosMenos8 = Math.floor(estado.tiempoMenos8Grados / 60);
+            const segundosMenos8 = estado.tiempoMenos8Grados % 60;
+            const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+            
+            setFormData(prev => ({
+              ...prev,
+              temperatura_iniziale: estado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
+              tiempo_0_manual: tiempo0Formato,
+              tiempo_meno8_manual: tiempoMenos8Formato,
+            }));
+            
+            setModoManual(true);
+            showNotification('Temperaturas detectadas automáticamente!', 'success');
+          }
+        } catch (error) {
+          console.error('Error al obtener estado del sensor:', error);
+        }
+      }, 2000); // Polling cada 2 segundos
+      
+      setEsp32PollingInterval(interval);
+    } else if (!showESP32Modal && esp32PollingInterval) {
+      clearInterval(esp32PollingInterval);
+      setEsp32PollingInterval(null);
+    }
+    
+    return () => {
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+      }
+    };
+  }, [showESP32Modal, esp32PollingInterval]);
+
+  const iniciarTestESP32 = async () => {
+    try {
+      // Validar que se haya seleccionado una máquina
+      if (!selectedMaquina) {
+        showNotification('Selecciona una máquina antes de iniciar el test', 'error');
+        return;
+      }
+
+      // Validar que se haya seleccionado un técnico
+      if (!formData.tecnicoId) {
+        showNotification('Selecciona un técnico antes de iniciar el test', 'error');
+        return;
+      }
+
+      if (!esp32Estado || esp32Estado.temperatura === null) {
+        showNotification('No se puede leer la temperatura del sensor. Verifica la conexión.', 'error');
+        return;
+      }
+      
+      await sensorAPI.iniciarTest(esp32Estado.temperatura);
+      setTestESP32Activo(true);
+      // Guardar la fecha y hora de inicio del test
+      setFechaHoraInicioTestESP32(new Date().toISOString());
+      showNotification('Test iniciado. Monitoreando temperatura...', 'success');
+    } catch (error) {
+      showNotification(error.message || 'Error al iniciar el test', 'error');
+    }
+  };
+
+  const finalizarTestESP32 = async () => {
+    try {
+      // Validar que se haya seleccionado una máquina
+      if (!selectedMaquina) {
+        showNotification('Selecciona una máquina antes de finalizar el test', 'error');
+        return;
+      }
+
+      // Validar que se haya seleccionado un técnico
+      if (!formData.tecnicoId) {
+        showNotification('Selecciona un técnico antes de finalizar el test', 'error');
+        return;
+      }
+
+      const resultado = await sensorAPI.finalizarTest();
+      setTestESP32Activo(false);
+      
+      if (resultado.resultado.tiempo0Grados && resultado.resultado.tiempoMenos8Grados) {
+        // Obtener la fecha/hora de inicio (o usar la actual si no se guardó)
+        const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
+        
+        // Preparar los datos del test
+        const dataToSend = {
+          maquinaId: parseInt(selectedMaquina),
+          tecnicoId: parseInt(formData.tecnicoId),
+          temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
+          tiempo_0_gradi: resultado.resultado.tiempo0Grados, // Ya está en segundos
+          tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados, // Ya está en segundos
+          humedad_ambiente: resultado.resultado.humedad || undefined,
+          regolazione_vite: formData.regolazione_vite || undefined,
+          quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
+          observazioni: formData.observazioni || undefined,
+          hora_test: fechaHoraTest, // Fecha y hora de inicio del test
+        };
+
+        // Crear el test automáticamente
+        await testsAPI.create(dataToSend);
+        
+        // Actualizar la lista de tests
+        const testsActualizados = await testsAPI.getAll();
+        setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
+        
+        // También actualizar el formulario para mostrar los datos
+        const minutos0 = Math.floor(resultado.resultado.tiempo0Grados / 60);
+        const segundos0 = resultado.resultado.tiempo0Grados % 60;
+        const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+        
+        const minutosMenos8 = Math.floor(resultado.resultado.tiempoMenos8Grados / 60);
+        const segundosMenos8 = resultado.resultado.tiempoMenos8Grados % 60;
+        const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+        
+        setFormData(prev => ({
+          ...prev,
+          temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
+          tiempo_0_manual: tiempo0Formato,
+          tiempo_meno8_manual: tiempoMenos8Formato,
+          humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
+        }));
+        
+        // Cerrar el modal y resetear el estado
+        setShowESP32Modal(false);
+        setFechaHoraInicioTestESP32(null);
+        showNotification('Test completado y guardado automáticamente!', 'success');
+      } else {
+        showNotification('Test finalizado, pero no se detectaron todas las temperaturas. El test no se ha guardado.', 'warning');
+        setTestESP32Activo(false);
+        setFechaHoraInicioTestESP32(null);
+      }
+    } catch (error) {
+      console.error('Error al finalizar test ESP32:', error);
+      showNotification(error.message || 'Error al finalizar el test', 'error');
+      setTestESP32Activo(false);
+      setFechaHoraInicioTestESP32(null);
+    }
+  };
+
+  const cancelarTestESP32 = async () => {
+    try {
+      await sensorAPI.cancelarTest();
+      setTestESP32Activo(false);
+      setFechaHoraInicioTestESP32(null);
+      showNotification('Test cancelado', 'info');
+    } catch (error) {
+      showNotification(error.message || 'Error al cancelar el test', 'error');
+    }
+  };
 
   const loadCurrentUser = async () => {
     try {
@@ -877,6 +1072,20 @@ export default function Test() {
                   >
                     Manuale
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log('Botón ESP32 clickeado, abriendo modal...');
+                      console.log('Estado showESP32Modal antes:', showESP32Modal);
+                      setShowESP32Modal(true);
+                      console.log('Estado showESP32Modal después:', true);
+                    }}
+                    className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"
+                    title="Test automático con ESP32"
+                  >
+                    <FiWifi className="w-3 h-3" />
+                    ESP32
+                  </button>
                 </div>
               </div>
 
@@ -1191,6 +1400,200 @@ export default function Test() {
         type={notification.type}
         onClose={() => setNotification({ ...notification, show: false })}
       />
+
+      {/* Modal ESP32 */}
+      {showESP32Modal && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" 
+          style={{ zIndex: 9999, position: 'fixed' }}
+          onClick={(e) => {
+            // Cerrar al hacer clic fuera del modal
+            if (e.target === e.currentTarget) {
+              if (testESP32Activo) {
+                if (window.confirm('¿Estás seguro de que quieres cerrar? El test activo se cancelará.')) {
+                  cancelarTestESP32();
+                  setShowESP32Modal(false);
+                }
+              } else {
+                setShowESP32Modal(false);
+              }
+            }
+          }}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative z-[10000]"
+            style={{ zIndex: 10000 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-50 p-3 rounded-xl">
+                  <FiWifi className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Test Automatico ESP32</h2>
+                  <p className="text-sm text-gray-600">Monitoreo de temperatura con sensor DHT11</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  if (testESP32Activo) {
+                    if (window.confirm('¿Estás seguro de que quieres cerrar? El test activo se cancelará.')) {
+                      cancelarTestESP32();
+                      setShowESP32Modal(false);
+                    }
+                  } else {
+                    setShowESP32Modal(false);
+                  }
+                }}
+                className="text-gray-400 hover:text-gray-600 p-2"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Estado del sensor */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-600 mb-1 block">Temperatura Actual</label>
+                  <div className="flex items-center gap-2">
+                    <FiThermometer className="w-5 h-5 text-red-500" />
+                    <span className="text-2xl font-bold text-gray-900">
+                      {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined
+                        ? `${esp32Estado.temperatura.toFixed(1)}°C`
+                        : '--'}
+                    </span>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600 mb-1 block">Humedad</label>
+                  <div className="flex items-center gap-2">
+                    <FiDroplet className="w-5 h-5 text-blue-500" />
+                    <span className="text-2xl font-bold text-gray-900">
+                      {esp32Estado?.humedad !== null && esp32Estado?.humedad !== undefined
+                        ? `${esp32Estado.humedad.toFixed(1)}%`
+                        : '--'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              
+              {esp32Estado?.timestamp && (
+                <div className="mt-3 text-xs text-gray-500">
+                  Última actualización: {new Date(esp32Estado.timestamp).toLocaleTimeString()}
+                </div>
+              )}
+            </div>
+
+            {/* Estado del test */}
+            {testESP32Activo && (
+              <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
+                <div className="flex items-center gap-2 mb-3">
+                  <FiPlay className="w-5 h-5 text-blue-600" />
+                  <h3 className="font-bold text-blue-900">Test en Curso</h3>
+                </div>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">Temp. Inicial</label>
+                    <span className="font-semibold text-gray-900">
+                      {esp32Estado?.temperaturaInicial?.toFixed(1)}°C
+                    </span>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">Tiempo Transcurrido</label>
+                    <span className="font-semibold text-gray-900">
+                      {esp32Estado?.tiempoTranscurrido 
+                        ? `${Math.floor(esp32Estado.tiempoTranscurrido / 60)}:${(esp32Estado.tiempoTranscurrido % 60).toString().padStart(2, '0')}`
+                        : '0:00'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600 mb-1 block">Estado</label>
+                    <span className="font-semibold text-green-600">
+                      {esp32Estado?.tiempo0Grados && esp32Estado?.tiempoMenos8Grados 
+                        ? 'Completado ✓' 
+                        : 'Monitoreando...'}
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Indicadores de temperaturas detectadas */}
+                <div className="mt-4 grid grid-cols-2 gap-4">
+                  <div className={`p-3 rounded-lg ${esp32Estado?.tiempo0Grados ? 'bg-green-100 border-2 border-green-300' : 'bg-gray-100'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">0°C Detectado</span>
+                      {esp32Estado?.tiempo0Grados ? (
+                        <span className="text-sm font-bold text-green-700">
+                          {Math.floor(esp32Estado.tiempo0Grados / 60)}:{(esp32Estado.tiempo0Grados % 60).toString().padStart(2, '0')}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-500">Esperando...</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className={`p-3 rounded-lg ${esp32Estado?.tiempoMenos8Grados ? 'bg-green-100 border-2 border-green-300' : 'bg-gray-100'}`}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-gray-700">-8°C Detectado</span>
+                      {esp32Estado?.tiempoMenos8Grados ? (
+                        <span className="text-sm font-bold text-green-700">
+                          {Math.floor(esp32Estado.tiempoMenos8Grados / 60)}:{(esp32Estado.tiempoMenos8Grados % 60).toString().padStart(2, '0')}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-500">Esperando...</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Botones de control */}
+            <div className="flex gap-3">
+              {!testESP32Activo ? (
+                <button
+                  onClick={iniciarTestESP32}
+                  disabled={!esp32Estado || esp32Estado.temperatura === null}
+                  className="flex-1 btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FiPlay className="w-5 h-5" />
+                  <span>Inizio Test</span>
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={finalizarTestESP32}
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <FiCheckCircle className="w-5 h-5" />
+                    <span>Finalizza Test</span>
+                  </button>
+                  <button
+                    onClick={cancelarTestESP32}
+                    className="px-6 bg-red-500 hover:bg-red-600 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                  >
+                    <FiX className="w-5 h-5" />
+                    <span>Annulla</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {/* Instrucciones */}
+            <div className="mt-6 p-4 bg-blue-50 rounded-xl">
+              <h4 className="font-semibold text-blue-900 mb-2">Istruzioni:</h4>
+              <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
+                <li>Assicurati che l'ESP32 sia connesso e invii dati al server</li>
+                <li>Clicca su "Inizio Test" per registrare la temperatura iniziale</li>
+                <li>Il sistema monitorerà automaticamente la temperatura</li>
+                <li>Quando viene rilevato 0°C, il tempo viene registrato automaticamente</li>
+                <li>Quando viene rilevato -8°C, il tempo viene registrato automaticamente</li>
+                <li>Clicca su "Finalizza Test" per completare e caricare i dati nel formulario</li>
+              </ol>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

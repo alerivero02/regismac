@@ -242,11 +242,16 @@ export const usuariosAPI = {
     method: 'POST',
     body: { password }
   }),
+  resetPassword: (email, newPassword) => fetchAPI('/api/usuarios/reset-password', {
+    method: 'POST',
+    body: { email, newPassword }
+  }),
   getAll: () => fetchAPI('/api/usuarios'),
   getPendientes: () => fetchAPI('/api/usuarios/pendientes'),
   aprobar: (id) => fetchAPI(`/api/usuarios/${id}/aprobar`, { method: 'POST' }),
   rechazar: (id) => fetchAPI(`/api/usuarios/${id}/rechazar`, { method: 'POST' }),
   updateRol: (id, rol) => fetchAPI(`/api/usuarios/${id}/rol`, { method: 'PUT', body: { rol } }),
+  delete: (id) => fetchAPI(`/api/usuarios/${id}`, { method: 'DELETE' }),
 };
 
 // API de Técnicos
@@ -329,4 +334,28 @@ export const lottiAPI = {
       method: 'POST', 
       body: { id_maquina: idMaquina } 
     }),
+};
+
+// API de Health Check (para mantener la app activa en Render)
+export const healthAPI = {
+  ping: () => fetchAPI('/api/health'),
+};
+
+// API de Sensor ESP32
+export const sensorAPI = {
+  recibirDatos: (temperatura, humedad) => fetchAPI('/api/sensor/datos', {
+    method: 'POST',
+    body: { temperatura, humedad }
+  }),
+  obtenerEstado: () => fetchAPI('/api/sensor/estado'),
+  iniciarTest: (temperaturaInicial) => fetchAPI('/api/sensor/iniciar', {
+    method: 'POST',
+    body: { temperaturaInicial }
+  }),
+  finalizarTest: () => fetchAPI('/api/sensor/finalizar', {
+    method: 'POST'
+  }),
+  cancelarTest: () => fetchAPI('/api/sensor/cancelar', {
+    method: 'POST'
+  }),
 };

@@ -95,13 +95,10 @@ export default function Test() {
       return;
     }
     
-    console.log('Modal ESP32 abierto, iniciando polling...');
-    
     // Cargar estado inicial con manejo de errores mejorado
     const cargarEstadoInicial = async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();
-        console.log('Estado inicial del sensor:', estado);
         setEsp32Estado(estado);
       } catch (error) {
         console.error('Error al obtener estado inicial del sensor:', error);
@@ -813,7 +810,6 @@ export default function Test() {
               <button
                 type="button"
                 onClick={() => {
-                  console.log('Botón ESP32 clickeado desde Informazioni Test, abriendo modal...');
                   setShowESP32Modal(true);
                 }}
                 className="px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-2"
@@ -1137,7 +1133,6 @@ export default function Test() {
                   <button
                     type="button"
                     onClick={() => {
-                      console.log('Botón ESP32 clickeado, abriendo modal...');
                       setShowESP32Modal(true);
                     }}
                     className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"

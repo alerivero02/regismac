@@ -97,7 +97,7 @@ export default function Test() {
     
     console.log('Modal ESP32 abierto, iniciando polling...');
     
-    // Cargar estado inicial con manejo de errores
+    // Cargar estado inicial con manejo de errores mejorado
     const cargarEstadoInicial = async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();
@@ -105,18 +105,35 @@ export default function Test() {
         setEsp32Estado(estado);
       } catch (error) {
         console.error('Error al obtener estado inicial del sensor:', error);
-        // Inicializar con valores por defecto si hay error
-        setEsp32Estado({
-          temperatura: null,
-          humedad: null,
-          timestamp: null,
-          testActivo: false,
-          temperaturaInicial: null,
-          tiempoInicio: null,
-          tiempoTranscurrido: 0,
-          tiempo0Grados: null,
-          tiempoMenos8Grados: null,
-        });
+        // Si es error de autenticación, mostrar mensaje específico
+        if (error.status === 401 || error.message?.includes('autenticat') || error.message?.includes('Sessione')) {
+          setEsp32Estado({
+            temperatura: null,
+            humedad: null,
+            timestamp: null,
+            testActivo: false,
+            temperaturaInicial: null,
+            tiempoInicio: null,
+            tiempoTranscurrido: 0,
+            tiempo0Grados: null,
+            tiempoMenos8Grados: null,
+            error: 'Sessione scaduta. Effettua nuovamente il login.',
+          });
+        } else {
+          // Inicializar con valores por defecto si hay otro error
+          setEsp32Estado({
+            temperatura: null,
+            humedad: null,
+            timestamp: null,
+            testActivo: false,
+            temperaturaInicial: null,
+            tiempoInicio: null,
+            tiempoTranscurrido: 0,
+            tiempo0Grados: null,
+            tiempoMenos8Grados: null,
+            error: error.message || 'Errore di connessione con il sensore',
+          });
+        }
       }
     };
     
@@ -1610,12 +1627,30 @@ export default function Test() {
               </button>
             </div>
 
-            {/* Mensaje de advertencia si no hay conexión */}
-            {esp32Estado === null && (
-              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800">
-                  ⚠️ No se puede conectar con el sensor. Verifica que el ESP32 esté enviando datos al servidor.
+            {/* Mensaje de advertencia si no hay conexión o hay error */}
+            {(esp32Estado === null || esp32Estado?.error) && (
+              <div className={`mb-4 p-3 rounded-lg ${
+                esp32Estado?.error?.includes('Sessione') 
+                  ? 'bg-red-50 border border-red-200' 
+                  : 'bg-yellow-50 border border-yellow-200'
+              }`}>
+                <p className={`text-sm ${
+                  esp32Estado?.error?.includes('Sessione') 
+                    ? 'text-red-800' 
+                    : 'text-yellow-800'
+                }`}>
+                  ⚠️ {esp32Estado?.error || 'No se puede conectar con el sensor. Verifica que el ESP32 esté enviando datos al servidor.'}
                 </p>
+                {esp32Estado?.error?.includes('Sessione') && (
+                  <button
+                    onClick={() => {
+                      window.location.href = '/login';
+                    }}
+                    className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-semibold"
+                  >
+                    Vai al Login
+                  </button>
+                )}
               </div>
             )}
 

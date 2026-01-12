@@ -86,87 +86,80 @@ export default function Test() {
 
   // Efecto para polling del estado del sensor cuando el modal está abierto
   useEffect(() => {
-    let interval = null;
-    
-    if (showESP32Modal) {
-      console.log('Modal ESP32 abierto, iniciando polling...');
-      
-      // Cargar estado inicial con manejo de errores
-      const cargarEstadoInicial = async () => {
-        try {
-          const estado = await sensorAPI.obtenerEstado();
-          console.log('Estado inicial del sensor:', estado);
-          setEsp32Estado(estado);
-        } catch (error) {
-          console.error('Error al obtener estado inicial del sensor:', error);
-          // Inicializar con valores por defecto si hay error
-          setEsp32Estado({
-            temperatura: null,
-            humedad: null,
-            timestamp: null,
-            testActivo: false,
-            temperaturaInicial: null,
-            tiempoInicio: null,
-            tiempoTranscurrido: 0,
-            tiempo0Grados: null,
-            tiempoMenos8Grados: null,
-          });
-        }
-      };
-      
-      cargarEstadoInicial();
-      
-      // Configurar polling solo si no hay un intervalo activo
-      if (!esp32PollingInterval) {
-        interval = setInterval(async () => {
-          try {
-            const estado = await sensorAPI.obtenerEstado();
-            setEsp32Estado(estado);
-            
-            // Si hay un test activo y se detectaron las temperaturas, actualizar el formulario
-            if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempoMenos8Grados !== null) {
-              // Convertir segundos a formato MM:SS
-              const minutos0 = Math.floor(estado.tiempo0Grados / 60);
-              const segundos0 = estado.tiempo0Grados % 60;
-              const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
-              
-              const minutosMenos8 = Math.floor(estado.tiempoMenos8Grados / 60);
-              const segundosMenos8 = estado.tiempoMenos8Grados % 60;
-              const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
-              
-              setFormData(prev => ({
-                ...prev,
-                temperatura_iniziale: estado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
-                tiempo_0_manual: tiempo0Formato,
-                tiempo_meno8_manual: tiempoMenos8Formato,
-              }));
-              
-              setModoManual(true);
-              showNotification('Temperaturas detectadas automáticamente!', 'success');
-            }
-          } catch (error) {
-            console.error('Error al obtener estado del sensor en polling:', error);
-            // No mostrar error al usuario en cada polling, solo loguear
-          }
-        }, 2000); // Polling cada 2 segundos
-        
-        setEsp32PollingInterval(interval);
-      }
-    } else {
+    if (!showESP32Modal) {
       // Limpiar intervalo cuando se cierra el modal
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
         setEsp32PollingInterval(null);
       }
+      return;
     }
     
+    console.log('Modal ESP32 abierto, iniciando polling...');
+    
+    // Cargar estado inicial con manejo de errores
+    const cargarEstadoInicial = async () => {
+      try {
+        const estado = await sensorAPI.obtenerEstado();
+        console.log('Estado inicial del sensor:', estado);
+        setEsp32Estado(estado);
+      } catch (error) {
+        console.error('Error al obtener estado inicial del sensor:', error);
+        // Inicializar con valores por defecto si hay error
+        setEsp32Estado({
+          temperatura: null,
+          humedad: null,
+          timestamp: null,
+          testActivo: false,
+          temperaturaInicial: null,
+          tiempoInicio: null,
+          tiempoTranscurrido: 0,
+          tiempo0Grados: null,
+          tiempoMenos8Grados: null,
+        });
+      }
+    };
+    
+    cargarEstadoInicial();
+    
+    // Configurar polling
+    const interval = setInterval(async () => {
+      try {
+        const estado = await sensorAPI.obtenerEstado();
+        setEsp32Estado(estado);
+        
+        // Si hay un test activo y se detectaron las temperaturas, actualizar el formulario
+        if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempoMenos8Grados !== null) {
+          // Convertir segundos a formato MM:SS
+          const minutos0 = Math.floor(estado.tiempo0Grados / 60);
+          const segundos0 = estado.tiempo0Grados % 60;
+          const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+          
+          const minutosMenos8 = Math.floor(estado.tiempoMenos8Grados / 60);
+          const segundosMenos8 = estado.tiempoMenos8Grados % 60;
+          const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+          
+          setFormData(prev => ({
+            ...prev,
+            temperatura_iniziale: estado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
+            tiempo_0_manual: tiempo0Formato,
+            tiempo_meno8_manual: tiempoMenos8Formato,
+          }));
+          
+          setModoManual(true);
+          showNotification('Temperaturas detectadas automáticamente!', 'success');
+        }
+      } catch (error) {
+        console.error('Error al obtener estado del sensor en polling:', error);
+        // No mostrar error al usuario en cada polling, solo loguear
+      }
+    }, 2000); // Polling cada 2 segundos
+    
+    setEsp32PollingInterval(interval);
+    
     return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
-      if (esp32PollingInterval) {
-        clearInterval(esp32PollingInterval);
-      }
+      clearInterval(interval);
+      setEsp32PollingInterval(null);
     };
   }, [showESP32Modal]);
 

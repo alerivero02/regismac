@@ -1617,6 +1617,15 @@ export default function Test() {
               </button>
             </div>
 
+            {/* Mensaje de advertencia si no hay conexión */}
+            {esp32Estado === null && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800">
+                  ⚠️ No se puede conectar con el sensor. Verifica que el ESP32 esté enviando datos al servidor.
+                </p>
+              </div>
+            )}
+
             {/* Estado del sensor */}
             <div className="mb-6 p-4 bg-gray-50 rounded-xl">
               <div className="grid grid-cols-2 gap-4">

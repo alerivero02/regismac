@@ -145,13 +145,17 @@ async function fetchAPI(endpoint, options = {}) {
           handleSessionExpired();
         }
         errorMessage = 'Non autenticato. Effettua il login.';
+      } else if (response.status === 429) {
+        errorMessage = data.message || data.error || 'Hai superato il limite di tentativi. Riprova tra 15 minuti.';
       } else if (response.status === 503) {
         errorMessage = 'Il servizio non è disponibile. Verifica che il server sia in esecuzione.';
       } else if (response.status === 500) {
         errorMessage = errorMessage || 'Errore interno del server. Riprova più tardi.';
       }
       
-      throw new Error(errorMessage);
+      const error = new Error(errorMessage);
+      error.status = response.status;
+      throw error;
     }
     
     return data;

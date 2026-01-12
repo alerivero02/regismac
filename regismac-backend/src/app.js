@@ -18,6 +18,7 @@ import usuariosRoutes from "./routes/usuarios.routes.js";
 import materialiRoutes from "./routes/materiali.routes.js";
 import ordiniMaterialiRoutes from "./routes/ordiniMateriali.routes.js";
 import lottiRoutes from "./routes/lotti.routes.js";
+import sensorRoutes from "./routes/sensor.routes.js";
 
 import { errorHandler } from "./utils/errorHandler.js";
 
@@ -66,10 +67,17 @@ const generalLimiter = rateLimit({
 });
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: isDevelopment ? 50 : 20,
-  message: 'Troppi tentativi di accesso, riprova tra 15 minuti.',
-  skipSuccessfulRequests: true,
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: isDevelopment ? 50 : 50, // Aumentado de 20 a 50 en producción
+  message: {
+    error: 'Troppi tentativi di accesso',
+    message: 'Hai superato il limite di tentativi di accesso. Riprova tra 15 minuti.',
+    retryAfter: 15
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // No contar intentos exitosos
+  skipFailedRequests: false, // Contar intentos fallidos
   skip: () => !enableRateLimit,
 });
 
@@ -110,6 +118,15 @@ if (sessionSecret) {
   app.use(passport.initialize());
 }
 
+// Endpoint de health check para mantener la app activa en Render
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/maquinas", maquinasRoutes);
@@ -118,6 +135,7 @@ app.use("/api/tests", testsRoutes);
 app.use("/api/materiali", materialiRoutes);
 app.use("/api/ordini-materiali", ordiniMaterialiRoutes);
 app.use("/api/lotti", lottiRoutes);
+app.use("/api/sensor", sensorRoutes);
 
 if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '..', '..', 'regismac-frontend', 'dist');

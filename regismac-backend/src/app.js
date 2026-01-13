@@ -153,13 +153,21 @@ if (process.env.NODE_ENV === 'production') {
   
   // Servir index.html para todas las rutas que no sean /api/*
   // Esto debe ir DESPUÉS de las rutas de API para que solo capture rutas no-API
-  app.get('*', (req, res, next) => {
-    // Si la ruta empieza con /api, pasar al siguiente middleware (que no existe, así que 404)
+  // Usar middleware que capture todas las rutas GET que no sean /api/*
+  app.use((req, res, next) => {
+    // Si la ruta empieza con /api, pasar al siguiente middleware
     if (req.path.startsWith('/api')) {
       return next();
     }
-    // Para todas las demás rutas, servir el frontend
-    res.sendFile(path.join(frontendPath, 'index.html'));
+    // Si es una petición GET y no es un archivo estático, servir el frontend
+    if (req.method === 'GET') {
+      // Verificar si es un archivo estático (tiene extensión)
+      const hasExtension = /\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i.test(req.path);
+      if (!hasExtension) {
+        return res.sendFile(path.join(frontendPath, 'index.html'));
+      }
+    }
+    next();
   });
 } else {
   // En desarrollo, mostrar mensaje de API en la raíz

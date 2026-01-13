@@ -15,6 +15,7 @@ import {
   FiPlay,
   FiSquare,
   FiRotateCw,
+  FiAlertCircle,
 } from 'react-icons/fi';
 import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from '../services/api';
 import Notification from '../components/Notification';
@@ -1648,8 +1649,16 @@ export default function Test() {
             <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-green-50 rounded-xl border-2 border-blue-200">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                  <span className="text-xs font-semibold text-green-700">Actualización en Tiempo Real</span>
+                  {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? (
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  ) : (
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  )}
+                  <span className={`text-xs font-semibold ${esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? 'text-green-700' : 'text-yellow-700'}`}>
+                    {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined 
+                      ? 'Actualización en Tiempo Real' 
+                      : 'Esperando datos del ESP32...'}
+                  </span>
                 </div>
                 {esp32Estado?.timestamp && (
                   <span className="text-xs text-gray-600">
@@ -1657,6 +1666,24 @@ export default function Test() {
                   </span>
                 )}
               </div>
+              
+              {/* Mensaje si no hay datos */}
+              {esp32Estado?.temperatura === null && esp32Estado?.temperatura === undefined && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <FiAlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-semibold mb-1">No se están recibiendo datos del ESP32</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>Verifica que el ESP32 esté encendido y conectado a WiFi</li>
+                        <li>Verifica que el Monitor Serial muestre "✅ Enviado (HTTP 200)"</li>
+                        <li>Verifica que el SERVER_URL sea: http://192.168.0.89:3000/api/sensor/datos</li>
+                        <li>Espera unos segundos para que lleguen los primeros datos</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-white p-3 rounded-lg shadow-sm border border-red-100">

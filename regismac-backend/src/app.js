@@ -129,15 +129,31 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// Endpoint raíz también para mantener activo (algunos servicios de ping usan la raíz)
-app.get("/", (req, res) => {
-  res.json({ 
-    status: "ok", 
-    service: "regismac",
-    message: "RegisMAC API is running"
+// En producción, servir el frontend primero antes de las rutas de API
+if (process.env.NODE_ENV === 'production') {
+  const frontendPath = path.join(__dirname, '..', '..', 'regismac-frontend', 'dist');
+  
+  // Servir archivos estáticos del frontend
+  app.use(express.static(frontendPath));
+  
+  // Servir index.html para todas las rutas que no sean /api/*
+  // Esto debe ir ANTES de las rutas de API para que tenga prioridad
+  app.get(/^\/(?!api).*/, (req, res) => {
+    res.sendFile(path.join(frontendPath, 'index.html'));
   });
-});
+} else {
+  // En desarrollo, mostrar mensaje de API en la raíz
+  app.get("/", (req, res) => {
+    res.json({ 
+      status: "ok", 
+      service: "regismac",
+      message: "RegisMAC API is running",
+      environment: "development"
+    });
+  });
+}
 
+// Rutas de API (solo se ejecutan si no coinciden con rutas del frontend)
 app.use("/api/auth", authRoutes);
 app.use("/api/usuarios", usuariosRoutes);
 app.use("/api/maquinas", maquinasRoutes);
@@ -147,19 +163,6 @@ app.use("/api/materiali", materialiRoutes);
 app.use("/api/ordini-materiali", ordiniMaterialiRoutes);
 app.use("/api/lotti", lottiRoutes);
 app.use("/api/sensor", sensorRoutes);
-
-if (process.env.NODE_ENV === 'production') {
-  const frontendPath = path.join(__dirname, '..', '..', 'regismac-frontend', 'dist');
-  app.use(express.static(frontendPath));
-  
-  app.get('/', (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
-  
-  app.get(/^\/(?!api).+/, (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
-  });
-}
 
 app.use((req, res, next) => {
   res.status(404).json({

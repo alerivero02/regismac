@@ -4,11 +4,20 @@ import { UsuariosService } from "../services/usuarios.service.js";
 
 // Función helper para obtener la URL del frontend correcta
 function getFrontendURL(req, host = null) {
+  // En producción, usar la variable de entorno o la misma URL del backend
   if (process.env.FRONTEND_URL) {
     return process.env.FRONTEND_URL;
   }
   
   const backendHost = host || req.get('host');
+  
+  // En producción (Vercel, Render, etc.), usar la misma URL del backend
+  if (process.env.NODE_ENV === 'production') {
+    const protocol = req.protocol || 'https';
+    return `${protocol}://${backendHost}`;
+  }
+  
+  // En desarrollo local
   if (backendHost.includes('localhost') || backendHost.includes('127.0.0.1')) {
     return 'http://localhost:5173';
   }

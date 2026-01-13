@@ -129,16 +129,36 @@ app.get("/api/health", (req, res) => {
   });
 });
 
-// En producción, servir el frontend primero antes de las rutas de API
+// Rutas de API primero (deben tener prioridad sobre el frontend)
+app.use("/api/auth", authRoutes);
+app.use("/api/usuarios", usuariosRoutes);
+app.use("/api/maquinas", maquinasRoutes);
+app.use("/api/tecnicos", tecnicosRoutes);
+app.use("/api/tests", testsRoutes);
+app.use("/api/materiali", materialiRoutes);
+app.use("/api/ordini-materiali", ordiniMaterialiRoutes);
+app.use("/api/lotti", lottiRoutes);
+app.use("/api/sensor", sensorRoutes);
+
+// En producción (Render), servir el frontend después de las rutas de API
 if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '..', '..', 'regismac-frontend', 'dist');
   
-  // Servir archivos estáticos del frontend
-  app.use(express.static(frontendPath));
+  // Servir archivos estáticos del frontend (CSS, JS, imágenes, etc.)
+  app.use(express.static(frontendPath, {
+    maxAge: '1y', // Cache estático por 1 año
+    etag: true,
+    lastModified: true
+  }));
   
   // Servir index.html para todas las rutas que no sean /api/*
-  // Esto debe ir ANTES de las rutas de API para que tenga prioridad
-  app.get(/^\/(?!api).*/, (req, res) => {
+  // Esto debe ir DESPUÉS de las rutas de API para que solo capture rutas no-API
+  app.get('*', (req, res, next) => {
+    // Si la ruta empieza con /api, pasar al siguiente middleware (que no existe, así que 404)
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    // Para todas las demás rutas, servir el frontend
     res.sendFile(path.join(frontendPath, 'index.html'));
   });
 } else {
@@ -152,17 +172,6 @@ if (process.env.NODE_ENV === 'production') {
     });
   });
 }
-
-// Rutas de API (solo se ejecutan si no coinciden con rutas del frontend)
-app.use("/api/auth", authRoutes);
-app.use("/api/usuarios", usuariosRoutes);
-app.use("/api/maquinas", maquinasRoutes);
-app.use("/api/tecnicos", tecnicosRoutes);
-app.use("/api/tests", testsRoutes);
-app.use("/api/materiali", materialiRoutes);
-app.use("/api/ordini-materiali", ordiniMaterialiRoutes);
-app.use("/api/lotti", lottiRoutes);
-app.use("/api/sensor", sensorRoutes);
 
 app.use((req, res, next) => {
   res.status(404).json({

@@ -12,16 +12,18 @@ const char* ssid = "TU_WIFI_SSID";              // ← Cambia esto
 const char* password = "TU_WIFI_PASSWORD";       // ← Cambia esto
 
 // ⭐ CONFIGURA AQUÍ EL SERVER_URL PARA LOCAL ⭐
-// Reemplaza 192.168.0.169 con la IP de tu computadora
+// Reemplaza 192.168.0.89 con la IP de tu computadora
 // Puedes encontrarla ejecutando: ipconfig (Windows) o ifconfig (Linux/Mac)
-const char* SERVER_URL = "http://192.168.0.169:3000/api/sensor/datos";
+// ⚠️ ACTUALIZA ESTA IP si tu IP local cambia
+const char* SERVER_URL = "http://192.168.0.89:3000/api/sensor/datos";
 
 // Configuración del sensor DHT
 #define DHTPIN 4        // Pin donde está conectado el DHT (cambia según tu conexión)
 #define DHTTYPE DHT22   // Tipo de sensor: DHT11 o DHT22
 
 // Intervalo de envío (en milisegundos)
-const unsigned long INTERVALO_ENVIO = 5000; // 5 segundos
+// Envío continuo para tiempo real - cada 1 segundo
+const unsigned long INTERVALO_ENVIO = 1000; // 1 segundo para actualización en tiempo real
 
 // ============================================
 // FIN DE CONFIGURACIÓN

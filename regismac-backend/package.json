@@ -18,7 +18,8 @@
     "restore": "node scripts/restore-backup.js",
     "import-materiali": "node scripts/importMaterialiLista.js",
     "verificar-google": "node scripts/verificar-google-oauth.js",
-    "recalcular-fecha-estado-ok": "node scripts/recalcularFechaEstadoOk.js"
+    "recalcular-fecha-estado-ok": "node scripts/recalcularFechaEstadoOk.js",
+    "importar-db": "node scripts/importar-db-produccion.js"
   },
   "keywords": [
     "regismac",

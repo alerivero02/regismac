@@ -282,12 +282,17 @@ export default function Registros() {
       // Doble verificación para asegurar que solo se muestren técnicos válidos
       const tecnicosFiltrados = Array.isArray(tecnicosData) 
         ? tecnicosData.filter(t => {
-            // Si tiene usuario asociado, verificar rol y estado
-            if (t.usuario) {
-              return t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            // Verificar que tenga usuario asociado
+            if (!t.usuario) {
+              console.warn(`Técnico ${t.id_tecnico} (${t.nome} ${t.cognome}) no tiene usuario asociado - excluido`);
+              return false;
             }
-            // Sin usuario asociado, no mostrar
-            return false;
+            // Verificar explícitamente rol y estado
+            const esValido = t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            if (!esValido) {
+              console.warn(`Técnico ${t.id_tecnico} (${t.nome} ${t.cognome}) tiene usuario con rol '${t.usuario.rol}' y estado '${t.usuario.estado}' - excluido`);
+            }
+            return esValido;
           })
         : [];
       setTecnicos(tecnicosFiltrados);

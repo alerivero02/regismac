@@ -13,8 +13,9 @@ import {
   FiWifi,
   FiX,
   FiPlay,
-  FiStop,
+  FiSquare,
   FiRotateCw,
+  FiAlertCircle,
 } from 'react-icons/fi';
 import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from '../services/api';
 import Notification from '../components/Notification';
@@ -167,7 +168,7 @@ export default function Test() {
         console.error('Error al obtener estado del sensor en polling:', error);
         // No mostrar error al usuario en cada polling, solo loguear
       }
-    }, 2000); // Polling cada 2 segundos
+    }, 800); // Polling cada 800ms para actualización en tiempo real (más rápido que el envío del ESP32)
     
     setEsp32PollingInterval(interval);
     
@@ -323,13 +324,17 @@ export default function Test() {
       // Doble verificación para asegurar que solo se muestren técnicos válidos
       const tecnicosFiltrados = Array.isArray(tecnicosData) 
         ? tecnicosData.filter(t => {
-            // Si tiene usuario asociado, verificar rol y estado
-            if (t.usuario) {
-              return t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            // Verificar que tenga usuario asociado
+            if (!t.usuario) {
+              console.warn(`Técnico ${t.id_tecnico} (${t.nome} ${t.cognome}) no tiene usuario asociado - excluido`);
+              return false;
             }
-            // Si no tiene usuario pero tiene id_usuario, verificar que el id_usuario pertenezca a un técnico válido
-            // En este caso, el backend ya debería haber filtrado, pero por seguridad lo verificamos
-            return false; // Sin usuario asociado, no mostrar
+            // Verificar explícitamente rol y estado
+            const esValido = t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            if (!esValido) {
+              console.warn(`Técnico ${t.id_tecnico} (${t.nome} ${t.cognome}) tiene usuario con rol '${t.usuario.rol}' y estado '${t.usuario.estado}' - excluido`);
+            }
+            return esValido;
           })
         : [];
       setTecnicos(tecnicosFiltrados);
@@ -1640,25 +1645,67 @@ export default function Test() {
               </div>
             )}
 
-            {/* Estado del sensor */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+            {/* Estado del sensor - Tiempo Real */}
+            <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-green-50 rounded-xl border-2 border-blue-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? (
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  ) : (
+                    <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+                  )}
+                  <span className={`text-xs font-semibold ${esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? 'text-green-700' : 'text-yellow-700'}`}>
+                    {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined 
+                      ? 'Actualización en Tiempo Real' 
+                      : 'Esperando datos del ESP32...'}
+                  </span>
+                </div>
+                {esp32Estado?.timestamp && (
+                  <span className="text-xs text-gray-600">
+                    {new Date(esp32Estado.timestamp).toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+              
+              {/* Mensaje si no hay datos */}
+              {esp32Estado?.temperatura === null && esp32Estado?.temperatura === undefined && (
+                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <FiAlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                    <div className="text-sm text-yellow-800">
+                      <p className="font-semibold mb-1">No se están recibiendo datos del ESP32</p>
+                      <ul className="list-disc list-inside space-y-1 text-xs">
+                        <li>Verifica que el ESP32 esté encendido y conectado a WiFi</li>
+                        <li>Verifica que el Monitor Serial muestre "✅ Enviado (HTTP 200)"</li>
+                        <li>Verifica que el SERVER_URL sea: http://192.168.0.89:3000/api/sensor/datos</li>
+                        <li>Espera unos segundos para que lleguen los primeros datos</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-600 mb-1 block">Temperatura Actual</label>
+                <div className="bg-white p-3 rounded-lg shadow-sm border border-red-100">
+                  <label className="text-xs text-gray-600 mb-1 block flex items-center gap-1">
+                    <FiThermometer className="w-3 h-3 text-red-500" />
+                    Temperatura Actual
+                  </label>
                   <div className="flex items-center gap-2">
-                    <FiThermometer className="w-5 h-5 text-red-500" />
-                    <span className="text-2xl font-bold text-gray-900">
+                    <span className="text-3xl font-bold text-red-600 transition-all duration-300">
                       {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined
                         ? `${esp32Estado.temperatura.toFixed(1)}°C`
                         : '--'}
                     </span>
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs text-gray-600 mb-1 block">Humedad</label>
+                <div className="bg-white p-3 rounded-lg shadow-sm border border-blue-100">
+                  <label className="text-xs text-gray-600 mb-1 block flex items-center gap-1">
+                    <FiDroplet className="w-3 h-3 text-blue-500" />
+                    Humedad
+                  </label>
                   <div className="flex items-center gap-2">
-                    <FiDroplet className="w-5 h-5 text-blue-500" />
-                    <span className="text-2xl font-bold text-gray-900">
+                    <span className="text-3xl font-bold text-blue-600 transition-all duration-300">
                       {esp32Estado?.humedad !== null && esp32Estado?.humedad !== undefined
                         ? `${esp32Estado.humedad.toFixed(1)}%`
                         : '--'}
@@ -1667,11 +1714,12 @@ export default function Test() {
                 </div>
               </div>
               
-              {esp32Estado?.timestamp && (
-                <div className="mt-3 text-xs text-gray-500">
-                  Última actualización: {new Date(esp32Estado.timestamp).toLocaleTimeString()}
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600">Frecuencia de actualización:</span>
+                  <span className="font-semibold text-green-600">Cada 0.8 segundos (tiempo real)</span>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Estado del test */}

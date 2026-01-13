@@ -13,9 +13,20 @@ import Lotti from './pages/Lotti';
 import ProtectedRoute from './components/ProtectedRoute';
 import { healthAPI } from './services/api';
 
-// Componente para mantener la app activa en Render
+// Componente para mantener la app activa en Render (solo en producción)
 function KeepAlive() {
   useEffect(() => {
+    // Solo hacer ping en producción (Render/Vercel)
+    // En local, no es necesario y genera errores en consola
+    const isProduction = window.location.hostname !== 'localhost' && 
+                        window.location.hostname !== '127.0.0.1' &&
+                        !window.location.hostname.match(/^192\.168\./);
+
+    if (!isProduction) {
+      // En local, no hacer nada
+      return;
+    }
+
     // Función para hacer ping al servidor (sin bloquear, fire-and-forget)
     const pingServer = () => {
       // Usar fetch directamente sin await para no bloquear
@@ -27,7 +38,8 @@ function KeepAlive() {
         keepalive: true // Mantener la conexión viva
       })
         .then(() => {
-          console.log('✅ Ping enviado para mantener la app activa');
+          // Solo loguear en producción si es necesario (comentado para reducir ruido)
+          // console.log('✅ Ping enviado para mantener la app activa');
         })
         .catch(() => {
           // Ignorar errores silenciosamente para no bloquear la UI
@@ -58,9 +70,6 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Registro />} />
         
-        {/* Dashboard público (sin autenticación) */}
-        <Route path="/" element={<Dashboard />} />
-        
         {/* Rutas protegidas que requieren autenticación */}
         <Route 
           path="/" 
@@ -70,6 +79,7 @@ function App() {
             </ProtectedRoute>
           }
         >
+          <Route index element={<Dashboard />} />
           <Route path="registros" element={<Registros />} />
           <Route path="test" element={<Test />} />
           <Route path="admin/usuarios" element={<AdminUsuarios />} />
@@ -77,7 +87,7 @@ function App() {
           <Route path="ordini-materiali" element={<OrdiniMateriali />} />
           <Route path="lotti" element={<Lotti />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

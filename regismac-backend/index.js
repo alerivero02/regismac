@@ -1,5 +1,8 @@
 import 'dotenv/config';
 import os from 'os';
+import http from 'http';
+import https from 'https';
+import { URL } from 'url';
 import app from "./src/app.js";
 import { PrismaClient } from "@prisma/client";
 
@@ -48,6 +51,32 @@ function getLocalIP() {
   return 'localhost';
 }
 
+// Sistema de ping automático para mantener el servicio activo en Render
+function startAutoPing() {
+  // Solo en producción y si hay URL configurada
+  if (process.env.NODE_ENV === 'production' && process.env.BACKEND_URL) {
+    const pingInterval = 4 * 60 * 1000; // 4 minutos (Render duerme después de 15 min)
+    const pingUrl = new URL(`${process.env.BACKEND_URL}/api/health`);
+    const httpModule = pingUrl.protocol === 'https:' ? https : http;
+    
+    setInterval(() => {
+      const req = httpModule.get(pingUrl, (res) => {
+        // Ping exitoso, servicio activo
+        res.on('data', () => {}); // Consumir respuesta
+        res.on('end', () => {});
+      });
+      
+      req.on('error', () => {
+        // Ignorar errores de ping (no crítico)
+      });
+      
+      req.setTimeout(5000, () => {
+        req.destroy(); // Timeout de 5 segundos
+      });
+    }, pingInterval);
+  }
+}
+
 async function startServer() {
   try {
     await prisma.$connect();
@@ -62,6 +91,9 @@ async function startServer() {
         console.log(`Server running on http://localhost:${PORT}`);
         console.log(`Local network: http://${localIP}:${PORT}`);
       }
+      
+      // Iniciar ping automático para mantener servicio activo
+      startAutoPing();
     });
   } catch (error) {
     console.error("Database connection error:", error.message);

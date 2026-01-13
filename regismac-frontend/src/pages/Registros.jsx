@@ -278,7 +278,15 @@ export default function Registros() {
       ]);
 
       setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
-      setTecnicos(Array.isArray(tecnicosData) ? tecnicosData : []);
+      // Filtrar técnicos: solo aquellos con rol 'tecnico' y estado 'aprobado'
+      const tecnicosFiltrados = Array.isArray(tecnicosData) 
+        ? tecnicosData.filter(t => 
+            t.usuario && 
+            t.usuario.rol === 'tecnico' && 
+            t.usuario.estado === 'aprobado'
+          )
+        : [];
+      setTecnicos(tecnicosFiltrados);
     } catch (error) {
       console.error('Error al cargar datos:', error);
       showNotification(error.message || 'Errore nel caricamento dei dati', 'error');

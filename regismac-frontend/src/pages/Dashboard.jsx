@@ -386,7 +386,14 @@ export default function Dashboard() {
 
       const maquinasArray = Array.isArray(maquinas) ? maquinas : [];
       const testsArray = Array.isArray(tests) ? tests : [];
-      const tecnicosArray = Array.isArray(tecnicos) ? tecnicos : [];
+      // Filtrar técnicos: solo aquellos con rol 'tecnico' y estado 'aprobado'
+      const tecnicosArray = Array.isArray(tecnicos) 
+        ? tecnicos.filter(t => 
+            t.usuario && 
+            t.usuario.rol === 'tecnico' && 
+            t.usuario.estado === 'aprobado'
+          )
+        : [];
       const materialiArray = Array.isArray(materialiData) ? materialiData : [];
       
       // Guardar todas las máquinas, pruebas, técnicos y materiales para filtrar después

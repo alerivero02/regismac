@@ -319,7 +319,15 @@ export default function Test() {
       ]);
       setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
       setTests(Array.isArray(testsData) ? testsData : []);
-      setTecnicos(Array.isArray(tecnicosData) ? tecnicosData : []);
+      // Filtrar técnicos: solo aquellos con rol 'tecnico' y estado 'aprobado'
+      const tecnicosFiltrados = Array.isArray(tecnicosData) 
+        ? tecnicosData.filter(t => 
+            t.usuario && 
+            t.usuario.rol === 'tecnico' && 
+            t.usuario.estado === 'aprobado'
+          )
+        : [];
+      setTecnicos(tecnicosFiltrados);
       setLotti(Array.isArray(lottiData) ? lottiData : []);
     } catch (error) {
       console.error('Error al cargar datos:', error);

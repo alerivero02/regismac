@@ -51,24 +51,27 @@ function getLocalIP() {
 async function startServer() {
   try {
     await prisma.$connect();
-    console.log("✅ Connessione al database stabilita");
     
     const PORT = process.env.PORT || 3000;
     const HOST = process.env.HOST || '0.0.0.0';
-    const localIP = getLocalIP();
     
     app.listen(PORT, HOST, () => {
-      console.log(`🚀 Server avviato su http://localhost:${PORT}`);
-      console.log(`🌐 Accessibile dalla rete locale: http://${localIP}:${PORT}`);
+      // Logs mínimos para producción
+      if (process.env.NODE_ENV === 'development') {
+        const localIP = getLocalIP();
+        console.log(`Server running on http://localhost:${PORT}`);
+        console.log(`Local network: http://${localIP}:${PORT}`);
+      }
     });
   } catch (error) {
-    console.error("❌ Errore nella connessione al database:", error.message);
-    console.error("\n💡 Verifica:");
-    console.error("   1. Che MySQL sia in esecuzione");
-    console.error("   2. Che la configurazione in .env sia corretta");
-    console.error("   3. Che il database 'regismac' esista");
-    console.error(`\n   DATABASE_URL attuale: ${process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':****@') : 'Non configurata'}`);
-    console.error("\n💡 Esegui 'npm run verificar-env' per verificare la configurazione del .env");
+    console.error("Database connection error:", error.message);
+    if (process.env.NODE_ENV === 'development') {
+      console.error("Check:");
+      console.error("  1. Database is running");
+      console.error("  2. .env configuration is correct");
+      console.error("  3. Database 'regismac' exists");
+      console.error(`DATABASE_URL: ${process.env.DATABASE_URL ? process.env.DATABASE_URL.replace(/:([^:@]+)@/, ':****@') : 'Not configured'}`);
+    }
     process.exit(1);
   }
 }

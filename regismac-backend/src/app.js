@@ -269,16 +269,17 @@ if (process.env.NODE_ENV === 'production') {
   const frontendPath = path.join(__dirname, '..', '..', 'regismac-frontend', 'dist');
   
   // Servir archivos estáticos del frontend (CSS, JS, imágenes, etc.)
+  // Esto DEBE ir antes del middleware que sirve index.html
   app.use(express.static(frontendPath, {
     maxAge: '1y', // Cache estático por 1 año
     etag: true,
-    lastModified: true
+    lastModified: true,
+    index: false, // No servir index.html automáticamente
+    fallthrough: true // Continuar al siguiente middleware si el archivo no existe
   }));
   
-  // Servir index.html para todas las rutas que no sean /api/*
-  // Esto debe ir DESPUÉS de las rutas de API para que solo capture rutas no-API
-  // Usar middleware que capture todas las rutas GET que no sean /api/*
-  // IMPORTANTE: No usar app.get('*') porque Express 5 no lo soporta
+  // Servir index.html para todas las rutas GET que no sean /api/* y no sean archivos estáticos
+  // Esto debe ir DESPUÉS de express.static para que solo capture rutas que no encontraron archivo
   app.use((req, res, next) => {
     // Si la ruta empieza con /api, pasar al siguiente middleware (404)
     if (req.path.startsWith('/api')) {
@@ -291,16 +292,28 @@ if (process.env.NODE_ENV === 'production') {
     }
     
     // Verificar si es un archivo estático (tiene extensión)
+    // Si express.static no encontró el archivo, esta ruta no debería tener extensión
     const hasExtension = /\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map|json)$/i.test(req.path);
     if (hasExtension) {
-      return next(); // Dejar que express.static lo maneje
+      // Si tiene extensión pero express.static no lo encontró, devolver 404
+      return res.status(404).json({
+        error: 'Archivo no encontrado',
+        path: req.path
+      });
     }
     
-    // Para todas las demás rutas GET, servir el frontend
-    res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
+    // Para todas las demás rutas GET (sin extensión), servir el frontend SPA
+    const indexPath = path.join(frontendPath, 'index.html');
+    res.sendFile(indexPath, (err) => {
       if (err) {
         console.error('Error al servir index.html:', err);
-        next(err);
+        // Si hay error, devolver 404 en lugar de pasar al siguiente middleware
+        if (!res.headersSent) {
+          res.status(404).json({
+            error: 'Frontend no encontrado',
+            message: 'El archivo index.html no existe en la ruta del frontend'
+          });
+        }
       }
     });
   });

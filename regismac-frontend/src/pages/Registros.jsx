@@ -279,12 +279,16 @@ export default function Registros() {
 
       setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
       // Filtrar técnicos: solo aquellos con rol 'tecnico' y estado 'aprobado'
+      // Doble verificación para asegurar que solo se muestren técnicos válidos
       const tecnicosFiltrados = Array.isArray(tecnicosData) 
-        ? tecnicosData.filter(t => 
-            t.usuario && 
-            t.usuario.rol === 'tecnico' && 
-            t.usuario.estado === 'aprobado'
-          )
+        ? tecnicosData.filter(t => {
+            // Si tiene usuario asociado, verificar rol y estado
+            if (t.usuario) {
+              return t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            }
+            // Sin usuario asociado, no mostrar
+            return false;
+          })
         : [];
       setTecnicos(tecnicosFiltrados);
     } catch (error) {

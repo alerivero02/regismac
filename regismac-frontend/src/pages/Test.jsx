@@ -320,12 +320,17 @@ export default function Test() {
       setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
       setTests(Array.isArray(testsData) ? testsData : []);
       // Filtrar técnicos: solo aquellos con rol 'tecnico' y estado 'aprobado'
+      // Doble verificación para asegurar que solo se muestren técnicos válidos
       const tecnicosFiltrados = Array.isArray(tecnicosData) 
-        ? tecnicosData.filter(t => 
-            t.usuario && 
-            t.usuario.rol === 'tecnico' && 
-            t.usuario.estado === 'aprobado'
-          )
+        ? tecnicosData.filter(t => {
+            // Si tiene usuario asociado, verificar rol y estado
+            if (t.usuario) {
+              return t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            }
+            // Si no tiene usuario pero tiene id_usuario, verificar que el id_usuario pertenezca a un técnico válido
+            // En este caso, el backend ya debería haber filtrado, pero por seguridad lo verificamos
+            return false; // Sin usuario asociado, no mostrar
+          })
         : [];
       setTecnicos(tecnicosFiltrados);
       setLotti(Array.isArray(lottiData) ? lottiData : []);

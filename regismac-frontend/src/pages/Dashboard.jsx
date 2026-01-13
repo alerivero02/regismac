@@ -387,12 +387,16 @@ export default function Dashboard() {
       const maquinasArray = Array.isArray(maquinas) ? maquinas : [];
       const testsArray = Array.isArray(tests) ? tests : [];
       // Filtrar técnicos: solo aquellos con rol 'tecnico' y estado 'aprobado'
+      // Doble verificación para asegurar que solo se muestren técnicos válidos
       const tecnicosArray = Array.isArray(tecnicos) 
-        ? tecnicos.filter(t => 
-            t.usuario && 
-            t.usuario.rol === 'tecnico' && 
-            t.usuario.estado === 'aprobado'
-          )
+        ? tecnicos.filter(t => {
+            // Si tiene usuario asociado, verificar rol y estado
+            if (t.usuario) {
+              return t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            }
+            // Sin usuario asociado, no mostrar
+            return false;
+          })
         : [];
       const materialiArray = Array.isArray(materialiData) ? materialiData : [];
       

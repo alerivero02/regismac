@@ -62,43 +62,60 @@ export class TecnicosService {
     // Obtener técnicos desde usuarios aprobados (para usar en formularios)
     async getTecnicosFromUsuarios() {
       try {
-        // Primero asegurar que todos los usuarios aprobados con rol "tecnico" tengan técnico
-        const usuariosAprobados = await this.prisma.usuario.findMany({
-          where: { 
+        // PASO 1: Obtener SOLO usuarios con rol 'tecnico' y estado 'aprobado'
+        const usuariosTecnicos = await this.prisma.usuario.findMany({
+          where: {
             estado: 'aprobado',
-            rol: 'tecnico', // Solo usuarios con rol técnico
-            tecnico: null
+            rol: 'tecnico' // CRÍTICO: Solo rol 'tecnico'
+          },
+          select: {
+            id_usuario: true,
+            nombre: true,
+            apellido: true,
+            email: true,
+            estado: true,
+            rol: true
           }
         });
 
-        // Crear técnicos para usuarios aprobados que no tienen uno
-        for (const usuario of usuariosAprobados) {
+        // Si no hay usuarios técnicos, retornar array vacío
+        if (!usuariosTecnicos || usuariosTecnicos.length === 0) {
+          return [];
+        }
+
+        const idsUsuariosTecnicos = usuariosTecnicos.map(u => u.id_usuario);
+
+        // PASO 2: Asegurar que todos estos usuarios tengan técnico creado
+        for (const usuario of usuariosTecnicos) {
           try {
-            await this.prisma.tecnico.create({
-              data: {
-                nome: usuario.nombre,
-                cognome: usuario.apellido || '',
-                id_usuario: usuario.id_usuario
-              }
+            // Verificar si ya existe técnico para este usuario
+            const tecnicoExistente = await this.prisma.tecnico.findUnique({
+              where: { id_usuario: usuario.id_usuario }
             });
+
+            // Si no existe, crearlo
+            if (!tecnicoExistente) {
+              await this.prisma.tecnico.create({
+                data: {
+                  nome: usuario.nombre,
+                  cognome: usuario.apellido || '',
+                  id_usuario: usuario.id_usuario
+                }
+              });
+            }
           } catch (createError) {
             // Si falla la creación (por ejemplo, duplicado), continuar con el siguiente
-            console.error(`Error al crear técnico para usuario ${usuario.id_usuario}:`, createError);
-            if (createError.code !== 'P2002') { // Si no es un error de duplicado, lanzar
-              throw createError;
+            if (createError.code !== 'P2002') {
+              console.error(`Error al crear técnico para usuario ${usuario.id_usuario}:`, createError);
             }
           }
         }
-      
-        // Retornar técnicos con información del usuario, SOLO aquellos con rol "tecnico" y estado "aprobado"
+
+        // PASO 3: Obtener SOLO técnicos que pertenezcan a usuarios con rol 'tecnico' y estado 'aprobado'
         const tecnicos = await this.prisma.tecnico.findMany({
           where: {
-            usuario: {
-              estado: 'aprobado',
-              rol: 'tecnico' // Solo usuarios con rol técnico
-            },
             id_usuario: {
-              not: null // Asegurar que tenga usuario asociado
+              in: idsUsuariosTecnicos // SOLO IDs de usuarios técnicos aprobados
             }
           },
           include: {
@@ -118,53 +135,52 @@ export class TecnicosService {
           }
         });
 
-        // Filtrar adicionalmente por si acaso algún técnico no tiene usuario válido
-        return tecnicos.filter(tecnico => 
-          tecnico.usuario && 
-          tecnico.usuario.rol === 'tecnico' && 
-          tecnico.usuario.estado === 'aprobado'
-        );
+        // PASO 4: Filtrar una vez más para garantizar que solo sean técnicos válidos
+        return tecnicos.filter(tecnico => {
+          if (!tecnico.usuario) return false;
+          // Verificar explícitamente rol y estado
+          return tecnico.usuario.rol === 'tecnico' && tecnico.usuario.estado === 'aprobado';
+        });
       } catch (error) {
         console.error('Error en getTecnicosFromUsuarios:', error);
-        // Si hay un error con las relaciones, intentar obtener solo los datos básicos filtrando por usuario
-        if (error.code === 'P2025' || error.message?.includes('relation') || error.message?.includes('include')) {
-          try {
-            // Obtener usuarios con rol técnico primero
-            const usuariosTecnicos = await this.prisma.usuario.findMany({
-              where: {
-                estado: 'aprobado',
-                rol: 'tecnico'
-              },
-              select: {
-                id_usuario: true
-              }
-            });
+        // Fallback: obtener usuarios técnicos y luego técnicos
+        try {
+          const usuariosTecnicos = await this.prisma.usuario.findMany({
+            where: {
+              estado: 'aprobado',
+              rol: 'tecnico'
+            },
+            select: {
+              id_usuario: true
+            }
+          });
 
-            const idsUsuarios = usuariosTecnicos.map(u => u.id_usuario);
-
-            // Retornar solo técnicos que pertenezcan a estos usuarios
-            return await this.prisma.tecnico.findMany({
-              where: {
-                id_usuario: {
-                  in: idsUsuarios
-                }
-              },
-              select: {
-                id_tecnico: true,
-                nome: true,
-                cognome: true,
-                id_usuario: true
-              },
-              orderBy: {
-                nome: 'asc'
-              }
-            });
-          } catch (fallbackError) {
-            console.error('Error en fallback de getTecnicosFromUsuarios:', fallbackError);
-            throw error; // Lanzar el error original
+          if (!usuariosTecnicos || usuariosTecnicos.length === 0) {
+            return [];
           }
+
+          const idsUsuarios = usuariosTecnicos.map(u => u.id_usuario);
+
+          return await this.prisma.tecnico.findMany({
+            where: {
+              id_usuario: {
+                in: idsUsuarios
+              }
+            },
+            select: {
+              id_tecnico: true,
+              nome: true,
+              cognome: true,
+              id_usuario: true
+            },
+            orderBy: {
+              nome: 'asc'
+            }
+          });
+        } catch (fallbackError) {
+          console.error('Error en fallback de getTecnicosFromUsuarios:', fallbackError);
+          throw error;
         }
-        throw error;
       }
     }
   

@@ -208,11 +208,21 @@ export class TecnicosService {
         });
 
         // PASO 4: Filtrar una vez más para garantizar que solo sean técnicos válidos
-        return tecnicos.filter(tecnico => {
-          if (!tecnico.usuario) return false;
+        // CRÍTICO: Verificar que el usuario existe, tiene rol 'tecnico' y estado 'aprobado'
+        const tecnicosFiltrados = tecnicos.filter(tecnico => {
+          if (!tecnico.usuario) {
+            console.warn(`Técnico ${tecnico.id_tecnico} no tiene usuario asociado`);
+            return false;
+          }
           // Verificar explícitamente rol y estado
-          return tecnico.usuario.rol === 'tecnico' && tecnico.usuario.estado === 'aprobado';
+          const esValido = tecnico.usuario.rol === 'tecnico' && tecnico.usuario.estado === 'aprobado';
+          if (!esValido) {
+            console.warn(`Técnico ${tecnico.id_tecnico} tiene usuario con rol '${tecnico.usuario.rol}' y estado '${tecnico.usuario.estado}' - NO incluido`);
+          }
+          return esValido;
         });
+
+        return tecnicosFiltrados;
       } catch (error) {
         console.error('Error en getTecnicosFromUsuarios:', error);
         // Fallback: obtener usuarios técnicos y luego técnicos
@@ -233,21 +243,33 @@ export class TecnicosService {
 
           const idsUsuarios = usuariosTecnicos.map(u => u.id_usuario);
 
-          return await this.prisma.tecnico.findMany({
+          const tecnicosFallback = await this.prisma.tecnico.findMany({
             where: {
               id_usuario: {
                 in: idsUsuarios
               }
             },
-            select: {
-              id_tecnico: true,
-              nome: true,
-              cognome: true,
-              id_usuario: true
+            include: {
+              usuario: {
+                select: {
+                  id_usuario: true,
+                  nombre: true,
+                  apellido: true,
+                  email: true,
+                  estado: true,
+                  rol: true
+                }
+              }
             },
             orderBy: {
               nome: 'asc'
             }
+          });
+
+          // Filtrar para asegurar que solo sean técnicos válidos
+          return tecnicosFallback.filter(tecnico => {
+            if (!tecnico.usuario) return false;
+            return tecnico.usuario.rol === 'tecnico' && tecnico.usuario.estado === 'aprobado';
           });
         } catch (fallbackError) {
           console.error('Error en fallback de getTecnicosFromUsuarios:', fallbackError);

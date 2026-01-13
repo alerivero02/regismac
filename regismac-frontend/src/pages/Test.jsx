@@ -323,13 +323,17 @@ export default function Test() {
       // Doble verificación para asegurar que solo se muestren técnicos válidos
       const tecnicosFiltrados = Array.isArray(tecnicosData) 
         ? tecnicosData.filter(t => {
-            // Si tiene usuario asociado, verificar rol y estado
-            if (t.usuario) {
-              return t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            // Verificar que tenga usuario asociado
+            if (!t.usuario) {
+              console.warn(`Técnico ${t.id_tecnico} (${t.nome} ${t.cognome}) no tiene usuario asociado - excluido`);
+              return false;
             }
-            // Si no tiene usuario pero tiene id_usuario, verificar que el id_usuario pertenezca a un técnico válido
-            // En este caso, el backend ya debería haber filtrado, pero por seguridad lo verificamos
-            return false; // Sin usuario asociado, no mostrar
+            // Verificar explícitamente rol y estado
+            const esValido = t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
+            if (!esValido) {
+              console.warn(`Técnico ${t.id_tecnico} (${t.nome} ${t.cognome}) tiene usuario con rol '${t.usuario.rol}' y estado '${t.usuario.estado}' - excluido`);
+            }
+            return esValido;
           })
         : [];
       setTecnicos(tecnicosFiltrados);

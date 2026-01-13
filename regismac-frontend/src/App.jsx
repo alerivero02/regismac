@@ -70,9 +70,6 @@ function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/registro" element={<Registro />} />
         
-        {/* Dashboard público (sin autenticación) */}
-        <Route path="/" element={<Dashboard />} />
-        
         {/* Rutas protegidas que requieren autenticación */}
         <Route 
           path="/" 
@@ -82,6 +79,7 @@ function App() {
             </ProtectedRoute>
           }
         >
+          <Route index element={<Dashboard />} />
           <Route path="registros" element={<Registros />} />
           <Route path="test" element={<Test />} />
           <Route path="admin/usuarios" element={<AdminUsuarios />} />
@@ -89,7 +87,7 @@ function App() {
           <Route path="ordini-materiali" element={<OrdiniMateriali />} />
           <Route path="lotti" element={<Lotti />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );

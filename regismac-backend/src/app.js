@@ -21,6 +21,15 @@ import lottiRoutes from "./routes/lotti.routes.js";
 import sensorRoutes from "./routes/sensor.routes.js";
 
 import { errorHandler } from "./utils/errorHandler.js";
+import { 
+  sanitizeBody, 
+  sanitizeQuery, 
+  sanitizeParams, 
+  preventPathTraversal,
+  validatePayloadSize,
+  allowedMethods
+} from "./middleware/security.js";
+import { logSecurityEvent, SecurityEventType } from "./utils/securityLogger.js";
 
 const app = express();
 
@@ -44,31 +53,89 @@ app.use(helmet({
 if (!process.env.SESSION_SECRET && process.env.NODE_ENV === 'production') {
   console.error('❌ WARNING: SESSION_SECRET no está configurado.');
 }
+// Configuración de CORS más estricta
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : (isDevelopment ? ['http://localhost:5173', 'http://localhost:3000'] : [process.env.FRONTEND_URL || process.env.BACKEND_URL].filter(Boolean));
+
 app.use(cors({
-  origin: true,
+  origin: (origin, callback) => {
+    // Permitir requests sin origin (mobile apps, Postman, etc.) solo en desarrollo
+    if (!origin && isDevelopment) {
+      return callback(null, true);
+    }
+    
+    // En producción, verificar origen
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      logSecurityEvent(SecurityEventType.SUSPICIOUS_ACTIVITY, {
+        reason: 'CORS origin not allowed',
+        origin,
+        allowedOrigins
+      });
+      callback(new Error('No permitido por CORS'));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  maxAge: 86400, // 24 horas
 }));
-app.use(express.json({ limit: '50mb' }));
+
+// Validar tamaño de payload antes de parsear
+app.use(validatePayloadSize(50 * 1024 * 1024)); // 50MB
+
+app.use(express.json({ 
+  limit: '50mb',
+  verify: (req, res, buf) => {
+    // Verificar que el JSON sea válido antes de parsear
+    try {
+      JSON.parse(buf.toString());
+    } catch (e) {
+      logSecurityEvent(SecurityEventType.INVALID_INPUT, {
+        reason: 'Invalid JSON payload',
+        path: req.path
+      });
+      throw new Error('JSON inválido');
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
-// Rate limiting DESHABILITADO por defecto en producción para evitar errores 429
-// Solo se habilita si ENABLE_RATE_LIMIT está explícitamente en 'true'
-const enableRateLimit = process.env.ENABLE_RATE_LIMIT === 'true';
+// Aplicar sanitización a todas las rutas
+app.use(sanitizeBody);
+app.use(sanitizeQuery);
+app.use(sanitizeParams);
+app.use(preventPathTraversal);
+
+// Rate limiting - Habilitado por defecto en producción, deshabilitable con DISABLE_RATE_LIMIT=true
+const disableRateLimit = process.env.DISABLE_RATE_LIMIT === 'true';
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: isDevelopment ? 1000 : 1000, // Muy alto cuando está habilitado
+  max: isDevelopment ? 1000 : 500, // Más restrictivo en producción
   message: 'Troppi tentativi, riprova più tardi.',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => !enableRateLimit,
+  skip: () => disableRateLimit,
+  handler: (req, res) => {
+    logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
+      ip: req.ip,
+      path: req.path,
+      method: req.method
+    });
+    res.status(429).json({
+      error: 'Troppi tentativi',
+      message: 'Hai superato il limite di richieste. Riprova più tardi.',
+      retryAfter: 15
+    });
+  }
 });
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: isDevelopment ? 100 : 500, // Muy alto cuando está habilitado
+  max: isDevelopment ? 50 : 20, // Más restrictivo para autenticación
   message: {
     error: 'Troppi tentativi di accesso',
     message: 'Hai superato il limite di tentativi di accesso. Riprova tra 15 minuti o usa l\'accesso con Google.',
@@ -78,14 +145,51 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true, // No contar intentos exitosos
   skipFailedRequests: false, // Contar intentos fallidos
-  skip: () => !enableRateLimit,
+  skip: () => disableRateLimit,
+  handler: (req, res) => {
+    logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
+      ip: req.ip,
+      path: req.path,
+      method: req.method,
+      type: 'auth'
+    });
+    res.status(429).json({
+      error: 'Troppi tentativi di accesso',
+      message: 'Hai superato il limite di tentativi di accesso. Riprova tra 15 minuti.',
+      retryAfter: 15
+    });
+  }
 });
 
-if (enableRateLimit) {
+const strictLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: isDevelopment ? 100 : 30, // Muy restrictivo para endpoints sensibles
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => disableRateLimit,
+  handler: (req, res) => {
+    logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
+      ip: req.ip,
+      path: req.path,
+      method: req.method,
+      type: 'strict'
+    });
+    res.status(429).json({
+      error: 'Troppi tentativi',
+      message: 'Hai superato il limite di richieste per questo endpoint.',
+      retryAfter: 15
+    });
+  }
+});
+
+if (!disableRateLimit) {
   app.use('/api/', generalLimiter);
   app.use('/api/auth/', authLimiter);
   app.use('/api/usuarios/login', authLimiter);
   app.use('/api/usuarios/registro', authLimiter);
+  // Rate limiting estricto para endpoints administrativos
+  app.use('/api/usuarios', strictLimiter);
+  app.use('/api/admin', strictLimiter);
 }
 
 const sessionSecret = process.env.SESSION_SECRET || (process.env.NODE_ENV === 'production' ? null : 'dev-secret-key-change-in-production');
@@ -117,6 +221,26 @@ if (sessionSecret) {
   console.error('❌ No se puede configurar sesiones sin SESSION_SECRET');
   app.use(passport.initialize());
 }
+
+// Timeout middleware - terminar requests que tardan más de 30 segundos
+app.use((req, res, next) => {
+  const timeout = 30000; // 30 segundos
+  req.setTimeout(timeout, () => {
+    if (!res.headersSent) {
+      logSecurityEvent(SecurityEventType.SUSPICIOUS_ACTIVITY, {
+        reason: 'Request timeout',
+        path: req.path,
+        method: req.method,
+        ip: req.ip
+      });
+      res.status(408).json({
+        error: 'Timeout',
+        message: 'La petición tardó demasiado tiempo'
+      });
+    }
+  });
+  next();
+});
 
 // Endpoint de health check para mantener la app activa en Render
 // Este endpoint debe ser llamado periódicamente (cada 5-10 minutos) para evitar que Render duerma el servicio

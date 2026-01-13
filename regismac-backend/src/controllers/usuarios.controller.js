@@ -1,6 +1,7 @@
 import { ApiError } from "../utils/apiError.js";
 import { UsuariosService } from "../services/usuarios.service.js";
 import jwt from 'jsonwebtoken';
+import { logAuthAttempt, logUnauthorizedAccess } from "../utils/securityLogger.js";
 
 export const registrarUsuario = async (req, res, next) => {
   try {
@@ -56,11 +57,13 @@ export const loginUsuario = async (req, res, next) => {
     // Buscar usuario
     const usuario = await service.findByEmail(email);
     if (!usuario) {
+      logAuthAttempt(req, false, 'Usuario no encontrado');
       throw new ApiError("Credenziali non valide", 401);
     }
 
     // Verificar si está aprobado
     if (usuario.estado !== 'aprobado') {
+      logAuthAttempt(req, false, `Estado: ${usuario.estado}`);
       throw new ApiError(
         usuario.estado === 'pendiente' 
           ? "Il tuo account è in attesa di approvazione" 
@@ -71,6 +74,7 @@ export const loginUsuario = async (req, res, next) => {
 
     // Verificar si el usuario tiene contraseña establecida
     if (!usuario.password) {
+      logAuthAttempt(req, false, 'Password no establecida');
       // Si no tiene contraseña, debe usar Google o establecer una primero
       throw new ApiError("Questo account non ha una password impostata. Accedi con Google oppure imposta una password dal tuo profilo.", 401);
     }
@@ -78,8 +82,12 @@ export const loginUsuario = async (req, res, next) => {
     // Verificar contraseña
     const passwordValido = await service.verificarPassword(password, usuario.password);
     if (!passwordValido) {
+      logAuthAttempt(req, false, 'Password incorrecta');
       throw new ApiError("Credenziali non valide", 401);
     }
+    
+    // Log de autenticación exitosa
+    logAuthAttempt(req, true);
 
     // Crear sesión (sin password)
     const { password: _, ...usuarioSinPassword } = usuario;

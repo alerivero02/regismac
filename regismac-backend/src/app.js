@@ -278,20 +278,31 @@ if (process.env.NODE_ENV === 'production') {
   // Servir index.html para todas las rutas que no sean /api/*
   // Esto debe ir DESPUÉS de las rutas de API para que solo capture rutas no-API
   // Usar middleware que capture todas las rutas GET que no sean /api/*
+  // IMPORTANTE: No usar app.get('*') porque Express 5 no lo soporta
   app.use((req, res, next) => {
-    // Si la ruta empieza con /api, pasar al siguiente middleware
+    // Si la ruta empieza con /api, pasar al siguiente middleware (404)
     if (req.path.startsWith('/api')) {
       return next();
     }
-    // Si es una petición GET y no es un archivo estático, servir el frontend
-    if (req.method === 'GET') {
-      // Verificar si es un archivo estático (tiene extensión)
-      const hasExtension = /\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$/i.test(req.path);
-      if (!hasExtension) {
-        return res.sendFile(path.join(frontendPath, 'index.html'));
-      }
+    
+    // Solo procesar peticiones GET
+    if (req.method !== 'GET') {
+      return next();
     }
-    next();
+    
+    // Verificar si es un archivo estático (tiene extensión)
+    const hasExtension = /\.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot|map|json)$/i.test(req.path);
+    if (hasExtension) {
+      return next(); // Dejar que express.static lo maneje
+    }
+    
+    // Para todas las demás rutas GET, servir el frontend
+    res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
+      if (err) {
+        console.error('Error al servir index.html:', err);
+        next(err);
+      }
+    });
   });
 } else {
   // En desarrollo, mostrar mensaje de API en la raíz

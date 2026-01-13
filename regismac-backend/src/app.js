@@ -53,29 +53,76 @@ app.use(helmet({
 if (!process.env.SESSION_SECRET && process.env.NODE_ENV === 'production') {
   console.error('❌ WARNING: SESSION_SECRET no está configurado.');
 }
-// Configuración de CORS más estricta
+// Configuración de CORS
+// En producción con Render, el frontend y backend están en el mismo dominio
 const allowedOrigins = process.env.ALLOWED_ORIGINS 
   ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : (isDevelopment ? ['http://localhost:5173', 'http://localhost:3000'] : [process.env.FRONTEND_URL || process.env.BACKEND_URL].filter(Boolean));
+  : (isDevelopment 
+      ? ['http://localhost:5173', 'http://localhost:3000'] 
+      : null // null significa permitir el mismo origen en producción
+    );
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permitir requests sin origin (mobile apps, Postman, etc.) solo en desarrollo
-    if (!origin && isDevelopment) {
+    // En desarrollo, permitir localhost
+    if (isDevelopment) {
+      // Permitir requests sin origin (mobile apps, Postman, etc.)
+      if (!origin) {
+        return callback(null, true);
+      }
+      // Permitir localhost en desarrollo
+      if (allowedOrigins && allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      // Permitir cualquier localhost en desarrollo
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+    }
+    
+    // En producción
+    if (!isDevelopment) {
+      // Si ALLOWED_ORIGINS está configurado, usar esa lista
+      if (allowedOrigins && allowedOrigins.length > 0) {
+        if (!origin || allowedOrigins.includes(origin)) {
+          return callback(null, true);
+        } else {
+          logSecurityEvent(SecurityEventType.SUSPICIOUS_ACTIVITY, {
+            reason: 'CORS origin not allowed',
+            origin,
+            allowedOrigins
+          });
+          return callback(new Error('No permitido por CORS'));
+        }
+      }
+      
+      // Si no hay ALLOWED_ORIGINS configurado, permitir el mismo origen
+      // Esto es útil cuando frontend y backend están en el mismo dominio (Render)
+      if (!origin) {
+        // Requests sin origin (mismo origen) están permitidos
+        return callback(null, true);
+      }
+      
+      // Verificar si el origen coincide con BACKEND_URL o FRONTEND_URL
+      const backendUrl = process.env.BACKEND_URL || process.env.FRONTEND_URL;
+      if (backendUrl) {
+        try {
+          const backendOrigin = new URL(backendUrl).origin;
+          if (origin === backendOrigin) {
+            return callback(null, true);
+          }
+        } catch (e) {
+          // Si hay error parseando la URL, continuar
+        }
+      }
+      
+      // Por defecto, permitir en producción si no hay configuración específica
+      // Esto permite que funcione cuando frontend y backend están en el mismo dominio
       return callback(null, true);
     }
     
-    // En producción, verificar origen
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      logSecurityEvent(SecurityEventType.SUSPICIOUS_ACTIVITY, {
-        reason: 'CORS origin not allowed',
-        origin,
-        allowedOrigins
-      });
-      callback(new Error('No permitido por CORS'));
-    }
+    // Fallback: denegar
+    callback(new Error('No permitido por CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],

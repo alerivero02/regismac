@@ -4,6 +4,78 @@ export class TecnicosService {
     }
   
     async findAll() {
+      // CORRECCIÓN: Asegurar que usuarios técnicos específicos tengan rol y estado correctos
+      const emailsTecnicosEspecificos = [
+        'Mahmudlhasan429@gmail.com',
+        'marcocarinci.ecosun@gmail.com'
+      ];
+      
+      // Buscar y corregir estos usuarios específicos
+      for (const email of emailsTecnicosEspecificos) {
+        try {
+          // Buscar usuario (intentar con diferentes formatos de email)
+          let usuario = await this.prisma.usuario.findUnique({
+            where: { email: email.toLowerCase() }
+          });
+          
+          if (!usuario) {
+            usuario = await this.prisma.usuario.findUnique({
+              where: { email: email }
+            });
+          }
+          
+          // Si aún no se encuentra, buscar todos y filtrar
+          if (!usuario) {
+            const usuarios = await this.prisma.usuario.findMany();
+            usuario = usuarios.find(u => 
+              u.email && u.email.toLowerCase() === email.toLowerCase()
+            );
+          }
+          
+          if (usuario) {
+            const updates = {};
+            if (usuario.rol !== 'tecnico') {
+              updates.rol = 'tecnico';
+            }
+            if (usuario.estado !== 'aprobado') {
+              updates.estado = 'aprobado';
+              updates.fecha_aprobacion = usuario.fecha_aprobacion || new Date();
+            }
+            
+            if (Object.keys(updates).length > 0) {
+              await this.prisma.usuario.update({
+                where: { id_usuario: usuario.id_usuario },
+                data: updates
+              });
+            }
+            
+            // Asegurar que tenga técnico asociado
+            const tecnicoExistente = await this.prisma.tecnico.findUnique({
+              where: { id_usuario: usuario.id_usuario }
+            });
+            
+            if (!tecnicoExistente) {
+              try {
+                await this.prisma.tecnico.create({
+                  data: {
+                    nome: usuario.nombre,
+                    cognome: usuario.apellido || '',
+                    id_usuario: usuario.id_usuario
+                  }
+                });
+              } catch (createError) {
+                // Ignorar errores de duplicado
+                if (createError.code !== 'P2002') {
+                  console.error(`Error al crear técnico para ${email}:`, createError);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          console.error(`Error al corregir usuario ${email}:`, error);
+        }
+      }
+      
       // Obtener todos los usuarios aprobados con rol "tecnico" que no tienen técnico asociado
       const usuariosAprobados = await this.prisma.usuario.findMany({
         where: { 

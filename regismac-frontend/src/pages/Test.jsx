@@ -167,7 +167,7 @@ export default function Test() {
         console.error('Error al obtener estado del sensor en polling:', error);
         // No mostrar error al usuario en cada polling, solo loguear
       }
-    }, 2000); // Polling cada 2 segundos
+    }, 1000); // Polling cada 1 segundo para tiempo real
     
     setEsp32PollingInterval(interval);
     
@@ -1644,25 +1644,41 @@ export default function Test() {
               </div>
             )}
 
-            {/* Estado del sensor */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-xl">
+            {/* Estado del sensor - Tiempo Real */}
+            <div className="mb-6 p-4 bg-gradient-to-br from-blue-50 to-green-50 rounded-xl border-2 border-blue-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-semibold text-green-700">Actualización en Tiempo Real</span>
+                </div>
+                {esp32Estado?.timestamp && (
+                  <span className="text-xs text-gray-600">
+                    {new Date(esp32Estado.timestamp).toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+              
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-gray-600 mb-1 block">Temperatura Actual</label>
+                <div className="bg-white p-3 rounded-lg shadow-sm border border-red-100">
+                  <label className="text-xs text-gray-600 mb-1 block flex items-center gap-1">
+                    <FiThermometer className="w-3 h-3 text-red-500" />
+                    Temperatura Actual
+                  </label>
                   <div className="flex items-center gap-2">
-                    <FiThermometer className="w-5 h-5 text-red-500" />
-                    <span className="text-2xl font-bold text-gray-900">
+                    <span className="text-3xl font-bold text-red-600 transition-all duration-300">
                       {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined
                         ? `${esp32Estado.temperatura.toFixed(1)}°C`
                         : '--'}
                     </span>
                   </div>
                 </div>
-                <div>
-                  <label className="text-xs text-gray-600 mb-1 block">Humedad</label>
+                <div className="bg-white p-3 rounded-lg shadow-sm border border-blue-100">
+                  <label className="text-xs text-gray-600 mb-1 block flex items-center gap-1">
+                    <FiDroplet className="w-3 h-3 text-blue-500" />
+                    Humedad
+                  </label>
                   <div className="flex items-center gap-2">
-                    <FiDroplet className="w-5 h-5 text-blue-500" />
-                    <span className="text-2xl font-bold text-gray-900">
+                    <span className="text-3xl font-bold text-blue-600 transition-all duration-300">
                       {esp32Estado?.humedad !== null && esp32Estado?.humedad !== undefined
                         ? `${esp32Estado.humedad.toFixed(1)}%`
                         : '--'}
@@ -1671,11 +1687,12 @@ export default function Test() {
                 </div>
               </div>
               
-              {esp32Estado?.timestamp && (
-                <div className="mt-3 text-xs text-gray-500">
-                  Última actualización: {new Date(esp32Estado.timestamp).toLocaleTimeString()}
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-gray-600">Frecuencia de actualización:</span>
+                  <span className="font-semibold text-green-600">Cada 1 segundo</span>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Estado del test */}

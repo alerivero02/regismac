@@ -22,7 +22,8 @@ const char* SERVER_URL = "http://192.168.0.89:3000/api/sensor/datos";
 #define DHTTYPE DHT22   // Tipo de sensor: DHT11 o DHT22
 
 // Intervalo de envío (en milisegundos)
-const unsigned long INTERVALO_ENVIO = 5000; // 5 segundos
+// Para tiempo real, usar 2 segundos. Para ahorrar batería, usar 5-10 segundos
+const unsigned long INTERVALO_ENVIO = 2000; // 2 segundos (tiempo real)
 
 // ============================================
 // FIN DE CONFIGURACIÓN

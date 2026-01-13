@@ -119,11 +119,22 @@ if (sessionSecret) {
 }
 
 // Endpoint de health check para mantener la app activa en Render
+// Este endpoint debe ser llamado periódicamente (cada 5-10 minutos) para evitar que Render duerma el servicio
 app.get("/api/health", (req, res) => {
   res.json({ 
     status: "ok", 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    service: "regismac"
+  });
+});
+
+// Endpoint raíz también para mantener activo (algunos servicios de ping usan la raíz)
+app.get("/", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    service: "regismac",
+    message: "RegisMAC API is running"
   });
 });
 

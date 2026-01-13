@@ -13,7 +13,7 @@ import {
   FiWifi,
   FiX,
   FiPlay,
-  FiStop,
+  FiSquare,
   FiRotateCw,
 } from 'react-icons/fi';
 import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from '../services/api';

@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon index.js",
-    "start": "node index.js",
+    "start": "node scripts/prestart.js && node index.js",
     "create-admin": "node scripts/createAdmin.js",
     "import-maquinas": "node scripts/importMaquinas.js",
     "import-tests": "node scripts/importTests.js",

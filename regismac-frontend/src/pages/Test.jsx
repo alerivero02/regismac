@@ -810,28 +810,6 @@ export default function Test() {
         <div className="card">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-bold text-gray-900">Informazioni Test</h3>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowCronometroModal(true)}
-                className="px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-blue-500 text-white hover:bg-blue-600 flex items-center gap-2"
-                title="Apri cronometro"
-              >
-                <FiClock className="w-4 h-4" />
-                Cronometro
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowESP32Modal(true);
-                }}
-                className="px-4 py-2 rounded-lg text-sm font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-2"
-                title="Test automático con ESP32"
-              >
-                <FiWifi className="w-4 h-4" />
-                ESP32
-              </button>
-            </div>
           </div>
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

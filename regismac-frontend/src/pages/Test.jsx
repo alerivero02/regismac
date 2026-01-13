@@ -167,7 +167,7 @@ export default function Test() {
         console.error('Error al obtener estado del sensor en polling:', error);
         // No mostrar error al usuario en cada polling, solo loguear
       }
-    }, 1000); // Polling cada 1 segundo para tiempo real
+    }, 800); // Polling cada 800ms para actualización en tiempo real (más rápido que el envío del ESP32)
     
     setEsp32PollingInterval(interval);
     
@@ -1690,7 +1690,7 @@ export default function Test() {
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-gray-600">Frecuencia de actualización:</span>
-                  <span className="font-semibold text-green-600">Cada 1 segundo</span>
+                  <span className="font-semibold text-green-600">Cada 0.8 segundos (tiempo real)</span>
                 </div>
               </div>
             </div>

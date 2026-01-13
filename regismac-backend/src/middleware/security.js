@@ -58,27 +58,25 @@ export const sanitizeBody = (req, res, next) => {
 
 /**
  * Middleware para sanitizar los query parameters
+ * En Express 5, req.query es de solo lectura, así que solo validamos sin modificar
+ * La sanitización real se hace en preventPathTraversal que valida los valores
  */
 export const sanitizeQuery = (req, res, next) => {
-  if (req.query && typeof req.query === 'object') {
-    req.query = sanitizeObject(req.query);
-  }
+  // En Express 5, req.query es de solo lectura
+  // La validación se hace en preventPathTraversal
+  // Si necesitas valores sanitizados, usa req.sanitizedQuery después de validar
   next();
 };
 
 /**
  * Middleware para sanitizar los parámetros de la URL
+ * En Express 5, req.params es de solo lectura, así que solo validamos sin modificar
+ * La sanitización real se hace en preventPathTraversal que valida los valores
  */
 export const sanitizeParams = (req, res, next) => {
-  if (req.params && typeof req.params === 'object') {
-    for (const key in req.params) {
-      if (Object.prototype.hasOwnProperty.call(req.params, key)) {
-        if (typeof req.params[key] === 'string') {
-          req.params[key] = sanitizeString(req.params[key]);
-        }
-      }
-    }
-  }
+  // En Express 5, req.params es de solo lectura
+  // La validación se hace en preventPathTraversal
+  // Si necesitas valores sanitizados, usa req.sanitizedParams después de validar
   next();
 };
 

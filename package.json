@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "build:render": "cd regismac-backend && npm install && npx prisma generate && cd ../regismac-frontend && npm install && npm run build && cd ../regismac-backend && npx prisma generate",
-    "start": "cd regismac-backend && node index.js",
+    "start": "cd regismac-backend && node scripts/prestart.js && node index.js",
     "build": "cd regismac-frontend && npm install && npm run build",
     "build:backend": "cd regismac-backend && npm install && npx prisma generate",
     "postinstall": "npm run build:backend",

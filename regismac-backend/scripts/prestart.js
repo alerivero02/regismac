@@ -5,28 +5,41 @@
 
 import { execSync } from 'child_process';
 import { existsSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { dirname } from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const prismaClientPath = join(__dirname, '..', 'node_modules', '@prisma', 'client', 'index.js');
+// Verificar Prisma Client en diferentes ubicaciones posibles
+const possiblePaths = [
+  join(__dirname, '..', 'node_modules', '@prisma', 'client', 'index.js'),
+  join(__dirname, '..', 'node_modules', '@prisma', 'client', 'index.mjs'),
+  join(__dirname, '..', 'node_modules', '@prisma', 'client', 'index.d.ts')
+];
 
 console.log('🔍 Verificando Prisma Client...');
 
-if (!existsSync(prismaClientPath)) {
+// Verificar si existe Prisma Client en alguna de las ubicaciones posibles
+const prismaClientExists = possiblePaths.some(path => existsSync(path));
+
+if (!prismaClientExists) {
   console.log('⚠️  Prisma Client no encontrado. Generando...');
   try {
     execSync('npx prisma generate', {
       stdio: 'inherit',
-      cwd: join(__dirname, '..')
+      cwd: join(__dirname, '..'),
+      env: { ...process.env }
     });
     console.log('✅ Prisma Client generado exitosamente');
   } catch (error) {
     console.error('❌ Error al generar Prisma Client:', error.message);
-    process.exit(1);
+    // En producción, intentar continuar de todas formas (puede que ya esté generado)
+    if (process.env.NODE_ENV === 'production') {
+      console.log('⚠️  Continuando de todas formas en producción...');
+    } else {
+      process.exit(1);
+    }
   }
 } else {
   console.log('✅ Prisma Client ya está generado');

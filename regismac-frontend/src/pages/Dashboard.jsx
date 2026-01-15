@@ -555,13 +555,51 @@ export default function Dashboard() {
 
       // Calcular máquinas con problemas: solo aquellas que NO cumplen con las condiciones de las pruebas
       // Una máquina tiene problemas si:
-      // 1. Tiene estado "pendente" (siempre indica problemas)
+      // 1. Tiene estado "pendente" (siempre indica problemas) Y no está entregada
       // 2. Tiene 2 o más pruebas completas pero las últimas 2 NO cumplen las condiciones
-      // 3. Está en test pero tiene pruebas que no cumplen las condiciones
+      // EXCLUIR: máquinas entregadas (consegnata) y máquinas con estado "ok" que cumplen condiciones
       const maquinasConProblemi = maquinasArray.filter(m => {
         const estado = normalizarEstado(m.stato);
         
-        // Estado "pendente" siempre indica problemas
+        // EXCLUIR: Máquinas entregadas no tienen problemas (ya fueron entregadas)
+        if (estado === 'consegnata' || m.data_consegna !== null && m.data_consegna !== undefined) {
+          return false;
+        }
+        
+        // EXCLUIR: Máquinas con estado "ok" que cumplen condiciones (ya están listas)
+        if (estado === 'ok') {
+          // Verificar si realmente cumple las condiciones
+          const testsCompletosMaquina = testsArray.filter(t => 
+            t.id_maquina === m.id_maquina &&
+            (t.tempo_0_gradi !== null && t.tempo_0_gradi !== undefined) &&
+            (t.tempo_meno8_gradi !== null && t.tempo_meno8_gradi !== undefined)
+          );
+          
+          if (testsCompletosMaquina.length >= 2) {
+            const testsOrdenados = [...testsCompletosMaquina].sort((a, b) => {
+              const fechaA = new Date(a.hora_test || a.fecha_test || 0);
+              const fechaB = new Date(b.hora_test || b.fecha_test || 0);
+              return fechaA - fechaB;
+            });
+            
+            const ultimas2Tests = testsOrdenados.slice(-2);
+            const cumplenCondiciones = ultimas2Tests.every(test => {
+              const tiempo0 = test.tempo_0_gradi;
+              const tiempoMenos8 = test.tempo_meno8_gradi;
+              const cumple0Grados = tiempo0 <= TEST_LIMITS.TEMPO_0_GRADI_MAX;
+              const cumpleMenos8Grados = tiempoMenos8 >= TEST_LIMITS.TEMPO_MENO8_GRADI_MIN && 
+                                         tiempoMenos8 <= TEST_LIMITS.TEMPO_MENO8_GRADI_MAX;
+              return cumple0Grados && cumpleMenos8Grados;
+            });
+            
+            // Si cumple condiciones, NO tiene problemas
+            if (cumplenCondiciones) {
+              return false;
+            }
+          }
+        }
+        
+        // Estado "pendente" siempre indica problemas (si no está entregada)
         if (estado === 'pendente') {
           return true;
         }
@@ -1741,7 +1779,45 @@ export default function Dashboard() {
               maquinasFiltradas = allMaquinas.filter(m => {
                 const estado = normalizarEstado(m.stato);
                 
-                // Estado "pendente" siempre indica problemas
+                // EXCLUIR: Máquinas entregadas no tienen problemas (ya fueron entregadas)
+                if (estado === 'consegnata' || m.data_consegna !== null && m.data_consegna !== undefined) {
+                  return false;
+                }
+                
+                // EXCLUIR: Máquinas con estado "ok" que cumplen condiciones (ya están listas)
+                if (estado === 'ok') {
+                  // Verificar si realmente cumple las condiciones
+                  const testsCompletosMaquina = allTests.filter(t => 
+                    t.id_maquina === m.id_maquina &&
+                    (t.tempo_0_gradi !== null && t.tempo_0_gradi !== undefined) &&
+                    (t.tempo_meno8_gradi !== null && t.tempo_meno8_gradi !== undefined)
+                  );
+                  
+                  if (testsCompletosMaquina.length >= 2) {
+                    const testsOrdenados = [...testsCompletosMaquina].sort((a, b) => {
+                      const fechaA = new Date(a.hora_test || a.fecha_test || 0);
+                      const fechaB = new Date(b.hora_test || b.fecha_test || 0);
+                      return fechaA - fechaB;
+                    });
+                    
+                    const ultimas2Tests = testsOrdenados.slice(-2);
+                    const cumplenCondiciones = ultimas2Tests.every(test => {
+                      const tiempo0 = test.tempo_0_gradi;
+                      const tiempoMenos8 = test.tempo_meno8_gradi;
+                      const cumple0Grados = tiempo0 <= TEST_LIMITS.TEMPO_0_GRADI_MAX;
+                      const cumpleMenos8Grados = tiempoMenos8 >= TEST_LIMITS.TEMPO_MENO8_GRADI_MIN && 
+                                                 tiempoMenos8 <= TEST_LIMITS.TEMPO_MENO8_GRADI_MAX;
+                      return cumple0Grados && cumpleMenos8Grados;
+                    });
+                    
+                    // Si cumple condiciones, NO tiene problemas
+                    if (cumplenCondiciones) {
+                      return false;
+                    }
+                  }
+                }
+                
+                // Estado "pendente" siempre indica problemas (si no está entregada)
                 if (estado === 'pendente') {
                   return true;
                 }

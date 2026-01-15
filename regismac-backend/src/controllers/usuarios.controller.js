@@ -153,19 +153,22 @@ export const aprobarUsuario = async (req, res, next) => {
     const id = Number(req.params.id);
     const usuarioAprobado = await service.aprobarUsuario(id, req.user.id_usuario);
 
-    // Crear técnico automáticamente para el usuario aprobado
-    try {
-      await tecnicosService.prisma.tecnico.create({
-        data: {
-          nome: usuarioAprobado.nombre,
-          cognome: usuarioAprobado.apellido || '',
-          id_usuario: usuarioAprobado.id_usuario
+    // Crear técnico automáticamente SOLO si el usuario tiene rol 'tecnico'
+    const rolLower = (usuarioAprobado.rol || '').toLowerCase();
+    if (rolLower === 'tecnico') {
+      try {
+        await tecnicosService.prisma.tecnico.create({
+          data: {
+            nome: usuarioAprobado.nombre,
+            cognome: usuarioAprobado.apellido || '',
+            id_usuario: usuarioAprobado.id_usuario
+          }
+        });
+      } catch (error) {
+        // Si ya existe un técnico para este usuario, ignorar el error
+        if (error.code !== 'P2002' && !error.message?.includes('Unique constraint')) {
+          throw error;
         }
-      });
-    } catch (error) {
-      // Si ya existe un técnico para este usuario, ignorar el error
-      if (error.code !== 'P2002' && !error.message?.includes('Unique constraint')) {
-        throw error;
       }
     }
 

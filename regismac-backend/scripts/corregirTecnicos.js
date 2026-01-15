@@ -105,36 +105,54 @@ async function corregirTecnicos() {
       }
     }
 
-    // PASO 5: Verificar usuarios con técnico pero rol incorrecto
-    const tecnicosSinRolCorrecto = await prisma.tecnico.findMany({
+    // PASO 5: Eliminar registros de técnico que pertenecen a usuarios con roles incorrectos
+    const tecnicosConRolIncorrecto = await prisma.tecnico.findMany({
       where: {
-        usuario: {
-          rol: {
-            not: 'tecnico'
-          }
-        }
+        id_usuario: { not: null }
       },
       include: {
         usuario: {
           select: {
             id_usuario: true,
             email: true,
-            rol: true
+            rol: true,
+            estado: true
           }
         }
       }
     });
 
-    if (tecnicosSinRolCorrecto.length > 0) {
-      console.log(`\n⚠️  Encontrados ${tecnicosSinRolCorrecto.length} técnicos con rol incorrecto:`);
-      for (const tecnico of tecnicosSinRolCorrecto) {
+    let eliminados = 0;
+    if (tecnicosConRolIncorrecto.length > 0) {
+      console.log(`\n🔍 Verificando ${tecnicosConRolIncorrecto.length} registros de técnico...`);
+      for (const tecnico of tecnicosConRolIncorrecto) {
         if (tecnico.usuario) {
-          await prisma.usuario.update({
-            where: { id_usuario: tecnico.usuario.id_usuario },
-            data: { rol: 'tecnico' }
-          });
-          console.log(`  ✅ Corregido rol de técnico ${tecnico.usuario.email}: '${tecnico.usuario.rol}' → 'tecnico'`);
-          corregidos++;
+          const rolLower = (tecnico.usuario.rol || '').toLowerCase();
+          // Si el usuario NO es técnico, eliminar el registro de técnico
+          if (rolLower !== 'tecnico') {
+            try {
+              await prisma.tecnico.delete({
+                where: { id_tecnico: tecnico.id_tecnico }
+              });
+              console.log(`  ❌ Eliminado técnico ${tecnico.id_tecnico} - usuario ${tecnico.usuario.email} tiene rol '${tecnico.usuario.rol}' (no es técnico)`);
+              eliminados++;
+            } catch (deleteError) {
+              console.error(`  ❌ Error al eliminar técnico ${tecnico.id_tecnico}:`, deleteError.message);
+              errores++;
+            }
+          }
+        } else {
+          // Si no tiene usuario asociado, también eliminarlo
+          try {
+            await prisma.tecnico.delete({
+              where: { id_tecnico: tecnico.id_tecnico }
+            });
+            console.log(`  ❌ Eliminado técnico ${tecnico.id_tecnico} - no tiene usuario asociado`);
+            eliminados++;
+          } catch (deleteError) {
+            console.error(`  ❌ Error al eliminar técnico ${tecnico.id_tecnico}:`, deleteError.message);
+            errores++;
+          }
         }
       }
     }
@@ -182,6 +200,7 @@ async function corregirTecnicos() {
     console.log('='.repeat(50));
     console.log(`✅ Usuarios corregidos: ${corregidos}`);
     console.log(`✅ Técnicos creados: ${creados}`);
+    console.log(`❌ Técnicos eliminados (roles incorrectos): ${eliminados}`);
     console.log(`❌ Errores: ${errores}`);
     console.log('='.repeat(50));
 

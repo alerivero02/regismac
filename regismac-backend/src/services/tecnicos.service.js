@@ -134,22 +134,65 @@ export class TecnicosService {
     // Obtener técnicos desde usuarios aprobados (para usar en formularios)
     async getTecnicosFromUsuarios() {
       try {
-        // PASO 0: Primero normalizar roles en la base de datos (por si hay inconsistencias)
-        // Buscar usuarios que deberían ser técnicos pero tienen rol en diferente formato
-        const usuariosConRolInconsistente = await this.prisma.usuario.findMany({
+        // PASO 0: Limpiar registros de técnico que pertenecen a usuarios con roles incorrectos
+        // Buscar todos los técnicos y verificar que su usuario tenga rol 'tecnico'
+        const todosLosTecnicos = await this.prisma.tecnico.findMany({
           where: {
-            OR: [
-              { rol: { contains: 'tecnic', mode: 'insensitive' } },
-              { tecnico: { isNot: null } }
-            ]
+            id_usuario: { not: null }
           },
-          select: {
-            id_usuario: true,
-            rol: true
+          include: {
+            usuario: {
+              select: {
+                id_usuario: true,
+                rol: true,
+                estado: true,
+                email: true
+              }
+            }
           }
         });
 
-        // Normalizar roles a 'tecnico' (minúsculas)
+        // Eliminar o marcar técnicos que pertenecen a usuarios con roles que NO son técnico
+        for (const tecnico of todosLosTecnicos) {
+          if (tecnico.usuario) {
+            const rolLower = (tecnico.usuario.rol || '').toLowerCase();
+            // Si el usuario NO es técnico, eliminar el registro de técnico
+            if (rolLower !== 'tecnico') {
+              try {
+                await this.prisma.tecnico.delete({
+                  where: { id_tecnico: tecnico.id_tecnico }
+                });
+                console.log(`⚠️  Eliminado técnico ${tecnico.id_tecnico} - usuario ${tecnico.usuario.email} tiene rol '${tecnico.usuario.rol}' (no es técnico)`);
+              } catch (deleteError) {
+                console.error(`Error al eliminar técnico ${tecnico.id_tecnico}:`, deleteError);
+              }
+            }
+          } else {
+            // Si no tiene usuario asociado, también eliminarlo
+            try {
+              await this.prisma.tecnico.delete({
+                where: { id_tecnico: tecnico.id_tecnico }
+              });
+              console.log(`⚠️  Eliminado técnico ${tecnico.id_tecnico} - no tiene usuario asociado`);
+            } catch (deleteError) {
+              console.error(`Error al eliminar técnico ${tecnico.id_tecnico}:`, deleteError);
+            }
+          }
+        }
+
+        // PASO 0.5: Normalizar roles de usuarios que deberían ser técnicos
+        const usuariosConRolInconsistente = await this.prisma.usuario.findMany({
+          where: {
+            rol: { contains: 'tecnic', mode: 'insensitive' }
+          },
+          select: {
+            id_usuario: true,
+            rol: true,
+            email: true
+          }
+        });
+
+        // Normalizar roles a 'tecnico' (minúsculas) solo si realmente deberían ser técnicos
         for (const usuario of usuariosConRolInconsistente) {
           const rolLower = (usuario.rol || '').toLowerCase();
           if (rolLower.includes('tecnic') && rolLower !== 'tecnico') {
@@ -158,7 +201,7 @@ export class TecnicosService {
                 where: { id_usuario: usuario.id_usuario },
                 data: { rol: 'tecnico' }
               });
-              console.log(`Rol normalizado para usuario ${usuario.id_usuario}: '${usuario.rol}' → 'tecnico'`);
+              console.log(`Rol normalizado para usuario ${usuario.email}: '${usuario.rol}' → 'tecnico'`);
             } catch (updateError) {
               console.error(`Error al normalizar rol para usuario ${usuario.id_usuario}:`, updateError);
             }

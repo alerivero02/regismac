@@ -134,6 +134,37 @@ export class TecnicosService {
     // Obtener técnicos desde usuarios aprobados (para usar en formularios)
     async getTecnicosFromUsuarios() {
       try {
+        // PASO 0: Primero normalizar roles en la base de datos (por si hay inconsistencias)
+        // Buscar usuarios que deberían ser técnicos pero tienen rol en diferente formato
+        const usuariosConRolInconsistente = await this.prisma.usuario.findMany({
+          where: {
+            OR: [
+              { rol: { contains: 'tecnic', mode: 'insensitive' } },
+              { tecnico: { isNot: null } }
+            ]
+          },
+          select: {
+            id_usuario: true,
+            rol: true
+          }
+        });
+
+        // Normalizar roles a 'tecnico' (minúsculas)
+        for (const usuario of usuariosConRolInconsistente) {
+          const rolLower = (usuario.rol || '').toLowerCase();
+          if (rolLower.includes('tecnic') && rolLower !== 'tecnico') {
+            try {
+              await this.prisma.usuario.update({
+                where: { id_usuario: usuario.id_usuario },
+                data: { rol: 'tecnico' }
+              });
+              console.log(`Rol normalizado para usuario ${usuario.id_usuario}: '${usuario.rol}' → 'tecnico'`);
+            } catch (updateError) {
+              console.error(`Error al normalizar rol para usuario ${usuario.id_usuario}:`, updateError);
+            }
+          }
+        }
+
         // PASO 1: Obtener SOLO usuarios con rol 'tecnico' y estado 'aprobado'
         const usuariosTecnicos = await this.prisma.usuario.findMany({
           where: {
@@ -214,10 +245,18 @@ export class TecnicosService {
             console.warn(`Técnico ${tecnico.id_tecnico} no tiene usuario asociado`);
             return false;
           }
-          // Verificar explícitamente rol y estado
-          const esValido = tecnico.usuario.rol === 'tecnico' && tecnico.usuario.estado === 'aprobado';
+          // Verificar explícitamente rol y estado (case-insensitive para el rol)
+          const rolLower = (tecnico.usuario.rol || '').toLowerCase();
+          const esValido = rolLower === 'tecnico' && tecnico.usuario.estado === 'aprobado';
           if (!esValido) {
             console.warn(`Técnico ${tecnico.id_tecnico} tiene usuario con rol '${tecnico.usuario.rol}' y estado '${tecnico.usuario.estado}' - NO incluido`);
+            // Intentar corregir el rol si es técnico pero con formato diferente
+            if (rolLower.includes('tecnic') && rolLower !== 'tecnico') {
+              this.prisma.usuario.update({
+                where: { id_usuario: tecnico.usuario.id_usuario },
+                data: { rol: 'tecnico' }
+              }).catch(err => console.error(`Error al corregir rol:`, err));
+            }
           }
           return esValido;
         });
@@ -266,10 +305,11 @@ export class TecnicosService {
             }
           });
 
-          // Filtrar para asegurar que solo sean técnicos válidos
+          // Filtrar para asegurar que solo sean técnicos válidos (case-insensitive para el rol)
           return tecnicosFallback.filter(tecnico => {
             if (!tecnico.usuario) return false;
-            return tecnico.usuario.rol === 'tecnico' && tecnico.usuario.estado === 'aprobado';
+            const rolLower = (tecnico.usuario.rol || '').toLowerCase();
+            return rolLower === 'tecnico' && tecnico.usuario.estado === 'aprobado';
           });
         } catch (fallbackError) {
           console.error('Error en fallback de getTecnicosFromUsuarios:', fallbackError);

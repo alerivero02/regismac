@@ -553,22 +553,54 @@ export default function Dashboard() {
         return true; // Ya no filtramos por fecha_estado_ok del mes
       }).length;
 
-      // Calcular máquinas con problemas (estados que indican problemas)
-      // Consideramos problemas: estado "pendente" siempre, y "in_test" con muchos tests fallidos
+      // Calcular máquinas con problemas: solo aquellas que NO cumplen con las condiciones de las pruebas
+      // Una máquina tiene problemas si:
+      // 1. Tiene estado "pendente" (siempre indica problemas)
+      // 2. Tiene 2 o más pruebas completas pero las últimas 2 NO cumplen las condiciones
+      // 3. Está en test pero tiene pruebas que no cumplen las condiciones
       const maquinasConProblemi = maquinasArray.filter(m => {
         const estado = normalizarEstado(m.stato);
+        
         // Estado "pendente" siempre indica problemas
         if (estado === 'pendente') {
           return true;
         }
-        // Estado "in_test" con muchos tests fallidos también indica problemas
-        if (estado === 'in_test') {
-          const testsMaquina = testsArray.filter(t => t.id_maquina === m.id_maquina);
-          if (testsMaquina.length >= 3) {
-            // Si tiene 3 o más tests, probablemente tiene problemas
+        
+        // Obtener todas las pruebas completas de esta máquina
+        const testsCompletosMaquina = testsArray.filter(t => 
+          t.id_maquina === m.id_maquina &&
+          (t.tempo_0_gradi !== null && t.tempo_0_gradi !== undefined) &&
+          (t.tempo_meno8_gradi !== null && t.tempo_meno8_gradi !== undefined)
+        );
+        
+        // Si tiene 2 o más pruebas completas, verificar si cumplen las condiciones
+        if (testsCompletosMaquina.length >= 2) {
+          // Ordenar los tests por fecha (más antiguo primero) para tomar las últimas 2 cronológicamente
+          const testsOrdenados = [...testsCompletosMaquina].sort((a, b) => {
+            const fechaA = new Date(a.hora_test || a.fecha_test || 0);
+            const fechaB = new Date(b.hora_test || b.fecha_test || 0);
+            return fechaA - fechaB; // Más antiguo primero
+          });
+          
+          // Tomar las últimas 2 pruebas (más recientes)
+          const ultimas2Tests = testsOrdenados.slice(-2);
+          
+          // Verificar si las últimas 2 pruebas cumplen las condiciones
+          const cumplenCondiciones = ultimas2Tests.every(test => {
+            const tiempo0 = test.tempo_0_gradi;
+            const tiempoMenos8 = test.tempo_meno8_gradi;
+            const cumple0Grados = tiempo0 <= TEST_LIMITS.TEMPO_0_GRADI_MAX;
+            const cumpleMenos8Grados = tiempoMenos8 >= TEST_LIMITS.TEMPO_MENO8_GRADI_MIN && 
+                                       tiempoMenos8 <= TEST_LIMITS.TEMPO_MENO8_GRADI_MAX;
+            return cumple0Grados && cumpleMenos8Grados;
+          });
+          
+          // Si NO cumplen las condiciones, tiene problemas
+          if (!cumplenCondiciones) {
             return true;
           }
         }
+        
         return false;
       }).length;
 
@@ -685,13 +717,13 @@ export default function Dashboard() {
     {
       title: 'Con Problemi',
       value: stats.maquinasConProblemi || 0,
-      subtitle: `Richiedono attenzione`,
+      subtitle: `Non rispettano condizioni prove`,
       icon: FiAlertTriangle,
       gradient: 'from-red-500 to-red-600',
       iconBg: 'bg-red-50',
       iconColor: 'text-red-600',
       trend: stats.totalMaquinas > 0 ? ((stats.maquinasConProblemi / stats.totalMaquinas) * 100).toFixed(0) : 0,
-      tabId: 'in_test', // Las máquinas con problemas suelen estar en test
+      tabId: 'in_test', // Muestra máquinas que no cumplen las condiciones de las pruebas
     },
     {
       title: 'Rientrate',
@@ -1704,8 +1736,53 @@ export default function Dashboard() {
               // Máquinas en producción
               maquinasFiltradas = allMaquinas.filter(m => normalizarEstado(m.stato) === 'in_produzione');
             } else if (activeTab === 'in_test') {
-              // Máquinas en test
-              maquinasFiltradas = allMaquinas.filter(m => normalizarEstado(m.stato) === 'in_test');
+              // Máquinas con problemas: solo aquellas que NO cumplen con las condiciones de las pruebas
+              // (Este tab se activa desde la card "Con Problemi")
+              maquinasFiltradas = allMaquinas.filter(m => {
+                const estado = normalizarEstado(m.stato);
+                
+                // Estado "pendente" siempre indica problemas
+                if (estado === 'pendente') {
+                  return true;
+                }
+                
+                // Obtener todas las pruebas completas de esta máquina
+                const testsCompletosMaquina = allTests.filter(t => 
+                  t.id_maquina === m.id_maquina &&
+                  (t.tempo_0_gradi !== null && t.tempo_0_gradi !== undefined) &&
+                  (t.tempo_meno8_gradi !== null && t.tempo_meno8_gradi !== undefined)
+                );
+                
+                // Si tiene 2 o más pruebas completas, verificar si cumplen las condiciones
+                if (testsCompletosMaquina.length >= 2) {
+                  // Ordenar los tests por fecha (más antiguo primero) para tomar las últimas 2 cronológicamente
+                  const testsOrdenados = [...testsCompletosMaquina].sort((a, b) => {
+                    const fechaA = new Date(a.hora_test || a.fecha_test || 0);
+                    const fechaB = new Date(b.hora_test || b.fecha_test || 0);
+                    return fechaA - fechaB; // Más antiguo primero
+                  });
+                  
+                  // Tomar las últimas 2 pruebas (más recientes)
+                  const ultimas2Tests = testsOrdenados.slice(-2);
+                  
+                  // Verificar si las últimas 2 pruebas cumplen las condiciones
+                  const cumplenCondiciones = ultimas2Tests.every(test => {
+                    const tiempo0 = test.tempo_0_gradi;
+                    const tiempoMenos8 = test.tempo_meno8_gradi;
+                    const cumple0Grados = tiempo0 <= TEST_LIMITS.TEMPO_0_GRADI_MAX;
+                    const cumpleMenos8Grados = tiempoMenos8 >= TEST_LIMITS.TEMPO_MENO8_GRADI_MIN && 
+                                               tiempoMenos8 <= TEST_LIMITS.TEMPO_MENO8_GRADI_MAX;
+                    return cumple0Grados && cumpleMenos8Grados;
+                  });
+                  
+                  // Si NO cumplen las condiciones, tiene problemas
+                  if (!cumplenCondiciones) {
+                    return true;
+                  }
+                }
+                
+                return false;
+              });
             } else if (activeTab === 'rientrate') {
               // Máquinas rientrate
               maquinasFiltradas = allMaquinas.filter(m => normalizarEstado(m.stato) === 'rientrate');

@@ -19,7 +19,8 @@
     "import-materiali": "node scripts/importMaterialiLista.js",
     "verificar-google": "node scripts/verificar-google-oauth.js",
     "recalcular-fecha-estado-ok": "node scripts/recalcularFechaEstadoOk.js",
-    "importar-db": "node scripts/importar-db-produccion.js"
+    "importar-db": "node scripts/importar-db-produccion.js",
+    "corregir-tecnicos": "node scripts/corregirTecnicos.js"
   },
   "keywords": [
     "regismac",

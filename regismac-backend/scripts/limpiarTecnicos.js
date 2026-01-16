@@ -10,8 +10,7 @@ import { PrismaClient } from '@prisma/client';
 export async function limpiarTecnicos(prismaInstance = null) {
   const prisma = prismaInstance || new PrismaClient();
   let shouldDisconnect = !prismaInstance;
-
-export async function limpiarTecnicos() {
+  
   try {
     console.log('🧹 Iniciando limpieza de registros de técnico...');
 

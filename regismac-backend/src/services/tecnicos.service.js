@@ -311,12 +311,22 @@ export class TecnicosService {
         // CRÍTICO: Verificar que el usuario existe, tiene rol 'tecnico' y estado 'aprobado'
         const tecnicosFiltrados = tecnicos.filter(tecnico => {
           if (!tecnico.usuario) {
-            console.warn(`⚠️ Técnico ${tecnico.id_tecnico} no tiene usuario asociado - EXCLUIDO`);
+            console.warn(`⚠️  Técnico ${tecnico.id_tecnico} (${tecnico.nome} ${tecnico.cognome}) no tiene usuario asociado - EXCLUIDO`);
             return false;
           }
           // Verificar explícitamente rol y estado (case-insensitive para el rol)
           const rolLower = (tecnico.usuario.rol || '').toLowerCase().trim();
-          const estadoLower = (tecnico.usuario.estado || '').toLowerCase().trim();
+          const esValido = rolLower === 'tecnico' && tecnico.usuario.estado === 'aprobado';
+          if (!esValido) {
+            console.warn(`⚠️  Técnico ${tecnico.id_tecnico} (${tecnico.nome} ${tecnico.cognome}) - usuario ${tecnico.usuario.email} tiene rol '${tecnico.usuario.rol}' y estado '${tecnico.usuario.estado}' - EXCLUIDO`);
+            return false;
+          }
+          console.log(`✅ Técnico válido: ${tecnico.nome} ${tecnico.cognome} (${tecnico.usuario.email})`);
+          return true;
+        });
+
+        console.log(`✅ Total de técnicos válidos retornados: ${tecnicosFiltrados.length}`);
+        return tecnicosFiltrados;
           const esValido = rolLower === 'tecnico' && estadoLower === 'aprobado';
           
           if (!esValido) {

@@ -6,9 +6,15 @@
 import 'dotenv/config';
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
-async function limpiarTecnicosDefinitivo() {
+async function limpiarTecnicosDefinitivo(prismaInstance = null) {
+  const prisma = prismaInstance || new PrismaClient();
+  let shouldDisconnect = !prismaInstance;
+  
+  // Si no se pasó una instancia, conectar
+  if (!prismaInstance) {
+    await prisma.$connect();
+  }
+  
   try {
     console.log('🔧 INICIANDO LIMPIEZA DEFINITIVA DE TÉCNICOS...\n');
 
@@ -191,13 +197,16 @@ async function limpiarTecnicosDefinitivo() {
     console.error('❌ ERROR FATAL en limpieza definitiva:', error);
     throw error;
   } finally {
-    await prisma.$disconnect();
+    if (shouldDisconnect) {
+      await prisma.$disconnect();
+    }
   }
 }
 
 // Si se ejecuta directamente
 if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('limpiarTecnicosDefinitivo.js')) {
-  limpiarTecnicosDefinitivo()
+  const prisma = new PrismaClient();
+  limpiarTecnicosDefinitivo(prisma)
     .then(() => {
       console.log('\n✅ Script completado exitosamente');
       process.exit(0);
@@ -205,6 +214,9 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
     .catch((error) => {
       console.error('\n❌ Error fatal:', error);
       process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
     });
 }
 

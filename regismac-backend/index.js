@@ -86,11 +86,8 @@ async function startServer() {
       try {
         console.log('🧹 Ejecutando limpieza DEFINITIVA de técnicos al iniciar...');
         const { limpiarTecnicosDefinitivo } = await import('./scripts/limpiarTecnicosDefinitivo.js');
-        // Crear una nueva instancia de Prisma para el script (se desconecta automáticamente)
-        const prismaParaLimpieza = new PrismaClient();
-        await prismaParaLimpieza.$connect();
-        await limpiarTecnicosDefinitivo();
-        await prismaParaLimpieza.$disconnect();
+        // Usar la instancia de Prisma ya conectada
+        await limpiarTecnicosDefinitivo(prisma);
       } catch (error) {
         console.error('⚠️  Error al ejecutar limpieza de técnicos (continuando de todas formas):', error.message);
         console.error('   Stack:', error.stack);

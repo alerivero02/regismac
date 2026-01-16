@@ -219,6 +219,7 @@ export class TecnicosService {
         }
 
         // PASO 1: Obtener SOLO usuarios con rol 'tecnico' y estado 'aprobado'
+        console.log('🔍 Buscando usuarios con rol técnico y estado aprobado...');
         const usuariosTecnicos = await this.prisma.usuario.findMany({
           where: {
             estado: 'aprobado',
@@ -234,14 +235,21 @@ export class TecnicosService {
           }
         });
 
+        console.log(`📊 Usuarios técnicos encontrados: ${usuariosTecnicos.length}`);
+        usuariosTecnicos.forEach(u => {
+          console.log(`  - ${u.nombre} ${u.apellido || ''} (${u.email}) - Rol: ${u.rol}, Estado: ${u.estado}`);
+        });
+
         // Si no hay usuarios técnicos, retornar array vacío
         if (!usuariosTecnicos || usuariosTecnicos.length === 0) {
+          console.warn('⚠️  No se encontraron usuarios técnicos aprobados');
           return [];
         }
 
         const idsUsuariosTecnicos = usuariosTecnicos.map(u => u.id_usuario);
 
         // PASO 2: Asegurar que todos estos usuarios tengan técnico creado
+        console.log('🔧 Verificando y creando registros de técnico...');
         for (const usuario of usuariosTecnicos) {
           try {
             // Verificar si ya existe técnico para este usuario
@@ -251,32 +259,33 @@ export class TecnicosService {
 
             // Si no existe, crearlo
             if (!tecnicoExistente) {
-              await this.prisma.tecnico.create({
+              const nuevoTecnico = await this.prisma.tecnico.create({
                 data: {
                   nome: usuario.nombre,
                   cognome: usuario.apellido || '',
                   id_usuario: usuario.id_usuario
                 }
               });
+              console.log(`✅ Creado técnico para usuario ${usuario.email} (ID técnico: ${nuevoTecnico.id_tecnico})`);
+            } else {
+              console.log(`✓ Técnico ya existe para usuario ${usuario.email} (ID técnico: ${tecnicoExistente.id_tecnico})`);
             }
           } catch (createError) {
             // Si falla la creación (por ejemplo, duplicado), continuar con el siguiente
             if (createError.code !== 'P2002') {
-              console.error(`Error al crear técnico para usuario ${usuario.id_usuario}:`, createError);
+              console.error(`❌ Error al crear técnico para usuario ${usuario.id_usuario} (${usuario.email}):`, createError);
+            } else {
+              console.log(`ℹ️  Técnico ya existe para usuario ${usuario.email} (duplicado ignorado)`);
             }
           }
         }
 
         // PASO 3: Obtener SOLO técnicos que pertenezcan a usuarios con rol 'tecnico' y estado 'aprobado'
-        // Usar una consulta más estricta que incluya la verificación del rol directamente
+        // Consulta simplificada usando solo los IDs de usuarios técnicos aprobados
         const tecnicos = await this.prisma.tecnico.findMany({
           where: {
             id_usuario: {
               in: idsUsuariosTecnicos // SOLO IDs de usuarios técnicos aprobados
-            },
-            usuario: {
-              rol: 'tecnico',
-              estado: 'aprobado'
             }
           },
           include: {
@@ -295,6 +304,8 @@ export class TecnicosService {
             nome: 'asc'
           }
         });
+        
+        console.log(`📋 Encontrados ${tecnicos.length} técnicos en la base de datos`);
 
         // PASO 4: Filtrar una vez más para garantizar que solo sean técnicos válidos
         // CRÍTICO: Verificar que el usuario existe, tiene rol 'tecnico' y estado 'aprobado'

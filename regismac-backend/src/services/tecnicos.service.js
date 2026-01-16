@@ -326,25 +326,6 @@ export class TecnicosService {
         });
 
         console.log(`✅ Total de técnicos válidos retornados: ${tecnicosFiltrados.length}`);
-        return tecnicosFiltrados;
-          const esValido = rolLower === 'tecnico' && estadoLower === 'aprobado';
-          
-          if (!esValido) {
-            console.warn(`⚠️ Técnico ${tecnico.id_tecnico} (${tecnico.nome} ${tecnico.cognome}) tiene usuario con rol '${tecnico.usuario.rol}' y estado '${tecnico.usuario.estado}' - EXCLUIDO`);
-            // Si el rol contiene 'tecnic' pero no es exactamente 'tecnico', intentar corregirlo
-            if (rolLower.includes('tecnic') && rolLower !== 'tecnico') {
-              this.prisma.usuario.update({
-                where: { id_usuario: tecnico.usuario.id_usuario },
-                data: { rol: 'tecnico' }
-              }).catch(err => console.error(`❌ Error al corregir rol:`, err));
-            }
-            return false;
-          }
-          
-          return true;
-        });
-
-        console.log(`✅ Técnicos válidos encontrados: ${tecnicosFiltrados.length}`);
         if (tecnicosFiltrados.length > 0) {
           console.log(`📋 Técnicos: ${tecnicosFiltrados.map(t => `${t.nome} ${t.cognome} (${t.usuario?.email})`).join(', ')}`);
         }

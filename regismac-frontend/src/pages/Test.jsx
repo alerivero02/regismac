@@ -40,6 +40,7 @@ export default function Test() {
   const [currentUser, setCurrentUser] = useState(null);
   const [selectedMaquina, setSelectedMaquina] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   
   const [showMaquinaSelector, setShowMaquinaSelector] = useState(true);
@@ -218,16 +219,25 @@ export default function Test() {
   };
 
   const finalizarTestESP32 = async () => {
+    // Prevenir doble envío
+    if (isSubmitting) {
+      return;
+    }
+    
+    setIsSubmitting(true);
+    
     try {
       // Validar que se haya seleccionado una máquina
       if (!selectedMaquina) {
         showNotification('Selecciona una máquina antes de finalizar el test', 'error');
+        setIsSubmitting(false);
         return;
       }
 
       // Validar que se haya seleccionado un técnico
       if (!formData.tecnicoId) {
         showNotification('Selecciona un técnico antes de finalizar el test', 'error');
+        setIsSubmitting(false);
         return;
       }
 
@@ -290,6 +300,8 @@ export default function Test() {
       showNotification(error.message || 'Error al finalizar el test', 'error');
       setTestESP32Activo(false);
       setFechaHoraInicioTestESP32(null);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -583,48 +595,59 @@ export default function Test() {
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
     
-    if (!selectedMaquina) {
-      showNotification('Seleziona una macchina', 'error');
+    // Prevenir doble envío
+    if (isSubmitting) {
       return;
     }
-
-    let tiempo0 = null;
-    let tiempoMenos8 = null;
-
-    if (modoManual) {
-      tiempo0 = formData.tiempo_0_manual ? tiempoASegundos(formData.tiempo_0_manual) : null;
-      tiempoMenos8 = formData.tiempo_meno8_manual ? tiempoASegundos(formData.tiempo_meno8_manual) : null;
-      
-      if (!tiempo0 || !tiempoMenos8) {
-        showNotification('Inserisci entrambi i tempi (0°C e -8°C) in formato MM:SS', 'error');
+    
+    setIsSubmitting(true);
+    
+    try {
+      if (!selectedMaquina) {
+        showNotification('Seleziona una macchina', 'error');
+        setIsSubmitting(false);
         return;
       }
-      
-      if (agregarSegundaPrueba) {
-        const tiempo0_2 = formData.tiempo_0_manual_2 ? tiempoASegundos(formData.tiempo_0_manual_2) : null;
-        const tiempoMenos8_2 = formData.tiempo_meno8_manual_2 ? tiempoASegundos(formData.tiempo_meno8_manual_2) : null;
+
+      let tiempo0 = null;
+      let tiempoMenos8 = null;
+
+      if (modoManual) {
+        tiempo0 = formData.tiempo_0_manual ? tiempoASegundos(formData.tiempo_0_manual) : null;
+        tiempoMenos8 = formData.tiempo_meno8_manual ? tiempoASegundos(formData.tiempo_meno8_manual) : null;
         
-        if (!tiempo0_2 || !tiempoMenos8_2) {
-          showNotification('Inserisci entrambi i tempi per la seconda prova', 'error');
+        if (!tiempo0 || !tiempoMenos8) {
+          showNotification('Inserisci entrambi i tempi (0°C e -8°C) in formato MM:SS', 'error');
+          setIsSubmitting(false);
+          return;
+        }
+        
+        if (agregarSegundaPrueba) {
+          const tiempo0_2 = formData.tiempo_0_manual_2 ? tiempoASegundos(formData.tiempo_0_manual_2) : null;
+          const tiempoMenos8_2 = formData.tiempo_meno8_manual_2 ? tiempoASegundos(formData.tiempo_meno8_manual_2) : null;
+          
+          if (!tiempo0_2 || !tiempoMenos8_2) {
+            showNotification('Inserisci entrambi i tempi per la seconda prova', 'error');
+            setIsSubmitting(false);
+            return;
+          }
+        }
+      } else {
+        tiempo0 = time0Marked;
+        tiempoMenos8 = timeMinus8Marked;
+        
+        if (!tiempo0 || !tiempoMenos8) {
+          showNotification('Registra entrambi i tempi usando il cronometro', 'error');
+          setIsSubmitting(false);
           return;
         }
       }
-    } else {
-      tiempo0 = time0Marked;
-      tiempoMenos8 = timeMinus8Marked;
-      
-      if (!tiempo0 || !tiempoMenos8) {
-        showNotification('Registra entrambi i tempi usando il cronometro', 'error');
+
+      if (!formData.tecnicoId) {
+        showNotification('Seleziona un tecnico', 'error');
+        setIsSubmitting(false);
         return;
       }
-    }
-
-    if (!formData.tecnicoId) {
-      showNotification('Seleziona un tecnico', 'error');
-      return;
-    }
-
-    try {
       const fechaHoraTest = formData.fecha_test && formData.hora_test
         ? new Date(`${formData.fecha_test}T${formData.hora_test}:00`).toISOString()
         : new Date().toISOString();
@@ -717,8 +740,10 @@ export default function Test() {
     } catch (error) {
       console.error('Error al crear prueba:', error);
       showNotification(error.message || 'Errore nella registrazione del test', 'error');
+    } finally {
+      setIsSubmitting(false);
     }
-  }, [selectedMaquina, modoManual, formData, time0Marked, timeMinus8Marked, tecnicos, currentUser, showNotification, resetTimer, agregarSegundaPrueba]);
+  }, [selectedMaquina, modoManual, formData, time0Marked, timeMinus8Marked, tecnicos, currentUser, showNotification, resetTimer, agregarSegundaPrueba, isSubmitting]);
 
 
   const maquinasOrdenadas = useMemo(() => {
@@ -1435,10 +1460,17 @@ export default function Test() {
         <div className="flex justify-end pt-4 border-t border-gray-200">
           <button
             type="submit"
-            className="btn-primary flex items-center gap-2 px-6 py-3 transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl"
+            disabled={isSubmitting}
+            className="btn-primary flex items-center gap-2 px-6 py-3 transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
           >
             <FiSave className="w-5 h-5" />
-            <span>{agregarSegundaPrueba && modoManual ? 'Salva Entrambe le Prove' : 'Salva Test'}</span>
+            <span>
+              {isSubmitting 
+                ? 'Salvataggio...' 
+                : agregarSegundaPrueba && modoManual 
+                  ? 'Salva Entrambe le Prove' 
+                  : 'Salva Test'}
+            </span>
           </button>
         </div>
       </form>

@@ -211,7 +211,73 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
 
     console.log(`\n   ✅ Creados: ${creados} técnicos\n`);
 
-    // PASO 5: Verificación final
+    // PASO 5: Limpiar tests con técnicos incorrectos o eliminados
+    console.log('🧹 Paso 5: Limpiando tests con técnicos incorrectos...');
+    let testsCorregidos = 0;
+    
+    // Obtener todos los tests con id_tecnico
+    const testsConTecnico = await prisma.test.findMany({
+      where: {
+        id_tecnico: { not: null }
+      },
+      include: {
+        tecnico: {
+          include: {
+            usuario: {
+              select: {
+                id_usuario: true,
+                rol: true,
+                estado: true,
+                email: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    console.log(`   Tests con técnico asignado: ${testsConTecnico.length}`);
+
+    for (const test of testsConTecnico) {
+      let debeLimpiar = false;
+      let razon = '';
+
+      if (!test.tecnico) {
+        // El técnico fue eliminado
+        debeLimpiar = true;
+        razon = 'técnico fue eliminado';
+      } else if (!test.tecnico.usuario) {
+        // El técnico no tiene usuario asociado
+        debeLimpiar = true;
+        razon = 'técnico no tiene usuario asociado';
+      } else {
+        const rolLower = (test.tecnico.usuario.rol || '').toLowerCase().trim();
+        if (rolLower !== 'tecnico') {
+          debeLimpiar = true;
+          razon = `técnico tiene rol '${test.tecnico.usuario.rol}' (no es técnico)`;
+        } else if (test.tecnico.usuario.estado !== 'aprobado') {
+          debeLimpiar = true;
+          razon = `técnico tiene estado '${test.tecnico.usuario.estado}' (no está aprobado)`;
+        }
+      }
+
+      if (debeLimpiar) {
+        try {
+          await prisma.test.update({
+            where: { id_test: test.id_test },
+            data: { id_tecnico: null }
+          });
+          console.log(`   🔧 Test ${test.id_test} limpiado - ${razon}`);
+          testsCorregidos++;
+        } catch (error) {
+          console.error(`   ❌ Error al limpiar test ${test.id_test}:`, error.message);
+        }
+      }
+    }
+
+    console.log(`\n   ✅ Tests corregidos: ${testsCorregidos}\n`);
+
+    // PASO 6: Verificación final
     console.log('🔍 Paso 5: Verificación final...');
     const tecnicosFinales = await prisma.tecnico.findMany({
       where: {
@@ -259,15 +325,17 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
     }
 
     console.log(`\n✅ LIMPIEZA DEFINITIVA COMPLETADA`);
-    console.log(`   - Eliminados: ${eliminados}`);
-    console.log(`   - Creados: ${creados}`);
-    console.log(`   - Corregidos: ${corregidos}`);
-    console.log(`   - Total válidos: ${tecnicosFinales.length}`);
+    console.log(`   - Técnicos eliminados: ${eliminados}`);
+    console.log(`   - Técnicos creados: ${creados}`);
+    console.log(`   - Asociaciones corregidas: ${corregidos}`);
+    console.log(`   - Tests corregidos: ${testsCorregidos}`);
+    console.log(`   - Total técnicos válidos: ${tecnicosFinales.length}`);
 
     return {
       eliminados,
       creados,
       corregidos,
+      testsCorregidos,
       total: tecnicosFinales.length,
       tecnicos: tecnicosFinales
     };

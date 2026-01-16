@@ -76,122 +76,15 @@ export const corregirTecnicos = async (req, res, next) => {
       throw new ApiError("No autorizado", 401);
     }
 
-    const prisma = req.app.locals.prisma;
-    let corregidos = 0;
-    let creados = 0;
-    let eliminados = 0;
-    let errores = 0;
-
-    // PASO 1: Eliminar registros de técnico con roles incorrectos
-    const todosLosTecnicos = await prisma.tecnico.findMany({
-      where: {
-        id_usuario: { not: null }
-      },
-      include: {
-        usuario: {
-          select: {
-            id_usuario: true,
-            rol: true,
-            estado: true,
-            email: true
-          }
-        }
-      }
-    });
-
-    for (const tecnico of todosLosTecnicos) {
-      if (tecnico.usuario) {
-        const rolLower = (tecnico.usuario.rol || '').toLowerCase();
-        if (rolLower !== 'tecnico') {
-          try {
-            await prisma.tecnico.delete({
-              where: { id_tecnico: tecnico.id_tecnico }
-            });
-            eliminados++;
-          } catch (deleteError) {
-            errores++;
-          }
-        }
-      } else {
-        try {
-          await prisma.tecnico.delete({
-            where: { id_tecnico: tecnico.id_tecnico }
-          });
-          eliminados++;
-        } catch (deleteError) {
-          errores++;
-        }
-      }
-    }
-
-    // PASO 2: Obtener usuarios técnicos aprobados
-    const usuariosTecnicos = await prisma.usuario.findMany({
-      where: {
-        estado: 'aprobado',
-        rol: 'tecnico'
-      },
-      select: {
-        id_usuario: true,
-        nombre: true,
-        apellido: true,
-        email: true,
-        tecnico: {
-          select: {
-            id_tecnico: true
-          }
-        }
-      }
-    });
-
-    // PASO 3: Crear técnicos para usuarios que no los tienen
-    for (const usuario of usuariosTecnicos) {
-      if (!usuario.tecnico) {
-        try {
-          await prisma.tecnico.create({
-            data: {
-              nome: usuario.nombre,
-              cognome: usuario.apellido || '',
-              id_usuario: usuario.id_usuario
-            }
-          });
-          creados++;
-        } catch (createError) {
-          if (createError.code !== 'P2002') {
-            errores++;
-          }
-        }
-      }
-    }
-
-    // PASO 4: Verificar resultado final
-    const tecnicosFinales = await prisma.tecnico.findMany({
-      where: {
-        usuario: {
-          rol: 'tecnico',
-          estado: 'aprobado'
-        }
-      },
-      include: {
-        usuario: {
-          select: {
-            email: true,
-            rol: true,
-            estado: true
-          }
-        }
-      }
-    });
+    // Usar el script definitivo
+    const { limpiarTecnicosDefinitivo } = await import('../../scripts/limpiarTecnicosDefinitivo.js');
+    const resultado = await limpiarTecnicosDefinitivo();
 
     res.json({
       success: true,
-      message: "Corrección de técnicos completada",
-      resumen: {
-        eliminados,
-        creados,
-        totalTecnicosValidos: tecnicosFinales.length,
-        errores
-      },
-      tecnicos: tecnicosFinales.map(t => ({
+      message: "Corrección DEFINITIVA de técnicos completada",
+      resumen: resultado,
+      tecnicos: resultado.tecnicos.map(t => ({
         id: t.id_tecnico,
         nombre: `${t.nome} ${t.cognome}`,
         email: t.usuario?.email,

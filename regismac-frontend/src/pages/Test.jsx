@@ -1179,7 +1179,7 @@ export default function Test() {
                             ? 'border-green-500 bg-green-50' 
                             : ''
                         }`}
-                        placeholder="626"
+                        placeholder="6:26"
                         required={modoManual}
                       />
                       {formData.tiempo_0_manual && formData.tiempo_0_manual.length === 5 && (

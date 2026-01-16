@@ -81,6 +81,18 @@ async function startServer() {
   try {
     await prisma.$connect();
     
+    // Ejecutar limpieza de técnicos al iniciar (solo en producción)
+    if (process.env.NODE_ENV === 'production') {
+      try {
+        console.log('🧹 Ejecutando limpieza de técnicos al iniciar...');
+        const { limpiarTecnicos } = await import('./scripts/limpiarTecnicos.js');
+        await limpiarTecnicos(prisma);
+      } catch (error) {
+        console.error('⚠️  Error al ejecutar limpieza de técnicos (continuando de todas formas):', error.message);
+        // No detener el servidor si falla la limpieza
+      }
+    }
+    
     const PORT = process.env.PORT || 3000;
     const HOST = process.env.HOST || '0.0.0.0';
     

@@ -45,3 +45,15 @@ if (!prismaClientExists) {
   console.log('✅ Prisma Client ya está generado');
 }
 
+// Ejecutar limpieza de técnicos al iniciar (solo en producción)
+if (process.env.NODE_ENV === 'production') {
+  try {
+    console.log('🧹 Ejecutando limpieza de técnicos...');
+    const { limpiarTecnicos } = await import('./limpiarTecnicos.js');
+    await limpiarTecnicos();
+  } catch (error) {
+    console.error('⚠️  Error al ejecutar limpieza de técnicos (continuando de todas formas):', error.message);
+    // No detener el servidor si falla la limpieza
+  }
+}
+

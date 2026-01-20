@@ -443,7 +443,7 @@ export default function Test() {
       } catch (error) {
         console.error('Error en polling:', error);
       }
-    }, 2000);
+    }, 1000); // Actualizar cada 1 segundo para mayor precisión
     
     setEsp32PollingInterval(interval);
     

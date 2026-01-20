@@ -19,33 +19,22 @@ import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from
 import Notification from '../components/Notification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
+import { getWebSerialInstance } from '../services/webSerial';
 
-let webSerialModule = null;
 let webSerialInstance = null;
 
 const getWebSerialService = () => {
   try {
+    console.log('[Test] getWebSerialService llamado');
     if (typeof window === 'undefined') {
       console.log('[Test] window no disponible, webSerial deshabilitado');
       return null;
     }
     
-    if (!webSerialModule) {
-      console.log('[Test] Cargando módulo webSerial...');
-      webSerialModule = require('../services/webSerial');
-      console.log('[Test] Módulo webSerial cargado:', webSerialModule);
-    }
-    
-    if (!webSerialInstance && webSerialModule) {
+    if (!webSerialInstance) {
       console.log('[Test] Creando instancia webSerial...');
-      const factory = webSerialModule.default || webSerialModule.getWebSerialInstance;
-      if (typeof factory === 'function') {
-        webSerialInstance = factory();
-        console.log('[Test] Instancia webSerial creada:', webSerialInstance);
-      } else {
-        console.warn('[Test] Factory no es función:', factory);
-        return null;
-      }
+      webSerialInstance = getWebSerialInstance();
+      console.log('[Test] Instancia webSerial creada:', webSerialInstance);
     }
     
     return webSerialInstance;

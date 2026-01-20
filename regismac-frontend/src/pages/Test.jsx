@@ -60,6 +60,46 @@ export default function Test() {
   
   const [showCronometroModal, setShowCronometroModal] = useState(false);
 
+  const webSerialModuleRef = useRef(null);
+  
+  const getWebSerialService = useCallback(async () => {
+    try {
+      console.log('[Test] getWebSerialService llamado');
+      if (typeof window === 'undefined') {
+        console.log('[Test] window no disponible, webSerial deshabilitado');
+        return null;
+      }
+      
+      if (!webSerialModuleRef.current) {
+        console.log('[Test] Cargando módulo webSerial dinámicamente...');
+        try {
+          webSerialModuleRef.current = await import('../services/webSerial');
+          console.log('[Test] Módulo webSerial cargado:', webSerialModuleRef.current);
+        } catch (importError) {
+          console.error('[Test] Error al importar webSerial:', importError);
+          return null;
+        }
+      }
+      
+      if (!webSerialServiceRef.current && webSerialModuleRef.current) {
+        console.log('[Test] Creando instancia webSerial...');
+        const factory = webSerialModuleRef.current.getWebSerialInstance || webSerialModuleRef.current.default;
+        if (typeof factory === 'function') {
+          webSerialServiceRef.current = factory();
+          console.log('[Test] Instancia webSerial creada:', webSerialServiceRef.current);
+        } else {
+          console.warn('[Test] Factory no es función:', factory);
+          return null;
+        }
+      }
+      
+      return webSerialServiceRef.current;
+    } catch (error) {
+      console.error('[Test] Error al obtener webSerial:', error);
+      return null;
+    }
+  }, []);
+
   const [formData, setFormData] = useState({
     temperatura_iniziale: '',
     regolazione_vite: '',

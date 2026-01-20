@@ -31,6 +31,7 @@ export default function Test() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const dataLoadedRef = useRef(false);
   
   const [showMaquinaSelector, setShowMaquinaSelector] = useState(true);
   const [searchMaquina, setSearchMaquina] = useState('');
@@ -111,7 +112,7 @@ export default function Test() {
     try {
       const user = await authAPI.getCurrentUser();
       setCurrentUser(user);
-      if (user) {
+      if (user && tecnicos.length > 0) {
         const tecnicoAsociado = tecnicos.find(t => t.usuario?.id_usuario === user.id_usuario);
         if (tecnicoAsociado) {
           setFormData(prev => ({ ...prev, tecnicoId: tecnicoAsociado.id_tecnico.toString() }));
@@ -123,7 +124,13 @@ export default function Test() {
   }, [tecnicos]);
 
   const loadData = useCallback(async () => {
+    // Evitar múltiples cargas simultáneas
+    if (dataLoadedRef.current) {
+      return;
+    }
+    
     try {
+      dataLoadedRef.current = true;
       setLoading(true);
       const [maquinasData, testsData, tecnicosData, lottiData] = await Promise.all([
         maquinasAPI.getAll(),
@@ -141,16 +148,28 @@ export default function Test() {
     } catch (error) {
       console.error('Error al cargar datos:', error);
       showNotification(error.message || 'Errore nel caricamento dei dati', 'error');
+      dataLoadedRef.current = false; // Permitir reintento en caso de error
     } finally {
       setLoading(false);
     }
   }, [showNotification]);
 
+  // Cargar datos solo una vez al montar el componente
   useEffect(() => {
     loadData();
-    loadCurrentUser();
-    
-    // Verificar soporte WebSerial de forma segura
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Solo ejecutar al montar
+
+  // Cargar usuario actual después de que los técnicos estén disponibles
+  useEffect(() => {
+    if (tecnicos.length > 0 && !currentUser) {
+      loadCurrentUser();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tecnicos.length, currentUser]); // Solo cuando los técnicos cambien de 0 a >0
+
+  // Verificar soporte WebSerial solo una vez
+  useEffect(() => {
     if (typeof window !== 'undefined' && 'serial' in navigator) {
       getWebSerialService()
         .then(service => {
@@ -162,7 +181,10 @@ export default function Test() {
         })
         .catch(() => setWebSerialSupported(false));
     }
-    
+  }, []); // Solo una vez al montar
+
+  // Cleanup al desmontar
+  useEffect(() => {
     return () => {
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
@@ -171,7 +193,7 @@ export default function Test() {
         webSerialServiceRef.current.disconnect().catch(() => {});
       }
     };
-  }, [getWebSerialService, loadData, loadCurrentUser]);
+  }, [esp32PollingInterval, webSerialConnected]);
 
   useEffect(() => {
     if (!showESP32Modal) {

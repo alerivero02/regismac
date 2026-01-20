@@ -185,13 +185,7 @@ export default function Login() {
                 <label className="block text-sm font-semibold text-gray-700">
                   Password
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setShowResetPassword(true)}
-                  className="text-xs text-primary-600 hover:text-primary-700 font-semibold"
-                >
-                  Hai dimenticato la password?
-                </button>
+                
               </div>
               <div className="relative">
                 <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-gray-400" />
@@ -212,8 +206,16 @@ export default function Login() {
                   {showPassword ? '👁️' : '👁️‍🗨️'}
                 </button>
               </div>
-            </div>
+              <button
+                  type="button"
+                  onClick={() => setShowResetPassword(true)}
+                  className="text-xs text-primary-600 hover:text-primary-700 font-semibold"
+                >
+                  Hai dimenticato la password?
+                </button>
 
+            </div>
+            
             <button
               type="submit"
               disabled={loading}

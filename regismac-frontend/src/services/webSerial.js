@@ -124,7 +124,7 @@ class WebSerialService {
 
 let webSerialInstance = null;
 
-function getInstance() {
+export function getWebSerialInstance() {
   if (typeof window === 'undefined') {
     return null;
   }
@@ -134,4 +134,4 @@ function getInstance() {
   return webSerialInstance;
 }
 
-export default getInstance;
+export default getWebSerialInstance;

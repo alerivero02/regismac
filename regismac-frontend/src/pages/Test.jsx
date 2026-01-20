@@ -19,6 +19,7 @@ import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from
 import Notification from '../components/Notification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
+import { getWebSerialInstance } from '../services/webSerial';
 
 export default function Test() {
   const webSerialServiceRef = useRef(null);
@@ -26,8 +27,7 @@ export default function Test() {
   const getWebSerialService = useCallback(() => {
     if (!webSerialServiceRef.current && typeof window !== 'undefined') {
       try {
-        const webSerialModule = require('../services/webSerial');
-        webSerialServiceRef.current = webSerialModule.default ? webSerialModule.default() : null;
+        webSerialServiceRef.current = getWebSerialInstance();
       } catch (error) {
         return null;
       }

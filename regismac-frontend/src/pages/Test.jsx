@@ -51,6 +51,8 @@ export default function Test() {
   const [esp32PollingInterval, setEsp32PollingInterval] = useState(null);
   const [testESP32Activo, setTestESP32Activo] = useState(false);
   const [fechaHoraInicioTestESP32, setFechaHoraInicioTestESP32] = useState(null);
+  const [temperaturaWebSerial, setTemperaturaWebSerial] = useState(null);
+  const [humedadWebSerial, setHumedadWebSerial] = useState(null);
   const autoSaveRef = useRef(false);
   const [puertosDisponibles, setPuertosDisponibles] = useState([]);
   const [conexionSerial, setConexionSerial] = useState({ connected: false, port: null });
@@ -255,10 +257,18 @@ export default function Test() {
           service.setDataCallback(async (data) => {
             if (data.error) return;
             if (data.temperatura !== undefined && data.temperatura !== null) {
+              // Actualizar estado local inmediatamente para uso USB directo
+              setTemperaturaWebSerial(data.temperatura);
+              if (data.humedad !== undefined && data.humedad !== null) {
+                setHumedadWebSerial(data.humedad);
+              }
+              
+              // También enviar al servidor si está disponible (para sincronización)
               try {
                 await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
               } catch (error) {
-                console.error('Error al enviar datos al servidor:', error);
+                // Si falla el servidor, no importa - usamos datos locales
+                console.warn('No se pudo enviar al servidor, usando datos locales:', error.message);
               }
             }
           });
@@ -479,22 +489,54 @@ export default function Test() {
         return;
       }
 
-      if (!esp32Estado || esp32Estado.temperatura === null) {
-        showNotification('No se puede leer la temperatura del sensor. Verifica la conexión.', 'error');
+      // Obtener temperatura: primero de WebSerial (USB directo), luego del servidor
+      let temperaturaInicial = null;
+      
+      if (webSerialConnected && temperaturaWebSerial !== null) {
+        // Usar temperatura directamente de WebSerial (USB)
+        temperaturaInicial = temperaturaWebSerial;
+      } else if (esp32Estado && esp32Estado.temperatura !== null) {
+        // Usar temperatura del servidor
+        temperaturaInicial = esp32Estado.temperatura;
+      }
+      
+      if (temperaturaInicial === null) {
+        showNotification('No se puede leer la temperatura del sensor. Verifica la conexión USB.', 'error');
         return;
       }
       
       // Resetear flag de auto-guardado
       autoSaveRef.current = false;
       
-      await sensorAPI.iniciarTest(esp32Estado.temperatura);
+      // Iniciar test en el servidor (si está disponible) o solo localmente
+      try {
+        await sensorAPI.iniciarTest(temperaturaInicial);
+      } catch (error) {
+        // Si el servidor no está disponible pero tenemos USB, continuar solo con USB
+        if (webSerialConnected) {
+          console.warn('Servidor no disponible, continuando solo con USB:', error.message);
+        } else {
+          throw error;
+        }
+      }
+      
       setTestESP32Activo(true);
       setFechaHoraInicioTestESP32(new Date().toISOString());
+      
+      // Actualizar estado local con temperatura inicial
+      setEsp32Estado(prev => ({
+        ...prev,
+        temperatura: temperaturaInicial,
+        temperaturaInicial: temperaturaInicial,
+        testActivo: true,
+        tiempoInicio: Date.now(),
+      }));
+      
       showNotification('✅ Test iniciado. Monitoreando temperatura automáticamente...', 'success');
     } catch (error) {
       showNotification(error.message || 'Error al iniciar el test', 'error');
     }
-  }, [selectedMaquina, formData.tecnicoId, esp32Estado, showNotification]);
+  }, [selectedMaquina, formData.tecnicoId, esp32Estado, temperaturaWebSerial, webSerialConnected, showNotification]);
 
   const finalizarTestESP32 = useCallback(async () => {
     if (isSubmitting) return;
@@ -2005,7 +2047,9 @@ export default function Test() {
                   <div className="flex items-center gap-2">
                     <FiThermometer className="w-5 h-5 text-red-500" />
                     <span className="text-2xl font-bold text-gray-900">
-                      {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined
+                      {(webSerialConnected && temperaturaWebSerial !== null)
+                        ? `${temperaturaWebSerial.toFixed(1)}°C`
+                        : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined)
                         ? `${esp32Estado.temperatura.toFixed(1)}°C`
                         : '--'}
                     </span>
@@ -2016,7 +2060,9 @@ export default function Test() {
                   <div className="flex items-center gap-2">
                     <FiDroplet className="w-5 h-5 text-blue-500" />
                     <span className="text-2xl font-bold text-gray-900">
-                      {esp32Estado?.humedad !== null && esp32Estado?.humedad !== undefined
+                      {(webSerialConnected && humedadWebSerial !== null)
+                        ? `${humedadWebSerial.toFixed(1)}%`
+                        : (esp32Estado?.humedad !== null && esp32Estado?.humedad !== undefined)
                         ? `${esp32Estado.humedad.toFixed(1)}%`
                         : '--'}
                     </span>
@@ -2098,7 +2144,10 @@ export default function Test() {
               {!testESP32Activo ? (
                 <button
                   onClick={iniciarTestESP32}
-                  disabled={!esp32Estado || esp32Estado.temperatura === null}
+                  disabled={
+                    (!webSerialConnected || temperaturaWebSerial === null) && 
+                    (!esp32Estado || esp32Estado.temperatura === null)
+                  }
                   className="flex-1 btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <FiPlay className="w-5 h-5" />

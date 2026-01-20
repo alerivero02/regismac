@@ -348,11 +348,18 @@ export default function Test() {
     const interval = setInterval(async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();
+        console.log('[Test] Estado del sensor obtenido:', estado);
         setEsp32Estado(estado);
         setConexionSerial({
           connected: estado.serialConnected || webSerialConnected,
           port: estado.serialPort || (webSerialConnected ? 'WebSerial' : null),
         });
+        
+        // Si el servidor tiene temperatura pero no tenemos de WebSerial, usarla
+        if (estado.temperatura !== null && estado.temperatura !== undefined && temperaturaWebSerial === null) {
+          console.log('[Test] Usando temperatura del servidor:', estado.temperatura);
+          setTemperaturaWebSerial(estado.temperatura);
+        }
         
         // Actualizar temperatura inicial cuando se inicia el test
         if (estado.testActivo && estado.temperaturaInicial && !formData.temperatura_iniziale) {
@@ -2267,8 +2274,10 @@ export default function Test() {
                   onClick={iniciarTestESP32}
                   disabled={
                     isIniciandoTest ||
-                    ((!webSerialConnected || temperaturaWebSerial === null) && 
-                    (!esp32Estado || esp32Estado.temperatura === null))
+                    (
+                      (!webSerialConnected || (temperaturaWebSerial === null && temperaturaWebSerial !== 0)) && 
+                      (!esp32Estado || (esp32Estado.temperatura === null && esp32Estado.temperatura !== 0))
+                    )
                   }
                   className={`flex-1 flex items-center justify-center gap-2 py-3 font-semibold transition-all ${
                     isIniciandoTest

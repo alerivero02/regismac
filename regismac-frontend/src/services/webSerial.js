@@ -105,14 +105,21 @@ class WebSerialService {
 
           for (const line of lines) {
             try {
-              if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
-                const data = JSON.parse(line.trim());
+              const trimmedLine = line.trim();
+              // Intentar parsear como JSON
+              if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
+                const data = JSON.parse(trimmedLine);
+                console.log('[WebSerial] Datos parseados:', data);
                 if (this.onDataCallback) {
                   this.onDataCallback(data);
                 }
+              } else if (trimmedLine.includes('temperatura') || trimmedLine.includes('temp')) {
+                // Intentar extraer temperatura de líneas que no son JSON puro
+                console.log('[WebSerial] Línea con posible temperatura:', trimmedLine);
               }
             } catch (error) {
-              // Ignorar errores de parsing
+              // Loggear errores de parsing para depuración
+              console.warn('[WebSerial] Error al parsear línea:', line.trim(), error.message);
             }
           }
         }

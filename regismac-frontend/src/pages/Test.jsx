@@ -345,6 +345,9 @@ export default function Test() {
       })
       .catch(() => {});
     
+    // Polling adaptativo: 1 segundo durante test, 5 segundos cuando no hay test activo
+    const pollingInterval = testESP32Activo ? 1000 : 5000;
+    
     const interval = setInterval(async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();

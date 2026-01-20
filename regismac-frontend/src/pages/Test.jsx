@@ -60,36 +60,19 @@ export default function Test() {
   
   const [showCronometroModal, setShowCronometroModal] = useState(false);
 
-  const webSerialModuleRef = useRef(null);
-  
   const getWebSerialService = useCallback(async () => {
     try {
-      console.log('[Test] getWebSerialService llamado');
-      if (typeof window === 'undefined') {
-        console.log('[Test] window no disponible, webSerial deshabilitado');
+      if (typeof window === 'undefined' || !('serial' in navigator)) {
         return null;
       }
       
-      if (!webSerialModuleRef.current) {
-        console.log('[Test] Cargando módulo webSerial dinámicamente...');
-        try {
-          webSerialModuleRef.current = await import('../services/webSerial');
-          console.log('[Test] Módulo webSerial cargado:', webSerialModuleRef.current);
-        } catch (importError) {
-          console.error('[Test] Error al importar webSerial:', importError);
-          return null;
-        }
-      }
-      
-      if (!webSerialServiceRef.current && webSerialModuleRef.current) {
-        console.log('[Test] Creando instancia webSerial...');
-        const factory = webSerialModuleRef.current.getWebSerialInstance || webSerialModuleRef.current.default;
-        if (typeof factory === 'function') {
-          webSerialServiceRef.current = factory();
-          console.log('[Test] Instancia webSerial creada:', webSerialServiceRef.current);
-        } else {
-          console.warn('[Test] Factory no es función:', factory);
-          return null;
+      if (!webSerialServiceRef.current) {
+        const module = await import('../services/webSerial').catch(() => null);
+        if (module) {
+          const factory = module.getWebSerialInstance || module.default;
+          if (typeof factory === 'function') {
+            webSerialServiceRef.current = factory();
+          }
         }
       }
       
@@ -119,42 +102,23 @@ export default function Test() {
   });
 
   useEffect(() => {
-    console.log('[Test] useEffect inicial ejecutándose...');
-    try {
-      loadData();
-      loadCurrentUser();
-      
-      console.log('[Test] Obteniendo servicio webSerial...');
+    loadData();
+    loadCurrentUser();
+    
+    // Verificar soporte WebSerial de forma segura
+    if (typeof window !== 'undefined' && 'serial' in navigator) {
       getWebSerialService()
         .then(service => {
-          console.log('[Test] Servicio webSerial obtenido:', service);
-          
           if (service) {
-            console.log('[Test] Verificando soporte webSerial...');
-            return service.isSupported()
-              .then(supported => {
-                console.log('[Test] WebSerial soportado:', supported);
-                setWebSerialSupported(supported);
-              })
-              .catch(error => {
-                console.error('[Test] Error verificando soporte:', error);
-                setWebSerialSupported(false);
-              });
-          } else {
-            console.log('[Test] WebSerial no disponible');
-            setWebSerialSupported(false);
+            service.isSupported()
+              .then(setWebSerialSupported)
+              .catch(() => setWebSerialSupported(false));
           }
         })
-        .catch(error => {
-          console.error('[Test] Error al obtener servicio webSerial:', error);
-          setWebSerialSupported(false);
-        });
-    } catch (error) {
-      console.error('[Test] Error en useEffect inicial:', error);
+        .catch(() => setWebSerialSupported(false));
     }
     
     return () => {
-      console.log('[Test] Cleanup useEffect inicial');
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
       }
@@ -162,7 +126,7 @@ export default function Test() {
         webSerialServiceRef.current.disconnect().catch(() => {});
       }
     };
-  }, [getWebSerialService]);
+  }, [getWebSerialService, loadData, loadCurrentUser]);
 
   useEffect(() => {
     if (!showESP32Modal) {
@@ -218,19 +182,22 @@ export default function Test() {
     
     cargarPuertos();
     
-    const service = getWebSerialService();
-    if (service) {
-      service.setDataCallback(async (data) => {
-        if (data.error) return;
-        if (data.temperatura !== undefined && data.temperatura !== null) {
-          try {
-            await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
-          } catch (error) {
-            console.error('Error al enviar datos al servidor:', error);
-          }
+    getWebSerialService()
+      .then(service => {
+        if (service) {
+          service.setDataCallback(async (data) => {
+            if (data.error) return;
+            if (data.temperatura !== undefined && data.temperatura !== null) {
+              try {
+                await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
+              } catch (error) {
+                console.error('Error al enviar datos al servidor:', error);
+              }
+            }
+          });
         }
-      });
-    }
+      })
+      .catch(() => {});
     
     const interval = setInterval(async () => {
       try {

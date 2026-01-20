@@ -84,7 +84,10 @@ export default function Test() {
       
       return webSerialServiceRef.current;
     } catch (error) {
-      console.error('[Test] Error al obtener webSerial:', error);
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.error('[Test] Error al obtener webSerial:', error);
+      }
       return null;
     }
   }, []);
@@ -521,7 +524,10 @@ export default function Test() {
       setConexionSerial({ connected: false, port: null });
       showNotification('Desconectado de WebSerial', 'info');
     } catch (error) {
-      console.error('Error al desconectar WebSerial:', error);
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.error('Error al desconectar WebSerial:', error);
+      }
       showNotification('Error al desconectar', 'error');
       // Forzar desconexión incluso si hay error
       setWebSerialConnected(false);
@@ -566,7 +572,10 @@ export default function Test() {
                           window.location.hostname !== '127.0.0.1';
       
       if (!isProduction) {
-        console.error('Error al conectar WebSerial:', error);
+        const isDev = import.meta.env.DEV;
+        if (isDev) {
+          console.error('Error al conectar WebSerial:', error);
+        }
       }
       
       // Mensajes de error más específicos en italiano
@@ -771,7 +780,10 @@ export default function Test() {
         setFechaHoraInicioTestESP32(null);
       }
     } catch (error) {
-      console.error('Error al finalizar test ESP32:', error);
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.error('Error al finalizar test ESP32:', error);
+      }
       showNotification(error.message || 'Error al finalizar el test', 'error');
       setTestESP32Activo(false);
       setFechaHoraInicioTestESP32(null);
@@ -787,7 +799,10 @@ export default function Test() {
       await sensorAPI.cancelarTest();
       } catch (error) {
         // Si falla, no importa - cancelamos localmente
-        console.warn('No se pudo cancelar en el servidor, cancelando localmente:', error.message);
+        const isDev = import.meta.env.DEV;
+        if (isDev) {
+          console.warn('No se pudo cancelar en el servidor, cancelando localmente:', error.message);
+        }
       }
       
       setTestESP32Activo(false);

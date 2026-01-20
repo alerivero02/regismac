@@ -19,30 +19,6 @@ import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from
 import Notification from '../components/Notification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
-import { getWebSerialInstance } from '../services/webSerial';
-
-let webSerialInstance = null;
-
-const getWebSerialService = () => {
-  try {
-    console.log('[Test] getWebSerialService llamado');
-    if (typeof window === 'undefined') {
-      console.log('[Test] window no disponible, webSerial deshabilitado');
-      return null;
-    }
-    
-    if (!webSerialInstance) {
-      console.log('[Test] Creando instancia webSerial...');
-      webSerialInstance = getWebSerialInstance();
-      console.log('[Test] Instancia webSerial creada:', webSerialInstance);
-    }
-    
-    return webSerialInstance;
-  } catch (error) {
-    console.error('[Test] Error al obtener webSerial:', error);
-    return null;
-  }
-};
 
 export default function Test() {
   console.log('[Test] Componente Test iniciando...');
@@ -109,24 +85,30 @@ export default function Test() {
       loadCurrentUser();
       
       console.log('[Test] Obteniendo servicio webSerial...');
-      const service = getWebSerialService();
-      console.log('[Test] Servicio webSerial obtenido:', service);
-      
-      if (service) {
-        console.log('[Test] Verificando soporte webSerial...');
-        service.isSupported()
-          .then(supported => {
-            console.log('[Test] WebSerial soportado:', supported);
-            setWebSerialSupported(supported);
-          })
-          .catch(error => {
-            console.error('[Test] Error verificando soporte:', error);
+      getWebSerialService()
+        .then(service => {
+          console.log('[Test] Servicio webSerial obtenido:', service);
+          
+          if (service) {
+            console.log('[Test] Verificando soporte webSerial...');
+            return service.isSupported()
+              .then(supported => {
+                console.log('[Test] WebSerial soportado:', supported);
+                setWebSerialSupported(supported);
+              })
+              .catch(error => {
+                console.error('[Test] Error verificando soporte:', error);
+                setWebSerialSupported(false);
+              });
+          } else {
+            console.log('[Test] WebSerial no disponible');
             setWebSerialSupported(false);
-          });
-      } else {
-        console.log('[Test] WebSerial no disponible');
-        setWebSerialSupported(false);
-      }
+          }
+        })
+        .catch(error => {
+          console.error('[Test] Error al obtener servicio webSerial:', error);
+          setWebSerialSupported(false);
+        });
     } catch (error) {
       console.error('[Test] Error en useEffect inicial:', error);
     }
@@ -254,7 +236,7 @@ export default function Test() {
   const conectarWebSerial = useCallback(async () => {
     try {
       console.log('[Test] Conectando WebSerial...');
-      const service = getWebSerialService();
+      const service = await getWebSerialService();
       console.log('[Test] Servicio obtenido para conectar:', service);
       if (!service) {
         console.warn('[Test] WebSerial no disponible');
@@ -273,12 +255,12 @@ export default function Test() {
       console.error('[Test] Error al conectar WebSerial:', error);
       showNotification(error.message || 'Error al conectar', 'error');
     }
-  }, [showNotification]);
+  }, [showNotification, getWebSerialService]);
 
   const desconectarWebSerial = useCallback(async () => {
     try {
       console.log('[Test] Desconectando WebSerial...');
-      const service = getWebSerialService();
+      const service = await getWebSerialService();
       if (service) {
         await service.disconnect();
       }
@@ -289,7 +271,7 @@ export default function Test() {
       console.error('[Test] Error al desconectar WebSerial:', error);
       showNotification('Error al desconectar', 'error');
     }
-  }, [showNotification]);
+  }, [showNotification, getWebSerialService]);
 
   const iniciarTestESP32 = useCallback(async () => {
     try {

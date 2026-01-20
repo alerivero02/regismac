@@ -122,7 +122,7 @@ export default function Test() {
         webSerialServiceRef.current.disconnect().catch(() => {});
       }
     };
-  }, []);
+  }, [getWebSerialService]);
 
   useEffect(() => {
     if (!showESP32Modal) {

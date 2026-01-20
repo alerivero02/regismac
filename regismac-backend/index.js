@@ -77,6 +77,84 @@ function startAutoPing() {
   }
 }
 
+// Sistema de backups automáticos
+let backupIntervalId = null;
+let isBackupRunning = false;
+
+async function executeAutomaticBackup() {
+  // Evitar ejecuciones simultáneas
+  if (isBackupRunning) {
+    console.log('⏭️  Backup automático omitido: ya hay un backup en ejecución');
+    return;
+  }
+
+  try {
+    isBackupRunning = true;
+    console.log('🔄 Ejecutando backup automático...');
+    
+    // Importar función de backup dinámicamente
+    const { backupDatabase } = await import('./scripts/backup-database-postgres.js');
+    const backupPath = await backupDatabase();
+    
+    console.log(`✅ Backup automático completado: ${backupPath}`);
+    
+    // Log de seguridad (opcional, solo si tienes el módulo)
+    try {
+      const { logSecurityEvent, SecurityEventType } = await import('./src/utils/securityLogger.js');
+      logSecurityEvent(SecurityEventType.ADMIN_ACTION, {
+        action: 'automatic_backup_executed',
+        backupPath: backupPath,
+      });
+    } catch (e) {
+      // Ignorar si no está disponible
+    }
+  } catch (error) {
+    console.error('❌ Error en backup automático:', error.message);
+    // No lanzar error para no detener el servidor
+  } finally {
+    isBackupRunning = false;
+  }
+}
+
+function startAutomaticBackups() {
+  // Solo en producción
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('ℹ️  Backups automáticos deshabilitados en desarrollo');
+    return;
+  }
+
+  // Verificar si está habilitado (por defecto sí)
+  const enableAutoBackups = process.env.ENABLE_AUTO_BACKUPS !== 'false';
+  if (!enableAutoBackups) {
+    console.log('ℹ️  Backups automáticos deshabilitados por configuración');
+    return;
+  }
+
+  // Intervalo de backups (por defecto cada 24 horas)
+  const backupIntervalHours = parseInt(process.env.BACKUP_INTERVAL_HOURS || '24', 10);
+  const backupIntervalMs = backupIntervalHours * 60 * 60 * 1000;
+
+  console.log(`🔄 Sistema de backups automáticos iniciado (cada ${backupIntervalHours} horas)`);
+
+  // Ejecutar backup inmediatamente al iniciar (opcional)
+  const runOnStart = process.env.BACKUP_ON_START !== 'false';
+  if (runOnStart) {
+    // Esperar 5 minutos después del inicio para no sobrecargar el servidor
+    setTimeout(() => {
+      executeAutomaticBackup().catch(err => {
+        console.error('Error en backup inicial:', err);
+      });
+    }, 5 * 60 * 1000);
+  }
+
+  // Programar backups periódicos
+  backupIntervalId = setInterval(() => {
+    executeAutomaticBackup().catch(err => {
+      console.error('Error en backup periódico:', err);
+    });
+  }, backupIntervalMs);
+}
+
 async function startServer() {
   try {
     await prisma.$connect();
@@ -108,6 +186,9 @@ async function startServer() {
       
       // Iniciar ping automático para mantener servicio activo
       startAutoPing();
+      
+      // Iniciar sistema de backups automáticos
+      startAutomaticBackups();
     });
   } catch (error) {
     console.error("Database connection error:", error.message);
@@ -128,6 +209,10 @@ process.on('SIGINT', async () => {
 });
 
 process.on('SIGTERM', async () => {
+  // Limpiar intervalos antes de cerrar
+  if (backupIntervalId) {
+    clearInterval(backupIntervalId);
+  }
   await prisma.$disconnect();
   process.exit(0);
 });

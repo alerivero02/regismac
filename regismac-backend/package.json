@@ -15,6 +15,7 @@
     "prisma:generate": "prisma generate",
     "verificar-env": "node verificar-env.js",
     "backup": "node scripts/backup-database.js",
+    "backup:postgres": "node scripts/backup-database-postgres.js",
     "restore": "node scripts/restore-backup.js",
     "import-materiali": "node scripts/importMaterialiLista.js",
     "verificar-google": "node scripts/verificar-google-oauth.js",

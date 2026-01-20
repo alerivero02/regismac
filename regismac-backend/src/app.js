@@ -19,6 +19,7 @@ import materialiRoutes from "./routes/materiali.routes.js";
 import ordiniMaterialiRoutes from "./routes/ordiniMateriali.routes.js";
 import lottiRoutes from "./routes/lotti.routes.js";
 import sensorRoutes from "./routes/sensor.routes.js";
+import backupRoutes from "./routes/backup.routes.js";
 
 import { errorHandler } from "./utils/errorHandler.js";
 import { 
@@ -310,6 +311,7 @@ app.use("/api/materiali", materialiRoutes);
 app.use("/api/ordini-materiali", ordiniMaterialiRoutes);
 app.use("/api/lotti", lottiRoutes);
 app.use("/api/sensor", sensorRoutes);
+app.use("/api/backup", backupRoutes);
 
 // En producción (Render), servir el frontend después de las rutas de API
 if (process.env.NODE_ENV === 'production') {

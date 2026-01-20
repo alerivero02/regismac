@@ -54,7 +54,7 @@ export default function Test() {
   const [time0Marked, setTime0Marked] = useState(null);
   const [timeMinus8Marked, setTimeMinus8Marked] = useState(null);
   const [intervalId, setIntervalId] = useState(null);
-  const [modoManual, setModoManual] = useState(false);
+  const [modoManual, setModoManual] = useState(true); // Modo manual activado por defecto
   
   // Estados para el modal ESP32
   const [showESP32Modal, setShowESP32Modal] = useState(false);
@@ -754,7 +754,7 @@ export default function Test() {
       });
       resetTimer();
       setSelectedMaquina('');
-      setModoManual(false);
+      setModoManual(true); // Mantener modo manual activo por defecto
       setAgregarSegundaPrueba(false);
       setShowMaquinaSelector(true);
       setSearchMaquina('');
@@ -1155,7 +1155,7 @@ export default function Test() {
               </div>
             </div>
 
-            {/* Tempi - Solo modo manual */}
+            {/* Tempi - Modo manual por defecto */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold text-gray-900">Tempi</h3>
@@ -1169,35 +1169,22 @@ export default function Test() {
                     <FiClock className="w-3 h-3" />
                     Cronometro
                   </button>
+                  {/* Botón ESP32 - siempre visible */}
                   <button
                     type="button"
-                    onClick={() => setModoManual(true)}
-                    className={`px-3 py-1 rounded text-xs font-semibold transition-all ${
-                      modoManual
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                    }`}
+                    onClick={() => {
+                      setShowESP32Modal(true);
+                    }}
+                    className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"
+                    title="Test automático con ESP32"
                   >
-                    Manuale
+                    <FiWifi className="w-3 h-3" />
+                    ESP32
                   </button>
-                  {/* Botón ESP32 solo visible en desarrollo/local */}
-                  {!isProduction() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowESP32Modal(true);
-                      }}
-                      className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"
-                      title="Test automático con ESP32"
-                    >
-                      <FiWifi className="w-3 h-3" />
-                      ESP32
-                    </button>
-                  )}
                 </div>
               </div>
 
-              {/* Solo mostrar modo manual - el cronómetro está en modal */}
+              {/* Modo manual siempre visible por defecto */}
               {modoManual && (
                 <div className="space-y-4">
                   <div>

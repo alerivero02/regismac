@@ -18,42 +18,34 @@ const possiblePaths = [
   join(__dirname, '..', 'node_modules', '@prisma', 'client', 'index.d.ts')
 ];
 
-console.log('🔍 Verificando Prisma Client...');
+const isProduction = process.env.NODE_ENV === 'production';
+const log = isProduction ? () => {} : console.log;
+const logError = console.error;
 
-// Verificar si existe Prisma Client en alguna de las ubicaciones posibles
 const prismaClientExists = possiblePaths.some(path => existsSync(path));
 
 if (!prismaClientExists) {
-  console.log('⚠️  Prisma Client no encontrado. Generando...');
+  log('⚠️  Prisma Client no encontrado. Generando...');
   try {
     execSync('npx prisma generate', {
-      stdio: 'inherit',
+      stdio: isProduction ? 'ignore' : 'inherit',
       cwd: join(__dirname, '..'),
       env: { ...process.env }
     });
-    console.log('✅ Prisma Client generado exitosamente');
   } catch (error) {
-    console.error('❌ Error al generar Prisma Client:', error.message);
-    // En producción, intentar continuar de todas formas (puede que ya esté generado)
-    if (process.env.NODE_ENV === 'production') {
-      console.log('⚠️  Continuando de todas formas en producción...');
-    } else {
+    logError('❌ Error al generar Prisma Client:', error.message);
+    if (!isProduction) {
       process.exit(1);
     }
   }
-} else {
-  console.log('✅ Prisma Client ya está generado');
 }
 
-// Ejecutar limpieza de técnicos al iniciar (solo en producción)
-if (process.env.NODE_ENV === 'production') {
+if (isProduction) {
   try {
-    console.log('🧹 Ejecutando limpieza de técnicos...');
     const { limpiarTecnicos } = await import('./limpiarTecnicos.js');
     await limpiarTecnicos();
   } catch (error) {
-    console.error('⚠️  Error al ejecutar limpieza de técnicos (continuando de todas formas):', error.message);
-    // No detener el servidor si falla la limpieza
+    logError('⚠️  Error al ejecutar limpieza de técnicos:', error.message);
   }
 }
 

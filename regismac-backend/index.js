@@ -13,14 +13,18 @@ const prisma = new PrismaClient({
 
 app.locals.prisma = prisma;
 
+const isProduction = process.env.NODE_ENV === 'production';
+const log = isProduction ? () => {} : console.log;
+const logError = console.error;
+
 export async function reconnectPrisma() {
   try {
     await prisma.$disconnect();
     await prisma.$connect();
-    console.log('✅ Reconexión a la base de datos exitosa');
+    log('✅ Reconexión a la base de datos exitosa');
     return true;
   } catch (error) {
-    console.error('❌ Error al reconectar:', error);
+    logError('❌ Error al reconectar:', error);
     return false;
   }
 }
@@ -82,21 +86,14 @@ let backupIntervalId = null;
 let isBackupRunning = false;
 
 async function executeAutomaticBackup() {
-  // Evitar ejecuciones simultáneas
   if (isBackupRunning) {
-    console.log('⏭️  Backup automático omitido: ya hay un backup en ejecución');
     return;
   }
 
   try {
     isBackupRunning = true;
-    console.log('🔄 Ejecutando backup automático...');
-    
-    // Importar función de backup dinámicamente
     const { backupDatabase } = await import('./scripts/backup-database-postgres.js');
-    const backupPath = await backupDatabase();
-    
-    console.log(`✅ Backup automático completado: ${backupPath}`);
+    await backupDatabase();
     
     // Log de seguridad (opcional, solo si tienes el módulo)
     try {
@@ -109,77 +106,54 @@ async function executeAutomaticBackup() {
       // Ignorar si no está disponible
     }
   } catch (error) {
-    console.error('❌ Error en backup automático:', error.message);
-    // No lanzar error para no detener el servidor
+    logError('❌ Error en backup automático:', error.message);
   } finally {
     isBackupRunning = false;
   }
 }
 
 function startAutomaticBackups() {
-  // Solo en producción
   if (process.env.NODE_ENV !== 'production') {
-    console.log('ℹ️  Backups automáticos deshabilitados en desarrollo');
     return;
   }
 
-  // Verificar si está habilitado (por defecto sí)
   const enableAutoBackups = process.env.ENABLE_AUTO_BACKUPS !== 'false';
   if (!enableAutoBackups) {
-    console.log('ℹ️  Backups automáticos deshabilitados por configuración');
     return;
   }
 
-  // Intervalo de backups (por defecto cada 24 horas)
   const backupIntervalHours = parseInt(process.env.BACKUP_INTERVAL_HOURS || '24', 10);
   const backupIntervalMs = backupIntervalHours * 60 * 60 * 1000;
 
-  console.log(`🔄 Sistema de backups automáticos iniciado (cada ${backupIntervalHours} horas)`);
-
-  // Ejecutar backup inmediatamente al iniciar (opcional)
   const runOnStart = process.env.BACKUP_ON_START !== 'false';
   if (runOnStart) {
-    // Esperar 5 minutos después del inicio para no sobrecargar el servidor
     setTimeout(() => {
-      executeAutomaticBackup().catch(err => {
-        console.error('Error en backup inicial:', err);
-      });
+      executeAutomaticBackup().catch(() => {});
     }, 5 * 60 * 1000);
   }
 
-  // Programar backups periódicos
   backupIntervalId = setInterval(() => {
-    executeAutomaticBackup().catch(err => {
-      console.error('Error en backup periódico:', err);
-    });
+    executeAutomaticBackup().catch(() => {});
   }, backupIntervalMs);
 }
 
-// Sistema de conexión serial USB al ESP32
 async function startSerialConnection() {
-  // Solo intentar conectar si está habilitado
   const enableSerial = process.env.ENABLE_SERIAL_CONNECTION !== 'false';
   if (!enableSerial) {
-    console.log('ℹ️  Conexión serial deshabilitada por configuración');
     return;
   }
 
   try {
-    console.log('🔌 Intentando conectar al ESP32 por USB...');
     const serialPortService = await import('./src/services/serialPort.service.js');
-    
-    // Esperar 2 segundos después del inicio para que el sistema esté listo
     setTimeout(async () => {
       try {
-        const port = await serialPortService.connectToESP32();
-        console.log(`✅ Conectado al ESP32 en puerto: ${port}`);
+        await serialPortService.connectToESP32();
       } catch (error) {
-        console.log('ℹ️  No se pudo conectar automáticamente al ESP32:', error.message);
-        console.log('   Puedes conectar manualmente usando el endpoint /api/sensor/conectar');
+        log('ℹ️  No se pudo conectar automáticamente al ESP32');
       }
     }, 2000);
   } catch (error) {
-    console.log('ℹ️  Servicio serial no disponible:', error.message);
+    log('ℹ️  Servicio serial no disponible');
   }
 }
 
@@ -187,17 +161,12 @@ async function startServer() {
   try {
     await prisma.$connect();
     
-    // Ejecutar limpieza DEFINITIVA de técnicos al iniciar (solo en producción)
-    if (process.env.NODE_ENV === 'production') {
+    if (isProduction) {
       try {
-        console.log('🧹 Ejecutando limpieza DEFINITIVA de técnicos al iniciar...');
         const { limpiarTecnicosDefinitivo } = await import('./scripts/limpiarTecnicosDefinitivo.js');
-        // Usar la instancia de Prisma ya conectada
         await limpiarTecnicosDefinitivo(prisma);
       } catch (error) {
-        console.error('⚠️  Error al ejecutar limpieza de técnicos (continuando de todas formas):', error.message);
-        console.error('   Stack:', error.stack);
-        // No detener el servidor si falla la limpieza
+        logError('⚠️  Error al ejecutar limpieza de técnicos:', error.message);
       }
     }
     
@@ -205,27 +174,22 @@ async function startServer() {
     const HOST = process.env.HOST || '0.0.0.0';
     
     app.listen(PORT, HOST, () => {
-      // Logs mínimos para producción
-      if (process.env.NODE_ENV === 'development') {
+      if (!isProduction) {
         const localIP = getLocalIP();
         console.log(`Server running on http://localhost:${PORT}`);
         console.log(`Local network: http://${localIP}:${PORT}`);
       }
       
-      // Iniciar ping automático para mantener servicio activo
       startAutoPing();
-      
-      // Iniciar sistema de backups automáticos
       startAutomaticBackups();
       
-      // Intentar conectar automáticamente al ESP32 por USB (solo en desarrollo)
-      if (process.env.NODE_ENV === 'development') {
+      if (!isProduction) {
         startSerialConnection();
       }
     });
   } catch (error) {
-    console.error("Database connection error:", error.message);
-    if (process.env.NODE_ENV === 'development') {
+    logError("Database connection error:", error.message);
+    if (!isProduction) {
       console.error("Check:");
       console.error("  1. Database is running");
       console.error("  2. .env configuration is correct");

@@ -9,7 +9,7 @@ class WebSerialService {
   }
 
   async isSupported() {
-    return 'serial' in navigator;
+    return typeof navigator !== 'undefined' && 'serial' in navigator;
   }
 
   async requestPort() {
@@ -59,7 +59,7 @@ class WebSerialService {
     if (!this.reader) return;
 
     try {
-      while (this.isConnected && this.port.readable) {
+      while (this.isConnected && this.port && this.port.readable) {
         const { value, done } = await this.reader.read();
         if (done) break;
 
@@ -75,16 +75,13 @@ class WebSerialService {
               }
             }
           } catch (error) {
-            console.warn('Error al parsear datos:', line);
+            // Ignorar errores de parsing
           }
         }
       }
     } catch (error) {
-      if (this.isConnected) {
-        console.error('Error al leer datos:', error);
-        if (this.onDataCallback) {
-          this.onDataCallback({ error: error.message });
-        }
+      if (this.isConnected && this.onDataCallback) {
+        this.onDataCallback({ error: error.message });
       }
     }
   }
@@ -109,7 +106,7 @@ class WebSerialService {
         this.port = null;
       }
     } catch (error) {
-      console.error('Error al desconectar:', error);
+      // Ignorar errores al desconectar
     }
   }
 
@@ -125,4 +122,5 @@ class WebSerialService {
   }
 }
 
-export default new WebSerialService();
+const webSerialService = new WebSerialService();
+export default webSerialService;

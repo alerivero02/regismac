@@ -36,6 +36,10 @@ const app = express();
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {

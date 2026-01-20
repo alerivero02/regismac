@@ -64,7 +64,10 @@ class WebSerialService {
         
         // Iniciar lectura en segundo plano
         this.readData().catch(err => {
-          console.error('Error en readData:', err);
+          const isDev = import.meta.env.DEV;
+          if (isDev) {
+            console.error('Error en readData:', err);
+          }
         });
       }
 
@@ -215,7 +218,10 @@ class WebSerialService {
       }
       // Si hay error, desconectar
       if (error.name !== 'NetworkError') {
+        const isDev = import.meta.env.DEV;
+      if (isDev) {
         console.error('[WebSerial] ❌ Error en readData:', error);
+      }
       }
     }
   }
@@ -259,7 +265,10 @@ class WebSerialService {
         this.port = null;
       }
     } catch (error) {
-      console.error('[WebSerial] Error al desconectar:', error);
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.error('[WebSerial] Error al desconectar:', error);
+      }
     }
   }
 

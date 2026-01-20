@@ -169,7 +169,7 @@ export default function Test() {
   // Cargar usuario actual después de que los técnicos estén disponibles
   useEffect(() => {
     if (tecnicos.length > 0 && !currentUser) {
-      loadCurrentUser();
+    loadCurrentUser();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tecnicos.length, currentUser]); // Solo cuando los técnicos cambien de 0 a >0
@@ -245,16 +245,16 @@ export default function Test() {
         const errorMsg = error.status === 401 || error.message?.includes('autenticat') || error.message?.includes('Sessione')
           ? 'Sessione scaduta. Effettua nuovamente il login.'
           : error.message || 'Errore di connessione con il sensore';
-        setEsp32Estado({
-          temperatura: null,
-          humedad: null,
-          timestamp: null,
-          testActivo: false,
-          temperaturaInicial: null,
-          tiempoInicio: null,
-          tiempoTranscurrido: 0,
-          tiempo0Grados: null,
-          tiempoMenos8Grados: null,
+          setEsp32Estado({
+            temperatura: null,
+            humedad: null,
+            timestamp: null,
+            testActivo: false,
+            temperaturaInicial: null,
+            tiempoInicio: null,
+            tiempoTranscurrido: 0,
+            tiempo0Grados: null,
+            tiempoMenos8Grados: null,
           error: errorMsg,
         });
       }
@@ -329,7 +329,7 @@ export default function Test() {
                   }));
                   
                   showNotification(`✅ Temperatura -8°C detectada en ${tiempoMenos8Formato}`, 'success');
-                }
+      }
               }
               
               // También enviar al servidor si está disponible (para sincronización)
@@ -368,16 +368,6 @@ export default function Test() {
             temperatura_iniziale: estado.temperaturaInicial.toString(),
           }));
         }
-      } catch (error) {
-        // Silenciar errores 401/403 esperados cuando el usuario no está autenticado
-        // Estos son normales y no necesitan ser logueados
-        if (error.status === 401 || error.status === 403) {
-          // No hacer nada - es un comportamiento esperado
-          return;
-        }
-        // Solo loguear otros errores
-        console.warn('[Test] Error al obtener estado del sensor:', error.message);
-      }
         
         // Actualizar cuando se detecta 0°C
         if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempo0Grados !== undefined) {
@@ -457,13 +447,13 @@ export default function Test() {
                 
                 const minutosMenos8 = Math.floor(resultado.resultado.tiempoMenos8Grados / 60);
                 const segundosMenos8 = resultado.resultado.tiempoMenos8Grados % 60;
-                const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
-                
-                setFormData(prev => ({
-                  ...prev,
+          const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+          
+          setFormData(prev => ({
+            ...prev,
                   temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
-                  tiempo_0_manual: tiempo0Formato,
-                  tiempo_meno8_manual: tiempoMenos8Formato,
+            tiempo_0_manual: tiempo0Formato,
+            tiempo_meno8_manual: tiempoMenos8Formato,
                   humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
                 }));
                 
@@ -474,8 +464,8 @@ export default function Test() {
                 showNotification('✅ Test completado y guardado automáticamente!', 'success');
               } else {
                 autoSaveRef.current = false;
-              }
-            } catch (error) {
+        }
+      } catch (error) {
               console.error('Error al guardar test automáticamente:', error);
               autoSaveRef.current = false;
               showNotification('Error al guardar test automáticamente. Puedes guardarlo manualmente.', 'error');
@@ -757,8 +747,8 @@ export default function Test() {
   const cancelarTestESP32 = useCallback(async () => {
     try {
       // Intentar cancelar en el servidor si está disponible
-      try {
-        await sensorAPI.cancelarTest();
+    try {
+      await sensorAPI.cancelarTest();
       } catch (error) {
         // Si falla, no importa - cancelamos localmente
         console.warn('No se pudo cancelar en el servidor, cancelando localmente:', error.message);
@@ -961,10 +951,10 @@ export default function Test() {
     if (/^\d+$/.test(tiempoStr)) {
       const num = parseInt(tiempoStr);
       if (num < 100) return num;
-      const minutos = Math.floor(num / 100);
-      const segundos = num % 100;
-      if (segundos > 59) return null;
-      return minutos * 60 + segundos;
+        const minutos = Math.floor(num / 100);
+        const segundos = num % 100;
+        if (segundos > 59) return null;
+        return minutos * 60 + segundos;
     }
     return null;
   }, []);
@@ -1551,9 +1541,9 @@ export default function Test() {
                     Cronometro
                   </button>
                   {/* Botón ESP32 - siempre visible */}
-                  <button
-                    type="button"
-                    onClick={() => {
+                    <button
+                      type="button"
+                      onClick={() => {
                       // Validar que se hayan completado los datos obligatorios
                       if (!selectedMaquina) {
                         showNotification('Seleziona una macchina prima di aprire il sensore ESP32', 'error');
@@ -1563,14 +1553,14 @@ export default function Test() {
                         showNotification('Seleziona un tecnico prima di aprire il sensore ESP32', 'error');
                         return;
                       }
-                      setShowESP32Modal(true);
-                    }}
-                    className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"
-                    title="Test automático con ESP32"
-                  >
-                    <FiWifi className="w-3 h-3" />
-                    ESP32
-                  </button>
+                        setShowESP32Modal(true);
+                      }}
+                      className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"
+                      title="Test automático con ESP32"
+                    >
+                      <FiWifi className="w-3 h-3" />
+                      ESP32
+                    </button>
                 </div>
               </div>
 
@@ -2223,12 +2213,12 @@ export default function Test() {
                   {testESP32Activo ? (
                     <>
                       <label className="text-xs text-gray-600 mb-1 block">Tempo Trascorso</label>
-                      <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2">
                         <FiClock className="w-5 h-5 text-blue-500" />
                         <span className="text-2xl font-bold text-blue-600 font-mono">
                           {tiempoTranscurridoDisplay}
-                        </span>
-                      </div>
+                    </span>
+                  </div>
                     </>
                   ) : (
                     <div className="flex items-center justify-center h-full">
@@ -2331,8 +2321,8 @@ export default function Test() {
                     </>
                   ) : (
                     <>
-                      <FiPlay className="w-5 h-5" />
-                      <span>Inizio Test</span>
+                  <FiPlay className="w-5 h-5" />
+                  <span>Inizio Test</span>
                     </>
                   )}
                 </button>

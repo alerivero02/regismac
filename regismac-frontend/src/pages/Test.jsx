@@ -100,6 +100,52 @@ export default function Test() {
     hora_test: new Date().toTimeString().slice(0, 5),
   });
 
+  const showNotification = useCallback((message, type = 'success') => {
+    setNotification({ show: true, message, type });
+    setTimeout(() => {
+      setNotification(prev => ({ ...prev, show: false }));
+    }, 5000);
+  }, []);
+
+  const loadCurrentUser = useCallback(async () => {
+    try {
+      const user = await authAPI.getCurrentUser();
+      setCurrentUser(user);
+      if (user) {
+        const tecnicoAsociado = tecnicos.find(t => t.usuario?.id_usuario === user.id_usuario);
+        if (tecnicoAsociado) {
+          setFormData(prev => ({ ...prev, tecnicoId: tecnicoAsociado.id_tecnico.toString() }));
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar usuario actual:', error);
+    }
+  }, [tecnicos]);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [maquinasData, testsData, tecnicosData, lottiData] = await Promise.all([
+        maquinasAPI.getAll(),
+        testsAPI.getAll().catch(() => []),
+        tecnicosAPI.getAll(),
+        lottiAPI.getAll().catch(() => [])
+      ]);
+      setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
+      setTests(Array.isArray(testsData) ? testsData : []);
+      const tecnicosFiltrados = Array.isArray(tecnicosData) 
+        ? tecnicosData.filter(t => t.usuario?.rol === 'tecnico' && t.usuario?.estado === 'aprobado')
+        : [];
+      setTecnicos(tecnicosFiltrados);
+      setLotti(Array.isArray(lottiData) ? lottiData : []);
+    } catch (error) {
+      console.error('Error al cargar datos:', error);
+      showNotification(error.message || 'Errore nel caricamento dei dati', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showNotification]);
+
   useEffect(() => {
     loadData();
     loadCurrentUser();
@@ -474,57 +520,13 @@ export default function Test() {
       await sensorAPI.cancelarTest();
       setTestESP32Activo(false);
       setFechaHoraInicioTestESP32(null);
+      autoSaveRef.current = false;
       showNotification('Test cancelado', 'info');
     } catch (error) {
       showNotification(error.message || 'Error al cancelar el test', 'error');
     }
   }, [showNotification]);
 
-  const loadCurrentUser = useCallback(async () => {
-    try {
-      const user = await authAPI.getCurrentUser();
-      setCurrentUser(user);
-      if (user) {
-        const tecnicoAsociado = tecnicos.find(t => t.usuario?.id_usuario === user.id_usuario);
-        if (tecnicoAsociado) {
-          setFormData(prev => ({ ...prev, tecnicoId: tecnicoAsociado.id_tecnico.toString() }));
-        }
-      }
-    } catch (error) {
-      console.error('Error al cargar usuario actual:', error);
-    }
-  }, [tecnicos]);
-
-  const loadData = useCallback(async () => {
-    try {
-      setLoading(true);
-      const [maquinasData, testsData, tecnicosData, lottiData] = await Promise.all([
-        maquinasAPI.getAll(),
-        testsAPI.getAll().catch(() => []),
-        tecnicosAPI.getAll(),
-        lottiAPI.getAll().catch(() => [])
-      ]);
-      setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
-      setTests(Array.isArray(testsData) ? testsData : []);
-      const tecnicosFiltrados = Array.isArray(tecnicosData) 
-        ? tecnicosData.filter(t => t.usuario?.rol === 'tecnico' && t.usuario?.estado === 'aprobado')
-        : [];
-      setTecnicos(tecnicosFiltrados);
-      setLotti(Array.isArray(lottiData) ? lottiData : []);
-    } catch (error) {
-      console.error('Error al cargar datos:', error);
-      showNotification(error.message || 'Errore nel caricamento dei dati', 'error');
-    } finally {
-      setLoading(false);
-    }
-  }, [showNotification]);
-
-  const showNotification = useCallback((message, type = 'success') => {
-    setNotification({ show: true, message, type });
-    setTimeout(() => {
-      setNotification(prev => ({ ...prev, show: false }));
-    }, 5000);
-  }, []);
 
   const startTimer = useCallback(() => {
     if (!isRunning) {

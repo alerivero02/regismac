@@ -287,9 +287,6 @@ export default function Test() {
               
               // Actualizar estado local inmediatamente para uso USB directo
               setTemperaturaWebSerial(temperatura);
-              if (data.humedad !== undefined && data.humedad !== null) {
-                setHumedadWebSerial(parseFloat(data.humedad));
-              }
               
               // Si hay un test activo, detectar temperaturas objetivo localmente
               if (testESP32Activo && tiempoInicioTestRef.current) {
@@ -2210,7 +2207,7 @@ export default function Test() {
                 <div className="mt-4 grid grid-cols-2 gap-4">
                   <div className={`p-3 rounded-lg ${(tiempo0GradosRef.current !== null || esp32Estado?.tiempo0Grados) ? 'bg-green-100 border-2 border-green-300' : 'bg-gray-100'}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-700">0°C Detectado</span>
+                      <span className="text-sm font-semibold text-gray-700">0°C Rilevato</span>
                       {(tiempo0GradosRef.current !== null || esp32Estado?.tiempo0Grados) ? (
                         <span className="text-sm font-bold text-green-700">
                           {tiempo0GradosRef.current !== null
@@ -2218,13 +2215,13 @@ export default function Test() {
                             : `${Math.floor(esp32Estado.tiempo0Grados / 60)}:${(esp32Estado.tiempo0Grados % 60).toString().padStart(2, '0')}`}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-500">Esperando...</span>
+                        <span className="text-xs text-gray-500">In attesa...</span>
                       )}
                     </div>
                   </div>
                   <div className={`p-3 rounded-lg ${(tiempoMenos8GradosRef.current !== null || esp32Estado?.tiempoMenos8Grados) ? 'bg-green-100 border-2 border-green-300' : 'bg-gray-100'}`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-700">-8°C Detectado</span>
+                      <span className="text-sm font-semibold text-gray-700">-8°C Rilevato</span>
                       {(tiempoMenos8GradosRef.current !== null || esp32Estado?.tiempoMenos8Grados) ? (
                         <span className="text-sm font-bold text-green-700">
                           {tiempoMenos8GradosRef.current !== null
@@ -2232,7 +2229,7 @@ export default function Test() {
                             : `${Math.floor(esp32Estado.tiempoMenos8Grados / 60)}:${(esp32Estado.tiempoMenos8Grados % 60).toString().padStart(2, '0')}`}
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-500">Esperando...</span>
+                        <span className="text-xs text-gray-500">In attesa...</span>
                       )}
                     </div>
                   </div>

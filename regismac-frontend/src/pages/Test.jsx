@@ -360,6 +360,16 @@ export default function Test() {
           console.log('[Test] Usando temperatura del servidor:', estado.temperatura);
           setTemperaturaWebSerial(estado.temperatura);
         }
+      } catch (error) {
+        // Silenciar errores 401/403 esperados cuando el usuario no está autenticado
+        // Estos son normales y no necesitan ser logueados
+        if (error.status === 401 || error.status === 403) {
+          // No hacer nada - es un comportamiento esperado
+          return;
+        }
+        // Solo loguear otros errores
+        console.warn('[Test] Error al obtener estado del sensor:', error.message);
+      }
         
         // Actualizar temperatura inicial cuando se inicia el test
         if (estado.testActivo && estado.temperaturaInicial && !formData.temperatura_iniziale) {

@@ -106,6 +106,17 @@ export const logPathTraversalAttempt = (req, path) => {
  * Log de acceso no autorizado
  */
 export const logUnauthorizedAccess = (req, reason) => {
+  // No loguear errores 401 esperados en endpoints públicos o de polling
+  // Estos son normales cuando el usuario no está autenticado aún
+  const publicPaths = ['/api/sensor/estado', '/api/health'];
+  const isPublicPath = publicPaths.some(path => req.path.includes(path));
+  
+  // Solo loguear si es una ruta protegida importante o si hay actividad sospechosa
+  if (isPublicPath && reason === 'Usuario no autenticado') {
+    // No loguear - es un comportamiento esperado
+    return;
+  }
+  
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
   const userAgent = req.get('user-agent') || 'unknown';
   const userId = req.user?.id_usuario || 'anonymous';

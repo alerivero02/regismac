@@ -423,13 +423,16 @@ export default function Test() {
 
   const loadData = useCallback(async () => {
     try {
+      console.log('[Test] loadData iniciando...');
       setLoading(true);
+      console.log('[Test] Cargando datos de APIs...');
       const [maquinasData, testsData, tecnicosData, lottiData] = await Promise.all([
         maquinasAPI.getAll(),
         testsAPI.getAll().catch(() => []),
         tecnicosAPI.getAll(),
         lottiAPI.getAll().catch(() => [])
       ]);
+      console.log('[Test] Datos recibidos:', { maquinas: maquinasData?.length, tests: testsData?.length, tecnicos: tecnicosData?.length, lotti: lottiData?.length });
       setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
       setTests(Array.isArray(testsData) ? testsData : []);
       const tecnicosFiltrados = Array.isArray(tecnicosData) 
@@ -437,11 +440,13 @@ export default function Test() {
         : [];
       setTecnicos(tecnicosFiltrados);
       setLotti(Array.isArray(lottiData) ? lottiData : []);
+      console.log('[Test] loadData completado');
     } catch (error) {
-      console.error('Error al cargar datos:', error);
+      console.error('[Test] Error al cargar datos:', error);
       showNotification(error.message || 'Errore nel caricamento dei dati', 'error');
     } finally {
       setLoading(false);
+      console.log('[Test] Loading finalizado');
     }
   }, [showNotification]);
 
@@ -903,10 +908,14 @@ export default function Test() {
     }, 150);
   }, []);
 
+  console.log('[Test] Renderizando componente, loading:', loading);
 
   if (loading) {
+    console.log('[Test] Mostrando spinner de carga');
     return <LoadingSpinner message="Caricamento macchine..." />;
   }
+
+  console.log('[Test] Renderizando contenido principal');
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>

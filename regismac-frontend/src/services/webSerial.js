@@ -115,41 +115,70 @@ class WebSerialService {
             const trimmedLine = line.trim();
             if (!trimmedLine) continue;
             
-            console.log('[WebSerial] 📥 Línea recibida:', trimmedLine);
+            // Ignorar líneas de boot del ESP32
+            if (trimmedLine.includes('ets Jul') || 
+                trimmedLine.includes('rst:') || 
+                trimmedLine.includes('boot:') ||
+                trimmedLine.includes('configsip:') ||
+                trimmedLine.includes('SPIWP:') ||
+                trimmedLine.includes('POWERON_RESET') ||
+                trimmedLine.includes('SPI_FAST_FLASH_BOOT')) {
+              // Ignorar líneas de boot, solo loguear en desarrollo
+              const isDev = import.meta.env.DEV;
+              if (isDev) {
+                console.log('[WebSerial] ⏭️ Ignorando línea de boot:', trimmedLine);
+              }
+              continue;
+            }
+            
+            // Logs solo en desarrollo
+            const isDev = import.meta.env.DEV;
+            if (isDev) {
+              console.log('[WebSerial] 📥 Línea recibida:', trimmedLine);
+            }
             
             try {
               // Intentar parsear como JSON completo
               if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
                 const data = JSON.parse(trimmedLine);
-                console.log('[WebSerial] ✅ Datos JSON parseados:', data);
+                if (isDev) {
+                  console.log('[WebSerial] ✅ Datos JSON parseados:', data);
+                }
                 
                 if (data.temperatura !== undefined && data.temperatura !== null) {
                   if (this.onDataCallback) {
                     this.onDataCallback(data);
                   }
-                } else {
+                } else if (isDev) {
                   console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);
                 }
               } 
-              // Intentar extraer JSON de líneas con texto adicional
+              // Intentar extraer JSON de líneas con texto adicional o fragmentado
               else {
-                const jsonMatch = trimmedLine.match(/\{[\s\S]*\}/);
+                // Buscar JSON completo en la línea (puede tener texto antes/después)
+                const jsonMatch = trimmedLine.match(/\{[\s\S]*?\}/);
                 if (jsonMatch) {
                   try {
                     const data = JSON.parse(jsonMatch[0]);
-                    console.log('[WebSerial] ✅ JSON extraído:', data);
+                    if (isDev) {
+                      console.log('[WebSerial] ✅ JSON extraído:', data);
+                    }
                     if (data.temperatura !== undefined && data.temperatura !== null) {
                       if (this.onDataCallback) {
                         this.onDataCallback(data);
                       }
                     }
                   } catch (e) {
-                    console.warn('[WebSerial] ⚠️ Error parseando JSON extraído:', e.message);
+                    if (isDev) {
+                      console.warn('[WebSerial] ⚠️ Error parseando JSON extraído:', e.message);
+                    }
                   }
                 }
                 // Intentar extraer temperatura directamente si aparece en el texto
                 else if (trimmedLine.includes('temperatura') || trimmedLine.includes('temp') || trimmedLine.includes('T=')) {
-                  console.log('[WebSerial] 📊 Línea con posible temperatura:', trimmedLine);
+                  if (isDev) {
+                    console.log('[WebSerial] 📊 Línea con posible temperatura:', trimmedLine);
+                  }
                   
                   // Buscar patrones como "temperatura":25.5 o T=25.5
                   const tempMatch = trimmedLine.match(/"temperatura"\s*:\s*([\d.-]+)/) || 
@@ -159,7 +188,9 @@ class WebSerialService {
                   if (tempMatch) {
                     const temperatura = parseFloat(tempMatch[1]);
                     if (!isNaN(temperatura)) {
-                      console.log('[WebSerial] ✅ Temperatura extraída:', temperatura);
+                      if (isDev) {
+                        console.log('[WebSerial] ✅ Temperatura extraída:', temperatura);
+                      }
                       if (this.onDataCallback) {
                         this.onDataCallback({ temperatura });
                       }
@@ -168,7 +199,9 @@ class WebSerialService {
                 }
               }
             } catch (error) {
-              console.warn('[WebSerial] ⚠️ Error procesando línea:', trimmedLine, error.message);
+              if (isDev) {
+                console.warn('[WebSerial] ⚠️ Error procesando línea:', trimmedLine, error.message);
+              }
             }
           }
         }

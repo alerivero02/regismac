@@ -19,7 +19,14 @@ import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from
 import Notification from '../components/Notification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
-import webSerialService from '../services/webSerial';
+let webSerialService = null;
+const getWebSerialService = async () => {
+  if (!webSerialService) {
+    const module = await import('../services/webSerial');
+    webSerialService = module.default;
+  }
+  return webSerialService;
+};
 
 export default function Test() {
   const [maquinas, setMaquinas] = useState([]);
@@ -79,13 +86,18 @@ export default function Test() {
   useEffect(() => {
     loadData();
     loadCurrentUser();
-    webSerialService.isSupported().then(setWebSerialSupported);
+    
+    getWebSerialService().then(service => {
+      service.isSupported().then(setWebSerialSupported);
+    }).catch(() => {
+      setWebSerialSupported(false);
+    });
     
     return () => {
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
       }
-      if (webSerialConnected) {
+      if (webSerialConnected && webSerialService) {
         webSerialService.disconnect();
       }
     };
@@ -145,15 +157,17 @@ export default function Test() {
     
     cargarPuertos();
     
-    webSerialService.setDataCallback(async (data) => {
-      if (data.error) return;
-      if (data.temperatura !== undefined && data.temperatura !== null) {
-        try {
-          await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
-        } catch (error) {
-          console.error('Error al enviar datos al servidor:', error);
+    getWebSerialService().then(service => {
+      service.setDataCallback(async (data) => {
+        if (data.error) return;
+        if (data.temperatura !== undefined && data.temperatura !== null) {
+          try {
+            await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
+          } catch (error) {
+            console.error('Error al enviar datos al servidor:', error);
+          }
         }
-      }
+      });
     });
     
     const interval = setInterval(async () => {
@@ -199,8 +213,9 @@ export default function Test() {
 
   const conectarWebSerial = useCallback(async () => {
     try {
-      await webSerialService.requestPort();
-      await webSerialService.connect(115200);
+      const service = await getWebSerialService();
+      await service.requestPort();
+      await service.connect(115200);
       setWebSerialConnected(true);
       setConexionSerial({ connected: true, port: 'WebSerial' });
       showNotification('Conectado por WebSerial USB', 'success');
@@ -211,7 +226,8 @@ export default function Test() {
 
   const desconectarWebSerial = useCallback(async () => {
     try {
-      await webSerialService.disconnect();
+      const service = await getWebSerialService();
+      await service.disconnect();
       setWebSerialConnected(false);
       setConexionSerial({ connected: false, port: null });
       showNotification('Desconectado de WebSerial', 'info');

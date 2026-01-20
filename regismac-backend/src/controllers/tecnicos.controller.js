@@ -64,35 +64,3 @@ export const deleteTecnico = async (req, res, next) => {
   }
 };
 
-// Endpoint temporal para corregir técnicos en producción
-// Solo accesible si se proporciona un token secreto
-export const corregirTecnicos = async (req, res, next) => {
-  try {
-    // Verificar token secreto (puedes cambiarlo o usar una variable de entorno)
-    const secretToken = req.query.token || req.headers['x-secret-token'];
-    const expectedToken = process.env.CORREGIR_TECNICOS_TOKEN || 'corregir-tecnicos-2024';
-    
-    if (secretToken !== expectedToken) {
-      throw new ApiError("No autorizado", 401);
-    }
-
-    // Usar el script definitivo
-    const { limpiarTecnicosDefinitivo } = await import('../../scripts/limpiarTecnicosDefinitivo.js');
-    const resultado = await limpiarTecnicosDefinitivo();
-
-    res.json({
-      success: true,
-      message: "Corrección DEFINITIVA de técnicos completada",
-      resumen: resultado,
-      tecnicos: resultado.tecnicos.map(t => ({
-        id: t.id_tecnico,
-        nombre: `${t.nome} ${t.cognome}`,
-        email: t.usuario?.email,
-        rol: t.usuario?.rol,
-        estado: t.usuario?.estado
-      }))
-    });
-  } catch (e) {
-    next(e);
-  }
-};

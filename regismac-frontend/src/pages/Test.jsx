@@ -53,6 +53,8 @@ export default function Test() {
   const [fechaHoraInicioTestESP32, setFechaHoraInicioTestESP32] = useState(null);
   const [temperaturaWebSerial, setTemperaturaWebSerial] = useState(null);
   const [humedadWebSerial, setHumedadWebSerial] = useState(null);
+  const [isIniciandoTest, setIsIniciandoTest] = useState(false);
+  const [tiempoTranscurridoDisplay, setTiempoTranscurridoDisplay] = useState('0:00');
   const autoSaveRef = useRef(false);
   const tiempoInicioTestRef = useRef(null);
   const tiempo0GradosRef = useRef(null);
@@ -522,14 +524,23 @@ export default function Test() {
 
 
   const iniciarTestESP32 = useCallback(async () => {
+    // Prevenir múltiples clics
+    if (isIniciandoTest || testESP32Activo) {
+      return;
+    }
+    
+    setIsIniciandoTest(true);
+    
     try {
       if (!selectedMaquina) {
         showNotification('Selecciona una máquina antes de iniciar el test', 'error');
+        setIsIniciandoTest(false);
         return;
       }
 
       if (!formData.tecnicoId) {
         showNotification('Selecciona un técnico antes de iniciar el test', 'error');
+        setIsIniciandoTest(false);
         return;
       }
 
@@ -546,6 +557,7 @@ export default function Test() {
       
       if (temperaturaInicial === null) {
         showNotification('No se puede leer la temperatura del sensor. Verifica la conexión USB.', 'error');
+        setIsIniciandoTest(false);
         return;
       }
       
@@ -584,8 +596,9 @@ export default function Test() {
       showNotification('✅ Test iniciado. Monitoreando temperatura automáticamente...', 'success');
     } catch (error) {
       showNotification(error.message || 'Error al iniciar el test', 'error');
+      setIsIniciandoTest(false);
     }
-  }, [selectedMaquina, formData.tecnicoId, esp32Estado, temperaturaWebSerial, webSerialConnected, showNotification]);
+  }, [selectedMaquina, formData.tecnicoId, esp32Estado, temperaturaWebSerial, webSerialConnected, showNotification, isIniciandoTest, testESP32Activo]);
 
   const finalizarTestESP32 = useCallback(async () => {
     if (isSubmitting) return;
@@ -681,6 +694,8 @@ export default function Test() {
       tiempoInicioTestRef.current = null;
       tiempo0GradosRef.current = null;
       tiempoMenos8GradosRef.current = null;
+      setTiempoTranscurridoDisplay('0:00');
+      setIsIniciandoTest(false);
       
       showNotification('Test cancelado', 'info');
     } catch (error) {
@@ -2156,14 +2171,7 @@ export default function Test() {
                   <div>
                     <label className="text-xs text-gray-600 mb-1 block">Tiempo Transcurrido</label>
                     <span className="font-semibold text-gray-900">
-                      {tiempoInicioTestRef.current
-                        ? (() => {
-                            const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
-                            return `${Math.floor(tiempoTranscurrido / 60)}:${(tiempoTranscurrido % 60).toString().padStart(2, '0')}`;
-                          })()
-                        : (esp32Estado?.tiempoTranscurrido 
-                          ? `${Math.floor(esp32Estado.tiempoTranscurrido / 60)}:${(esp32Estado.tiempoTranscurrido % 60).toString().padStart(2, '0')}`
-                          : '0:00')}
+                      {tiempoTranscurridoDisplay}
                     </span>
                   </div>
                   <div>
@@ -2217,13 +2225,27 @@ export default function Test() {
                 <button
                   onClick={iniciarTestESP32}
                   disabled={
-                    (!webSerialConnected || temperaturaWebSerial === null) && 
-                    (!esp32Estado || esp32Estado.temperatura === null)
+                    isIniciandoTest ||
+                    ((!webSerialConnected || temperaturaWebSerial === null) && 
+                    (!esp32Estado || esp32Estado.temperatura === null))
                   }
-                  className="flex-1 btn-primary flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 font-semibold transition-all ${
+                    isIniciandoTest
+                      ? 'bg-yellow-500 hover:bg-yellow-600 text-white cursor-wait'
+                      : 'btn-primary disabled:opacity-50 disabled:cursor-not-allowed'
+                  }`}
                 >
-                  <FiPlay className="w-5 h-5" />
-                  <span>Inizio Test</span>
+                  {isIniciandoTest ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>Iniciando...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FiPlay className="w-5 h-5" />
+                      <span>Inizio Test</span>
+                    </>
+                  )}
                 </button>
               ) : (
                 <>

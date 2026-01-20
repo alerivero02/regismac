@@ -257,10 +257,51 @@ export default function Test() {
           service.setDataCallback(async (data) => {
             if (data.error) return;
             if (data.temperatura !== undefined && data.temperatura !== null) {
+              const temperatura = parseFloat(data.temperatura);
+              
               // Actualizar estado local inmediatamente para uso USB directo
-              setTemperaturaWebSerial(data.temperatura);
+              setTemperaturaWebSerial(temperatura);
               if (data.humedad !== undefined && data.humedad !== null) {
-                setHumedadWebSerial(data.humedad);
+                setHumedadWebSerial(parseFloat(data.humedad));
+              }
+              
+              // Si hay un test activo, detectar temperaturas objetivo localmente
+              if (testESP32Activo && tiempoInicioTestRef.current) {
+                const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
+                
+                // Detectar 0°C (con tolerancia de ±0.5°C)
+                if (tiempo0GradosRef.current === null && 
+                    temperatura >= -0.5 && 
+                    temperatura <= 0.5) {
+                  tiempo0GradosRef.current = tiempoTranscurrido;
+                  const minutos0 = Math.floor(tiempoTranscurrido / 60);
+                  const segundos0 = tiempoTranscurrido % 60;
+                  const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+                  
+                  setFormData(prev => ({
+                    ...prev,
+                    tiempo_0_manual: tiempo0Formato,
+                  }));
+                  
+                  showNotification(`✅ Temperatura 0°C detectada en ${tiempo0Formato}`, 'success');
+                }
+                
+                // Detectar -8°C (con tolerancia de ±0.5°C)
+                if (tiempoMenos8GradosRef.current === null && 
+                    temperatura >= -8.5 && 
+                    temperatura <= -7.5) {
+                  tiempoMenos8GradosRef.current = tiempoTranscurrido;
+                  const minutosMenos8 = Math.floor(tiempoTranscurrido / 60);
+                  const segundosMenos8 = tiempoTranscurrido % 60;
+                  const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+                  
+                  setFormData(prev => ({
+                    ...prev,
+                    tiempo_meno8_manual: tiempoMenos8Formato,
+                  }));
+                  
+                  showNotification(`✅ Temperatura -8°C detectada en ${tiempoMenos8Formato}`, 'success');
+                }
               }
               
               // También enviar al servidor si está disponible (para sincronización)
@@ -523,13 +564,18 @@ export default function Test() {
       setTestESP32Activo(true);
       setFechaHoraInicioTestESP32(new Date().toISOString());
       
+      // Inicializar referencias para detección local de temperaturas
+      tiempoInicioTestRef.current = Date.now();
+      tiempo0GradosRef.current = null;
+      tiempoMenos8GradosRef.current = null;
+      
       // Actualizar estado local con temperatura inicial
       setEsp32Estado(prev => ({
         ...prev,
         temperatura: temperaturaInicial,
         temperaturaInicial: temperaturaInicial,
         testActivo: true,
-        tiempoInicio: Date.now(),
+        tiempoInicio: tiempoInicioTestRef.current,
       }));
       
       showNotification('✅ Test iniciado. Monitoreando temperatura automáticamente...', 'success');
@@ -616,10 +662,23 @@ export default function Test() {
 
   const cancelarTestESP32 = useCallback(async () => {
     try {
-      await sensorAPI.cancelarTest();
+      // Intentar cancelar en el servidor si está disponible
+      try {
+        await sensorAPI.cancelarTest();
+      } catch (error) {
+        // Si falla, no importa - cancelamos localmente
+        console.warn('No se pudo cancelar en el servidor, cancelando localmente:', error.message);
+      }
+      
       setTestESP32Activo(false);
       setFechaHoraInicioTestESP32(null);
       autoSaveRef.current = false;
+      
+      // Resetear referencias de tiempo
+      tiempoInicioTestRef.current = null;
+      tiempo0GradosRef.current = null;
+      tiempoMenos8GradosRef.current = null;
+      
       showNotification('Test cancelado', 'info');
     } catch (error) {
       showNotification(error.message || 'Error al cancelar el test', 'error');
@@ -2111,24 +2170,28 @@ export default function Test() {
                 
                 {/* Indicadores de temperaturas detectadas */}
                 <div className="mt-4 grid grid-cols-2 gap-4">
-                  <div className={`p-3 rounded-lg ${esp32Estado?.tiempo0Grados ? 'bg-green-100 border-2 border-green-300' : 'bg-gray-100'}`}>
+                  <div className={`p-3 rounded-lg ${(tiempo0GradosRef.current !== null || esp32Estado?.tiempo0Grados) ? 'bg-green-100 border-2 border-green-300' : 'bg-gray-100'}`}>
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-gray-700">0°C Detectado</span>
-                      {esp32Estado?.tiempo0Grados ? (
+                      {(tiempo0GradosRef.current !== null || esp32Estado?.tiempo0Grados) ? (
                         <span className="text-sm font-bold text-green-700">
-                          {Math.floor(esp32Estado.tiempo0Grados / 60)}:{(esp32Estado.tiempo0Grados % 60).toString().padStart(2, '0')}
+                          {tiempo0GradosRef.current !== null
+                            ? `${Math.floor(tiempo0GradosRef.current / 60)}:${(tiempo0GradosRef.current % 60).toString().padStart(2, '0')}`
+                            : `${Math.floor(esp32Estado.tiempo0Grados / 60)}:${(esp32Estado.tiempo0Grados % 60).toString().padStart(2, '0')}`}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-500">Esperando...</span>
                       )}
                     </div>
                   </div>
-                  <div className={`p-3 rounded-lg ${esp32Estado?.tiempoMenos8Grados ? 'bg-green-100 border-2 border-green-300' : 'bg-gray-100'}`}>
+                  <div className={`p-3 rounded-lg ${(tiempoMenos8GradosRef.current !== null || esp32Estado?.tiempoMenos8Grados) ? 'bg-green-100 border-2 border-green-300' : 'bg-gray-100'}`}>
                     <div className="flex items-center justify-between">
                       <span className="text-sm font-semibold text-gray-700">-8°C Detectado</span>
-                      {esp32Estado?.tiempoMenos8Grados ? (
+                      {(tiempoMenos8GradosRef.current !== null || esp32Estado?.tiempoMenos8Grados) ? (
                         <span className="text-sm font-bold text-green-700">
-                          {Math.floor(esp32Estado.tiempoMenos8Grados / 60)}:{(esp32Estado.tiempoMenos8Grados % 60).toString().padStart(2, '0')}
+                          {tiempoMenos8GradosRef.current !== null
+                            ? `${Math.floor(tiempoMenos8GradosRef.current / 60)}:${(tiempoMenos8GradosRef.current % 60).toString().padStart(2, '0')}`
+                            : `${Math.floor(esp32Estado.tiempoMenos8Grados / 60)}:${(esp32Estado.tiempoMenos8Grados % 60).toString().padStart(2, '0')}`}
                         </span>
                       ) : (
                         <span className="text-xs text-gray-500">Esperando...</span>

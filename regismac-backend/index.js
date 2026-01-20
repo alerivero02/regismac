@@ -126,10 +126,10 @@ function startAutomaticBackups() {
   const backupIntervalMs = backupIntervalHours * 60 * 60 * 1000;
 
   const runOnStart = process.env.BACKUP_ON_START !== 'false';
-  if (runOnStart) {
+  if (runOnStart && !isProduction) {
     setTimeout(() => {
       executeAutomaticBackup().catch(() => {});
-    }, 5 * 60 * 1000);
+    }, 10 * 60 * 1000);
   }
 
   backupIntervalId = setInterval(() => {

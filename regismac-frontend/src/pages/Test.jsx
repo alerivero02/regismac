@@ -476,9 +476,13 @@ export default function Test() {
           }, 3000);
         }
       } catch (error) {
+        // Silenciar errores 401/403 esperados cuando el usuario no está autenticado
+        if (error.status === 401 || error.status === 403) {
+          return;
+        }
         console.error('Error en polling:', error);
       }
-    }, 1000); // Actualizar cada 1 segundo para mayor precisión
+    }, pollingInterval); // Polling adaptativo: 1s durante test, 5s fuera
     
     setEsp32PollingInterval(interval);
     

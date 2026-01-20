@@ -495,7 +495,7 @@ export default function Test() {
     try {
       const service = await getWebSerialService();
       if (!service) {
-        showNotification('WebSerial no está disponible en este navegador. Usa Chrome, Edge o Opera.', 'error');
+        showNotification('WebSerial non disponibile in questo browser. Usa Chrome, Edge o Opera.', 'error');
         return;
       }
       
@@ -520,18 +520,27 @@ export default function Test() {
       
       setWebSerialConnected(true);
       setConexionSerial({ connected: true, port: 'WebSerial' });
-      showNotification('✅ Conectado por WebSerial USB', 'success');
+      showNotification('✅ Connesso tramite WebSerial USB', 'success');
     } catch (error) {
-      console.error('Error al conectar WebSerial:', error);
+      // En producción, solo loguear errores si no son críticos
+      const isProduction = typeof window !== 'undefined' && 
+                          window.location.hostname !== 'localhost' && 
+                          window.location.hostname !== '127.0.0.1';
       
-      // Mensajes de error más específicos
-      let errorMsg = error.message || 'Error al conectar';
-      if (error.message?.includes('No se seleccionó')) {
-        errorMsg = 'No se seleccionó ningún puerto. Intenta de nuevo.';
-      } else if (error.message?.includes('en uso')) {
-        errorMsg = 'El puerto está en uso. Cierra Arduino IDE u otras aplicaciones que usen el puerto.';
-      } else if (error.message?.includes('Access denied')) {
-        errorMsg = 'Acceso denegado. Verifica los permisos del navegador para acceder a puertos USB.';
+      if (!isProduction) {
+        console.error('Error al conectar WebSerial:', error);
+      }
+      
+      // Mensajes de error más específicos en italiano
+      let errorMsg = error.message || 'Errore nella connessione';
+      if (error.message?.includes('No se seleccionó') || error.message?.includes('No se seleccion')) {
+        errorMsg = 'Nessun porta selezionata. Riprova.';
+      } else if (error.message?.includes('en uso') || error.message?.includes('en uso')) {
+        errorMsg = 'La porta è in uso. Chiudi Arduino IDE o altre applicazioni che usano la porta.';
+      } else if (error.message?.includes('Access denied') || error.message?.includes('denegado')) {
+        errorMsg = 'Accesso negato. Verifica i permessi del browser per accedere alle porte USB.';
+      } else if (error.message?.includes('no está disponible') || error.message?.includes('non disponibile')) {
+        errorMsg = 'WebSerial non disponibile in questo browser. Usa Chrome, Edge o Opera.';
       }
       
       showNotification(errorMsg, 'error');

@@ -491,7 +491,10 @@ export default function Test() {
                 autoSaveRef.current = false;
         }
       } catch (error) {
-              console.error('Error al guardar test automáticamente:', error);
+              const isDev = import.meta.env.DEV;
+              if (isDev) {
+                console.error('Error al guardar test automáticamente:', error);
+              }
               autoSaveRef.current = false;
               showNotification('Error al guardar test automáticamente. Puedes guardarlo manualmente.', 'error');
             }

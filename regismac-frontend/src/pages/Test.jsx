@@ -52,7 +52,6 @@ export default function Test() {
   const [testESP32Activo, setTestESP32Activo] = useState(false);
   const [fechaHoraInicioTestESP32, setFechaHoraInicioTestESP32] = useState(null);
   const [temperaturaWebSerial, setTemperaturaWebSerial] = useState(null);
-  const [humedadWebSerial, setHumedadWebSerial] = useState(null);
   const [isIniciandoTest, setIsIniciandoTest] = useState(false);
   const [tiempoTranscurridoDisplay, setTiempoTranscurridoDisplay] = useState('0:00');
   const autoSaveRef = useRef(false);

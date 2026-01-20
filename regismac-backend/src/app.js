@@ -141,15 +141,26 @@ app.use(validatePayloadSize(50 * 1024 * 1024)); // 50MB
 app.use(express.json({ 
   limit: '50mb',
   verify: (req, res, buf) => {
-    // Verificar que el JSON sea válido antes de parsear
-    try {
-      JSON.parse(buf.toString());
-    } catch (e) {
-      logSecurityEvent(SecurityEventType.INVALID_INPUT, {
-        reason: 'Invalid JSON payload',
-        path: req.path
-      });
-      throw new Error('JSON inválido');
+    // Solo verificar JSON si hay contenido
+    if (buf && buf.length > 0) {
+      try {
+        const text = buf.toString();
+        // Ignorar buffers vacíos o solo espacios
+        if (text.trim().length === 0) {
+          return;
+        }
+        JSON.parse(text);
+      } catch (e) {
+        // Solo loguear si no es un error esperado (como body vacío en GET)
+        if (req.method !== 'GET' && req.method !== 'DELETE') {
+          logSecurityEvent(SecurityEventType.INVALID_INPUT, {
+            reason: 'Invalid JSON payload',
+            path: req.path,
+            error: e.message
+          });
+        }
+        // No lanzar error para evitar romper el flujo, Express manejará el error
+      }
     }
   }
 }));

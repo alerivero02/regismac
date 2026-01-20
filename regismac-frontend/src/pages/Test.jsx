@@ -483,7 +483,7 @@ export default function Test() {
       clearInterval(interval);
       setEsp32PollingInterval(null);
     };
-  }, [showESP32Modal, webSerialConnected, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, showNotification]);
+  }, [showESP32Modal, webSerialConnected, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, testESP32Activo, showNotification]);
 
   const desconectarWebSerial = useCallback(async () => {
     try {

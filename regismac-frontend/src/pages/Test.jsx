@@ -333,7 +333,7 @@ export default function Test() {
               
               // También enviar al servidor si está disponible (para sincronización)
               try {
-                await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
+                await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura });
               } catch (error) {
                 // Si falla el servidor, no importa - usamos datos locales
                 console.warn('No se pudo enviar al servidor, usando datos locales:', error.message);
@@ -2142,7 +2142,7 @@ export default function Test() {
             <div className="mb-6 p-4 bg-gray-50 rounded-xl">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-gray-600 mb-1 block">Temperatura Actual</label>
+                  <label className="text-xs text-gray-600 mb-1 block">Temperatura Attuale</label>
                   <div className="flex items-center gap-2">
                     <FiThermometer className="w-5 h-5 text-red-500" />
                     <span className="text-2xl font-bold text-gray-900">
@@ -2155,17 +2155,21 @@ export default function Test() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-600 mb-1 block">Humedad</label>
-                  <div className="flex items-center gap-2">
-                    <FiDroplet className="w-5 h-5 text-blue-500" />
-                    <span className="text-2xl font-bold text-gray-900">
-                      {(webSerialConnected && humedadWebSerial !== null)
-                        ? `${humedadWebSerial.toFixed(1)}%`
-                        : (esp32Estado?.humedad !== null && esp32Estado?.humedad !== undefined)
-                        ? `${esp32Estado.humedad.toFixed(1)}%`
-                        : '--'}
-                    </span>
-                  </div>
+                  {testESP32Activo ? (
+                    <>
+                      <label className="text-xs text-gray-600 mb-1 block">Tempo Trascorso</label>
+                      <div className="flex items-center gap-2">
+                        <FiClock className="w-5 h-5 text-blue-500" />
+                        <span className="text-2xl font-bold text-blue-600 font-mono">
+                          {tiempoTranscurridoDisplay}
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-center h-full">
+                      <span className="text-sm text-gray-400">Inizia il test per vedere il cronometro</span>
+                    </div>
+                  )}
                 </div>
               </div>
               
@@ -2176,49 +2180,29 @@ export default function Test() {
               )}
             </div>
 
-            {/* Cronómetro grande cuando el test está activo */}
-            {testESP32Activo && (
-              <div className="mb-6 p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
-                <div className="flex flex-col items-center justify-center">
-                  <div className="flex items-center gap-3 mb-2">
-                    <FiClock className="w-8 h-8 text-white" />
-                    <h3 className="text-2xl font-bold text-white">Test en Curso</h3>
-                  </div>
-                  <div className="text-6xl font-mono font-bold text-white mb-2">
-                    {tiempoTranscurridoDisplay}
-                  </div>
-                  <p className="text-sm text-blue-100">Tiempo transcurrido</p>
-                </div>
-              </div>
-            )}
-
             {/* Estado del test */}
             {testESP32Activo && (
               <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
                 <div className="flex items-center gap-2 mb-3">
                   <FiPlay className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-bold text-blue-900">Detalles del Test</h3>
+                  <h3 className="font-bold text-blue-900">Dettagli del Test</h3>
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
-                    <label className="text-xs text-gray-600 mb-1 block">Temp. Inicial</label>
+                    <label className="text-xs text-gray-600 mb-1 block">Temp. Iniziale</label>
                     <span className="font-semibold text-gray-900">
-                      {esp32Estado?.temperaturaInicial?.toFixed(1)}°C
+                      {(esp32Estado?.temperaturaInicial !== null && esp32Estado?.temperaturaInicial !== undefined)
+                        ? `${esp32Estado.temperaturaInicial.toFixed(1)}°C`
+                        : (temperaturaWebSerial !== null ? `${temperaturaWebSerial.toFixed(1)}°C` : '--')}
                     </span>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-600 mb-1 block">Tiempo Transcurrido</label>
-                    <span className="font-semibold text-gray-900">
-                      {tiempoTranscurridoDisplay}
-                    </span>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-600 mb-1 block">Estado</label>
+                    <label className="text-xs text-gray-600 mb-1 block">Stato</label>
                     <span className="font-semibold text-green-600">
                       {(tiempo0GradosRef.current !== null && tiempoMenos8GradosRef.current !== null) ||
                        (esp32Estado?.tiempo0Grados && esp32Estado?.tiempoMenos8Grados)
-                        ? 'Completado ✓' 
-                        : 'Monitoreando...'}
+                        ? 'Completato ✓' 
+                        : 'Monitoraggio...'}
                     </span>
                   </div>
                 </div>

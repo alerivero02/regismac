@@ -586,16 +586,45 @@ export default function Test() {
       // Obtener temperatura: primero de WebSerial (USB directo), luego del servidor
       let temperaturaInicial = null;
       
-      if (webSerialConnected && temperaturaWebSerial !== null) {
+      console.log('[Test] Intentando iniciar test. Estado:', {
+        webSerialConnected,
+        temperaturaWebSerial,
+        esp32Estado: esp32Estado?.temperatura,
+        conexionSerial
+      });
+      
+      if (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined) {
         // Usar temperatura directamente de WebSerial (USB)
         temperaturaInicial = temperaturaWebSerial;
-      } else if (esp32Estado && esp32Estado.temperatura !== null) {
+        console.log('[Test] Usando temperatura de WebSerial:', temperaturaInicial);
+      } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
         // Usar temperatura del servidor
         temperaturaInicial = esp32Estado.temperatura;
+        console.log('[Test] Usando temperatura del servidor:', temperaturaInicial);
+      } else if (conexionSerial.connected) {
+        // Si hay conexión pero no tenemos temperatura aún, esperar un poco y reintentar
+        console.log('[Test] Hay conexión pero no hay temperatura. Esperando...');
+        showNotification('Aspettando i dati del sensore...', 'info');
+        setIsIniciandoTest(false);
+        
+        // Esperar 2 segundos y verificar de nuevo
+        setTimeout(async () => {
+          try {
+            const estado = await sensorAPI.obtenerEstado();
+            if (estado.temperatura !== null && estado.temperatura !== undefined) {
+              iniciarTestESP32();
+            } else {
+              showNotification('Impossibile leggere la temperatura del sensore. Verifica la connessione.', 'error');
+            }
+          } catch (error) {
+            showNotification('Errore nel leggere i dati del sensore.', 'error');
+          }
+        }, 2000);
+        return;
       }
       
-      if (temperaturaInicial === null) {
-        showNotification('No se puede leer la temperatura del sensor. Verifica la conexión USB.', 'error');
+      if (temperaturaInicial === null || temperaturaInicial === undefined) {
+        showNotification('Impossibile leggere la temperatura del sensore. Verifica la connessione USB o WiFi.', 'error');
         setIsIniciandoTest(false);
         return;
       }

@@ -304,34 +304,34 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
       }
     });
 
-    console.log(`\n📋 RESULTADO FINAL:`);
-    console.log(`   Total de técnicos válidos: ${tecnicosFinales.length}`);
+    log(`\n📋 RESULTADO FINAL:`);
+    log(`   Total de técnicos válidos: ${tecnicosFinales.length}`);
     
     if (tecnicosFinales.length > 0) {
-      console.log(`\n   Lista de técnicos válidos:`);
+      log(`\n   Lista de técnicos válidos:`);
       tecnicosFinales.forEach((t, index) => {
         const nombreTecnico = `${t.nome} ${t.cognome}`;
         const nombreUsuario = `${t.usuario?.nombre} ${t.usuario?.apellido || ''}`;
         const coincide = nombreTecnico.toLowerCase().trim() === nombreUsuario.toLowerCase().trim();
         const icono = coincide ? '✅' : '⚠️';
-        console.log(`   ${index + 1}. ${icono} ${t.nome} ${t.cognome} (${t.usuario?.email})`);
-        console.log(`      - Usuario: ${nombreUsuario}`);
-        console.log(`      - Rol: ${t.usuario?.rol}, Estado: ${t.usuario?.estado}`);
+        log(`   ${index + 1}. ${icono} ${t.nome} ${t.cognome} (${t.usuario?.email})`);
+        log(`      - Usuario: ${nombreUsuario}`);
+        log(`      - Rol: ${t.usuario?.rol}, Estado: ${t.usuario?.estado}`);
         if (!coincide) {
-          console.log(`      ⚠️  ADVERTENCIA: El nombre del técnico no coincide con el nombre del usuario`);
+          log(`      ⚠️  ADVERTENCIA: El nombre del técnico no coincide con el nombre del usuario`);
         }
       });
     } else {
-      console.log(`\n   ⚠️  NO HAY TÉCNICOS VÁLIDOS EN LA BASE DE DATOS`);
-      console.log(`   Verifica que existan usuarios con rol 'tecnico' y estado 'aprobado'`);
+      log(`\n   ⚠️  NO HAY TÉCNICOS VÁLIDOS EN LA BASE DE DATOS`);
+      log(`   Verifica que existan usuarios con rol 'tecnico' y estado 'aprobado'`);
     }
 
-    console.log(`\n✅ LIMPIEZA DEFINITIVA COMPLETADA`);
-    console.log(`   - Técnicos eliminados: ${eliminados}`);
-    console.log(`   - Técnicos creados: ${creados}`);
-    console.log(`   - Asociaciones corregidas: ${corregidos}`);
-    console.log(`   - Tests corregidos: ${testsCorregidos}`);
-    console.log(`   - Total técnicos válidos: ${tecnicosFinales.length}`);
+    log(`\n✅ LIMPIEZA DEFINITIVA COMPLETADA`);
+    log(`   - Técnicos eliminados: ${eliminados}`);
+    log(`   - Técnicos creados: ${creados}`);
+    log(`   - Asociaciones corregidas: ${corregidos}`);
+    log(`   - Tests corregidos: ${testsCorregidos}`);
+    log(`   - Total técnicos válidos: ${tecnicosFinales.length}`);
 
     return {
       eliminados,

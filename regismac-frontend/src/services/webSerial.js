@@ -1,4 +1,4 @@
-class WebSerialService {
+export class WebSerialService {
   constructor() {
     this.port = null;
     this.reader = null;
@@ -122,5 +122,13 @@ class WebSerialService {
   }
 }
 
-const webSerialService = new WebSerialService();
-export default webSerialService;
+let instance = null;
+
+export function getWebSerialInstance() {
+  if (!instance) {
+    instance = new WebSerialService();
+  }
+  return instance;
+}
+
+export default getWebSerialInstance;

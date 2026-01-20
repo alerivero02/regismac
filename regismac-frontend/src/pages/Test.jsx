@@ -27,7 +27,9 @@ export default function Test() {
     if (!webSerialServiceRef.current) {
       try {
         const module = await import('../services/webSerial');
-        webSerialServiceRef.current = module.default;
+        webSerialServiceRef.current = typeof module.default === 'function' 
+          ? module.default() 
+          : module.default;
       } catch (error) {
         console.error('Error al cargar webSerial:', error);
         return null;

@@ -40,12 +40,4 @@ if (!prismaClientExists) {
   }
 }
 
-if (isProduction) {
-  try {
-    const { limpiarTecnicos } = await import('./limpiarTecnicos.js');
-    await limpiarTecnicos();
-  } catch (error) {
-    logError('⚠️  Error al ejecutar limpieza de técnicos:', error.message);
-  }
-}
 

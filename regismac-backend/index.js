@@ -161,15 +161,6 @@ async function startServer() {
   try {
     await prisma.$connect();
     
-    if (isProduction) {
-      try {
-        const { limpiarTecnicosDefinitivo } = await import('./scripts/limpiarTecnicosDefinitivo.js');
-        await limpiarTecnicosDefinitivo(prisma);
-      } catch (error) {
-        logError('⚠️  Error al ejecutar limpieza de técnicos:', error.message);
-      }
-    }
-    
     const PORT = process.env.PORT || 3000;
     const HOST = process.env.HOST || '0.0.0.0';
     

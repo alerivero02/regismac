@@ -155,6 +155,34 @@ function startAutomaticBackups() {
   }, backupIntervalMs);
 }
 
+// Sistema de conexión serial USB al ESP32
+async function startSerialConnection() {
+  // Solo intentar conectar si está habilitado
+  const enableSerial = process.env.ENABLE_SERIAL_CONNECTION !== 'false';
+  if (!enableSerial) {
+    console.log('ℹ️  Conexión serial deshabilitada por configuración');
+    return;
+  }
+
+  try {
+    console.log('🔌 Intentando conectar al ESP32 por USB...');
+    const serialPortService = await import('./src/services/serialPort.service.js');
+    
+    // Esperar 2 segundos después del inicio para que el sistema esté listo
+    setTimeout(async () => {
+      try {
+        const port = await serialPortService.connectToESP32();
+        console.log(`✅ Conectado al ESP32 en puerto: ${port}`);
+      } catch (error) {
+        console.log('ℹ️  No se pudo conectar automáticamente al ESP32:', error.message);
+        console.log('   Puedes conectar manualmente usando el endpoint /api/sensor/conectar');
+      }
+    }, 2000);
+  } catch (error) {
+    console.log('ℹ️  Servicio serial no disponible:', error.message);
+  }
+}
+
 async function startServer() {
   try {
     await prisma.$connect();
@@ -189,6 +217,11 @@ async function startServer() {
       
       // Iniciar sistema de backups automáticos
       startAutomaticBackups();
+      
+      // Intentar conectar automáticamente al ESP32 por USB (solo en desarrollo)
+      if (process.env.NODE_ENV === 'development') {
+        startSerialConnection();
+      }
     });
   } catch (error) {
     console.error("Database connection error:", error.message);

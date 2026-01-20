@@ -362,4 +362,14 @@ export const sensorAPI = {
   cancelarTest: () => fetchAPI('/api/sensor/cancelar', {
     method: 'POST'
   }),
+  // Nuevas funciones para gestión USB
+  listarPuertos: () => fetchAPI('/api/sensor/puertos'),
+  conectarESP32: (portPath, baudRate) => fetchAPI('/api/sensor/conectar', {
+    method: 'POST',
+    body: { portPath, baudRate }
+  }),
+  desconectarESP32: () => fetchAPI('/api/sensor/desconectar', {
+    method: 'POST'
+  }),
+  obtenerEstadoConexion: () => fetchAPI('/api/sensor/conexion'),
 };

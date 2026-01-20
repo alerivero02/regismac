@@ -23,15 +23,12 @@ import Timer from '../components/Timer';
 export default function Test() {
   const webSerialServiceRef = useRef(null);
   
-  const getWebSerialService = useCallback(async () => {
-    if (!webSerialServiceRef.current) {
+  const getWebSerialService = useCallback(() => {
+    if (!webSerialServiceRef.current && typeof window !== 'undefined') {
       try {
-        const module = await import('../services/webSerial');
-        webSerialServiceRef.current = typeof module.default === 'function' 
-          ? module.default() 
-          : module.default;
+        const webSerialModule = require('../services/webSerial');
+        webSerialServiceRef.current = webSerialModule.default ? webSerialModule.default() : null;
       } catch (error) {
-        console.error('Error al cargar webSerial:', error);
         return null;
       }
     }
@@ -95,15 +92,12 @@ export default function Test() {
     loadData();
     loadCurrentUser();
     
-    getWebSerialService().then(service => {
-      if (service) {
-        service.isSupported().then(setWebSerialSupported).catch(() => setWebSerialSupported(false));
-      } else {
-        setWebSerialSupported(false);
-      }
-    }).catch(() => {
+    const service = getWebSerialService();
+    if (service) {
+      service.isSupported().then(setWebSerialSupported).catch(() => setWebSerialSupported(false));
+    } else {
       setWebSerialSupported(false);
-    });
+    }
     
     return () => {
       if (esp32PollingInterval) {
@@ -169,20 +163,19 @@ export default function Test() {
     
     cargarPuertos();
     
-    getWebSerialService().then(service => {
-      if (service) {
-        service.setDataCallback(async (data) => {
-          if (data.error) return;
-          if (data.temperatura !== undefined && data.temperatura !== null) {
-            try {
-              await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
-            } catch (error) {
-              console.error('Error al enviar datos al servidor:', error);
-            }
+    const service = getWebSerialService();
+    if (service) {
+      service.setDataCallback(async (data) => {
+        if (data.error) return;
+        if (data.temperatura !== undefined && data.temperatura !== null) {
+          try {
+            await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
+          } catch (error) {
+            console.error('Error al enviar datos al servidor:', error);
           }
-        });
-      }
-    });
+        }
+      });
+    }
     
     const interval = setInterval(async () => {
       try {
@@ -227,7 +220,7 @@ export default function Test() {
 
   const conectarWebSerial = useCallback(async () => {
     try {
-      const service = await getWebSerialService();
+      const service = getWebSerialService();
       if (!service) {
         showNotification('WebSerial no está disponible', 'error');
         return;
@@ -244,7 +237,7 @@ export default function Test() {
 
   const desconectarWebSerial = useCallback(async () => {
     try {
-      const service = await getWebSerialService();
+      const service = getWebSerialService();
       if (service) {
         await service.disconnect();
       }

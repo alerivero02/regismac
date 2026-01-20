@@ -6,6 +6,7 @@ class WebSerialService {
     this.isConnected = false;
     this.onDataCallback = null;
     this.readLoop = null;
+    this.buffer = ''; // Buffer para acumular datos parciales
   }
 
   async isSupported() {
@@ -95,31 +96,79 @@ class WebSerialService {
       while (this.isConnected && this.port && this.port.readable && this.reader) {
         const { value, done } = await this.reader.read();
         if (done) {
-          console.log('Reader terminado');
+          console.log('[WebSerial] Reader terminado');
           break;
         }
 
         if (value) {
-          const text = value;
-          const lines = text.split('\n').filter(line => line.trim());
-
+          // Agregar datos al buffer
+          this.buffer += value;
+          
+          // Buscar líneas completas (terminadas en \n)
+          const lines = this.buffer.split('\n');
+          
+          // Mantener la última línea incompleta en el buffer
+          this.buffer = lines.pop() || '';
+          
+          // Procesar cada línea completa
           for (const line of lines) {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) continue;
+            
+            console.log('[WebSerial] 📥 Línea recibida:', trimmedLine);
+            
             try {
-              const trimmedLine = line.trim();
-              // Intentar parsear como JSON
+              // Intentar parsear como JSON completo
               if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
                 const data = JSON.parse(trimmedLine);
-                console.log('[WebSerial] Datos parseados:', data);
-                if (this.onDataCallback) {
-                  this.onDataCallback(data);
+                console.log('[WebSerial] ✅ Datos JSON parseados:', data);
+                
+                if (data.temperatura !== undefined && data.temperatura !== null) {
+                  if (this.onDataCallback) {
+                    this.onDataCallback(data);
+                  }
+                } else {
+                  console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);
                 }
-              } else if (trimmedLine.includes('temperatura') || trimmedLine.includes('temp')) {
-                // Intentar extraer temperatura de líneas que no son JSON puro
-                console.log('[WebSerial] Línea con posible temperatura:', trimmedLine);
+              } 
+              // Intentar extraer JSON de líneas con texto adicional
+              else {
+                const jsonMatch = trimmedLine.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                  try {
+                    const data = JSON.parse(jsonMatch[0]);
+                    console.log('[WebSerial] ✅ JSON extraído:', data);
+                    if (data.temperatura !== undefined && data.temperatura !== null) {
+                      if (this.onDataCallback) {
+                        this.onDataCallback(data);
+                      }
+                    }
+                  } catch (e) {
+                    console.warn('[WebSerial] ⚠️ Error parseando JSON extraído:', e.message);
+                  }
+                }
+                // Intentar extraer temperatura directamente si aparece en el texto
+                else if (trimmedLine.includes('temperatura') || trimmedLine.includes('temp') || trimmedLine.includes('T=')) {
+                  console.log('[WebSerial] 📊 Línea con posible temperatura:', trimmedLine);
+                  
+                  // Buscar patrones como "temperatura":25.5 o T=25.5
+                  const tempMatch = trimmedLine.match(/"temperatura"\s*:\s*([\d.-]+)/) || 
+                                   trimmedLine.match(/T[=:]\s*([\d.-]+)/) ||
+                                   trimmedLine.match(/temp[=:]\s*([\d.-]+)/i);
+                  
+                  if (tempMatch) {
+                    const temperatura = parseFloat(tempMatch[1]);
+                    if (!isNaN(temperatura)) {
+                      console.log('[WebSerial] ✅ Temperatura extraída:', temperatura);
+                      if (this.onDataCallback) {
+                        this.onDataCallback({ temperatura });
+                      }
+                    }
+                  }
+                }
               }
             } catch (error) {
-              // Loggear errores de parsing para depuración
-              console.warn('[WebSerial] Error al parsear línea:', line.trim(), error.message);
+              console.warn('[WebSerial] ⚠️ Error procesando línea:', trimmedLine, error.message);
             }
           }
         }
@@ -130,13 +179,14 @@ class WebSerialService {
       }
       // Si hay error, desconectar
       if (error.name !== 'NetworkError') {
-        console.error('Error en readData:', error);
+        console.error('[WebSerial] ❌ Error en readData:', error);
       }
     }
   }
 
   async disconnect() {
     this.isConnected = false;
+    this.buffer = ''; // Limpiar buffer al desconectar
 
     try {
       // Cancelar reader primero
@@ -173,7 +223,7 @@ class WebSerialService {
         this.port = null;
       }
     } catch (error) {
-      console.error('Error al desconectar:', error);
+      console.error('[WebSerial] Error al desconectar:', error);
     }
   }
 

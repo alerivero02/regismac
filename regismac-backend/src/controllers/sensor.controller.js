@@ -210,3 +210,65 @@ export const cancelarTest = async (req, res, next) => {
   }
 };
 
+// Endpoint para listar puertos USB disponibles
+export const listarPuertos = async (req, res, next) => {
+  try {
+    const ports = await serialPortService.detectPorts();
+    res.json({
+      success: true,
+      ports,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// Endpoint para conectar al ESP32 automáticamente
+export const conectarESP32 = async (req, res, next) => {
+  try {
+    const { portPath, baudRate } = req.body;
+    
+    let connectedPort;
+    if (portPath) {
+      // Conectar a puerto específico
+      connectedPort = await serialPortService.connectToPort(portPath, baudRate || 115200);
+    } else {
+      // Detectar y conectar automáticamente
+      connectedPort = await serialPortService.connectToESP32();
+    }
+    
+    res.json({
+      success: true,
+      message: "Conectado al ESP32",
+      port: connectedPort,
+    });
+  } catch (err) {
+    next(new ApiError(err.message || "Error al conectar al ESP32", 500));
+  }
+};
+
+// Endpoint para desconectar del ESP32
+export const desconectarESP32 = async (req, res, next) => {
+  try {
+    await serialPortService.disconnect();
+    res.json({
+      success: true,
+      message: "Desconectado del ESP32",
+    });
+  } catch (err) {
+    next(new ApiError(err.message || "Error al desconectar", 500));
+  }
+};
+
+// Endpoint para obtener estado de conexión serial
+export const obtenerEstadoConexion = async (req, res, next) => {
+  try {
+    const status = serialPortService.getConnectionStatus();
+    res.json({
+      success: true,
+      ...status,
+    });
+  } catch (err) {
+    next(err);
+  }
+};

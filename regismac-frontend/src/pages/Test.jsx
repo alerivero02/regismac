@@ -190,6 +190,28 @@ export default function Test() {
     }
   }, []); // Solo una vez al montar
 
+  // Actualizar cronómetro cada segundo cuando el test está activo
+  useEffect(() => {
+    let cronometroInterval = null;
+    
+    if (testESP32Activo && tiempoInicioTestRef.current) {
+      cronometroInterval = setInterval(() => {
+        const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
+        const minutos = Math.floor(tiempoTranscurrido / 60);
+        const segundos = tiempoTranscurrido % 60;
+        setTiempoTranscurridoDisplay(`${minutos}:${segundos.toString().padStart(2, '0')}`);
+      }, 1000);
+    } else {
+      setTiempoTranscurridoDisplay('0:00');
+    }
+    
+    return () => {
+      if (cronometroInterval) {
+        clearInterval(cronometroInterval);
+      }
+    };
+  }, [testESP32Activo]);
+
   // Cleanup al desmontar
   useEffect(() => {
     return () => {
@@ -2154,12 +2176,28 @@ export default function Test() {
               )}
             </div>
 
+            {/* Cronómetro grande cuando el test está activo */}
+            {testESP32Activo && (
+              <div className="mb-6 p-6 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl shadow-lg">
+                <div className="flex flex-col items-center justify-center">
+                  <div className="flex items-center gap-3 mb-2">
+                    <FiClock className="w-8 h-8 text-white" />
+                    <h3 className="text-2xl font-bold text-white">Test en Curso</h3>
+                  </div>
+                  <div className="text-6xl font-mono font-bold text-white mb-2">
+                    {tiempoTranscurridoDisplay}
+                  </div>
+                  <p className="text-sm text-blue-100">Tiempo transcurrido</p>
+                </div>
+              </div>
+            )}
+
             {/* Estado del test */}
             {testESP32Activo && (
               <div className="mb-6 p-4 bg-blue-50 border-2 border-blue-200 rounded-xl">
                 <div className="flex items-center gap-2 mb-3">
                   <FiPlay className="w-5 h-5 text-blue-600" />
-                  <h3 className="font-bold text-blue-900">Test en Curso</h3>
+                  <h3 className="font-bold text-blue-900">Detalles del Test</h3>
                 </div>
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>

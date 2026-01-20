@@ -96,7 +96,10 @@ class WebSerialService {
       while (this.isConnected && this.port && this.port.readable && this.reader) {
         const { value, done } = await this.reader.read();
         if (done) {
-          console.log('[WebSerial] Reader terminado');
+          const isDev = import.meta.env.DEV;
+          if (isDev) {
+            console.log('[WebSerial] Reader terminado');
+          }
           break;
         }
 

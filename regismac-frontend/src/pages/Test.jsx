@@ -1494,6 +1494,15 @@ export default function Test() {
                   <button
                     type="button"
                     onClick={() => {
+                      // Validar que se hayan completado los datos obligatorios
+                      if (!selectedMaquina) {
+                        showNotification('Seleziona una macchina prima di aprire il sensore ESP32', 'error');
+                        return;
+                      }
+                      if (!formData.tecnicoId) {
+                        showNotification('Seleziona un tecnico prima di aprire il sensore ESP32', 'error');
+                        return;
+                      }
                       setShowESP32Modal(true);
                     }}
                     className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"

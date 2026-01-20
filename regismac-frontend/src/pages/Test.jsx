@@ -19,21 +19,46 @@ import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from
 import Notification from '../components/Notification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
-import { getWebSerialInstance } from '../services/webSerial';
 
-export default function Test() {
-  const webSerialServiceRef = useRef(null);
-  
-  const getWebSerialService = useCallback(() => {
-    if (!webSerialServiceRef.current && typeof window !== 'undefined') {
-      try {
-        webSerialServiceRef.current = getWebSerialInstance();
-      } catch (error) {
+let webSerialModule = null;
+let webSerialInstance = null;
+
+const getWebSerialService = () => {
+  try {
+    if (typeof window === 'undefined') {
+      console.log('[Test] window no disponible, webSerial deshabilitado');
+      return null;
+    }
+    
+    if (!webSerialModule) {
+      console.log('[Test] Cargando módulo webSerial...');
+      webSerialModule = require('../services/webSerial');
+      console.log('[Test] Módulo webSerial cargado:', webSerialModule);
+    }
+    
+    if (!webSerialInstance && webSerialModule) {
+      console.log('[Test] Creando instancia webSerial...');
+      const factory = webSerialModule.default || webSerialModule.getWebSerialInstance;
+      if (typeof factory === 'function') {
+        webSerialInstance = factory();
+        console.log('[Test] Instancia webSerial creada:', webSerialInstance);
+      } else {
+        console.warn('[Test] Factory no es función:', factory);
         return null;
       }
     }
-    return webSerialServiceRef.current;
-  }, []);
+    
+    return webSerialInstance;
+  } catch (error) {
+    console.error('[Test] Error al obtener webSerial:', error);
+    return null;
+  }
+};
+
+export default function Test() {
+  console.log('[Test] Componente Test iniciando...');
+  
+  const webSerialServiceRef = useRef(null);
   const [maquinas, setMaquinas] = useState([]);
   const [tests, setTests] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
@@ -89,17 +114,36 @@ export default function Test() {
   });
 
   useEffect(() => {
-    loadData();
-    loadCurrentUser();
-    
-    const service = getWebSerialService();
-    if (service) {
-      service.isSupported().then(setWebSerialSupported).catch(() => setWebSerialSupported(false));
-    } else {
-      setWebSerialSupported(false);
+    console.log('[Test] useEffect inicial ejecutándose...');
+    try {
+      loadData();
+      loadCurrentUser();
+      
+      console.log('[Test] Obteniendo servicio webSerial...');
+      const service = getWebSerialService();
+      console.log('[Test] Servicio webSerial obtenido:', service);
+      
+      if (service) {
+        console.log('[Test] Verificando soporte webSerial...');
+        service.isSupported()
+          .then(supported => {
+            console.log('[Test] WebSerial soportado:', supported);
+            setWebSerialSupported(supported);
+          })
+          .catch(error => {
+            console.error('[Test] Error verificando soporte:', error);
+            setWebSerialSupported(false);
+          });
+      } else {
+        console.log('[Test] WebSerial no disponible');
+        setWebSerialSupported(false);
+      }
+    } catch (error) {
+      console.error('[Test] Error en useEffect inicial:', error);
     }
     
     return () => {
+      console.log('[Test] Cleanup useEffect inicial');
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
       }
@@ -107,7 +151,7 @@ export default function Test() {
         webSerialServiceRef.current.disconnect().catch(() => {});
       }
     };
-  }, [getWebSerialService]);
+  }, []);
 
   useEffect(() => {
     if (!showESP32Modal) {
@@ -220,23 +264,31 @@ export default function Test() {
 
   const conectarWebSerial = useCallback(async () => {
     try {
+      console.log('[Test] Conectando WebSerial...');
       const service = getWebSerialService();
+      console.log('[Test] Servicio obtenido para conectar:', service);
       if (!service) {
+        console.warn('[Test] WebSerial no disponible');
         showNotification('WebSerial no está disponible', 'error');
         return;
       }
+      console.log('[Test] Solicitando puerto...');
       await service.requestPort();
+      console.log('[Test] Conectando a puerto...');
       await service.connect(115200);
+      console.log('[Test] Conectado exitosamente');
       setWebSerialConnected(true);
       setConexionSerial({ connected: true, port: 'WebSerial' });
       showNotification('Conectado por WebSerial USB', 'success');
     } catch (error) {
+      console.error('[Test] Error al conectar WebSerial:', error);
       showNotification(error.message || 'Error al conectar', 'error');
     }
-  }, [showNotification, getWebSerialService]);
+  }, [showNotification]);
 
   const desconectarWebSerial = useCallback(async () => {
     try {
+      console.log('[Test] Desconectando WebSerial...');
       const service = getWebSerialService();
       if (service) {
         await service.disconnect();
@@ -245,9 +297,10 @@ export default function Test() {
       setConexionSerial({ connected: false, port: null });
       showNotification('Desconectado de WebSerial', 'info');
     } catch (error) {
+      console.error('[Test] Error al desconectar WebSerial:', error);
       showNotification('Error al desconectar', 'error');
     }
-  }, [showNotification, getWebSerialService]);
+  }, [showNotification]);
 
   const iniciarTestESP32 = useCallback(async () => {
     try {
@@ -364,7 +417,9 @@ export default function Test() {
 
   const loadCurrentUser = useCallback(async () => {
     try {
+      console.log('[Test] Cargando usuario actual...');
       const user = await authAPI.getCurrentUser();
+      console.log('[Test] Usuario actual recibido:', user);
       setCurrentUser(user);
       if (user) {
         const tecnicoAsociado = tecnicos.find(t => t.usuario?.id_usuario === user.id_usuario);
@@ -373,7 +428,7 @@ export default function Test() {
         }
       }
     } catch (error) {
-      console.error('Error al cargar usuario actual:', error);
+      console.error('[Test] Error al cargar usuario actual:', error);
     }
   }, [tecnicos]);
 

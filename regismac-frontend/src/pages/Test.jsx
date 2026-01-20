@@ -360,6 +360,14 @@ export default function Test() {
           console.log('[Test] Usando temperatura del servidor:', estado.temperatura);
           setTemperaturaWebSerial(estado.temperatura);
         }
+        
+        // Actualizar temperatura inicial cuando se inicia el test
+        if (estado.testActivo && estado.temperaturaInicial && !formData.temperatura_iniziale) {
+          setFormData(prev => ({
+            ...prev,
+            temperatura_iniziale: estado.temperaturaInicial.toString(),
+          }));
+        }
       } catch (error) {
         // Silenciar errores 401/403 esperados cuando el usuario no está autenticado
         // Estos son normales y no necesitan ser logueados
@@ -370,14 +378,6 @@ export default function Test() {
         // Solo loguear otros errores
         console.warn('[Test] Error al obtener estado del sensor:', error.message);
       }
-        
-        // Actualizar temperatura inicial cuando se inicia el test
-        if (estado.testActivo && estado.temperaturaInicial && !formData.temperatura_iniziale) {
-          setFormData(prev => ({
-            ...prev,
-            temperatura_iniziale: estado.temperaturaInicial.toString(),
-          }));
-        }
         
         // Actualizar cuando se detecta 0°C
         if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempo0Grados !== undefined) {

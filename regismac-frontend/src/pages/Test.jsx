@@ -21,8 +21,6 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
 
 export default function Test() {
-  console.log('[Test] Componente Test iniciando...');
-  
   const webSerialServiceRef = useRef(null);
   const [maquinas, setMaquinas] = useState([]);
   const [tests, setTests] = useState([]);
@@ -242,31 +240,24 @@ export default function Test() {
 
   const conectarWebSerial = useCallback(async () => {
     try {
-      console.log('[Test] Conectando WebSerial...');
       const service = await getWebSerialService();
-      console.log('[Test] Servicio obtenido para conectar:', service);
       if (!service) {
-        console.warn('[Test] WebSerial no disponible');
         showNotification('WebSerial no está disponible', 'error');
         return;
       }
-      console.log('[Test] Solicitando puerto...');
       await service.requestPort();
-      console.log('[Test] Conectando a puerto...');
       await service.connect(115200);
-      console.log('[Test] Conectado exitosamente');
       setWebSerialConnected(true);
       setConexionSerial({ connected: true, port: 'WebSerial' });
       showNotification('Conectado por WebSerial USB', 'success');
     } catch (error) {
-      console.error('[Test] Error al conectar WebSerial:', error);
+      console.error('Error al conectar WebSerial:', error);
       showNotification(error.message || 'Error al conectar', 'error');
     }
   }, [showNotification, getWebSerialService]);
 
   const desconectarWebSerial = useCallback(async () => {
     try {
-      console.log('[Test] Desconectando WebSerial...');
       const service = await getWebSerialService();
       if (service) {
         await service.disconnect();
@@ -275,7 +266,7 @@ export default function Test() {
       setConexionSerial({ connected: false, port: null });
       showNotification('Desconectado de WebSerial', 'info');
     } catch (error) {
-      console.error('[Test] Error al desconectar WebSerial:', error);
+      console.error('Error al desconectar WebSerial:', error);
       showNotification('Error al desconectar', 'error');
     }
   }, [showNotification, getWebSerialService]);
@@ -395,9 +386,7 @@ export default function Test() {
 
   const loadCurrentUser = useCallback(async () => {
     try {
-      console.log('[Test] Cargando usuario actual...');
       const user = await authAPI.getCurrentUser();
-      console.log('[Test] Usuario actual recibido:', user);
       setCurrentUser(user);
       if (user) {
         const tecnicoAsociado = tecnicos.find(t => t.usuario?.id_usuario === user.id_usuario);
@@ -406,22 +395,19 @@ export default function Test() {
         }
       }
     } catch (error) {
-      console.error('[Test] Error al cargar usuario actual:', error);
+      console.error('Error al cargar usuario actual:', error);
     }
   }, [tecnicos]);
 
   const loadData = useCallback(async () => {
     try {
-      console.log('[Test] loadData iniciando...');
       setLoading(true);
-      console.log('[Test] Cargando datos de APIs...');
       const [maquinasData, testsData, tecnicosData, lottiData] = await Promise.all([
         maquinasAPI.getAll(),
         testsAPI.getAll().catch(() => []),
         tecnicosAPI.getAll(),
         lottiAPI.getAll().catch(() => [])
       ]);
-      console.log('[Test] Datos recibidos:', { maquinas: maquinasData?.length, tests: testsData?.length, tecnicos: tecnicosData?.length, lotti: lottiData?.length });
       setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
       setTests(Array.isArray(testsData) ? testsData : []);
       const tecnicosFiltrados = Array.isArray(tecnicosData) 
@@ -429,13 +415,11 @@ export default function Test() {
         : [];
       setTecnicos(tecnicosFiltrados);
       setLotti(Array.isArray(lottiData) ? lottiData : []);
-      console.log('[Test] loadData completado');
     } catch (error) {
-      console.error('[Test] Error al cargar datos:', error);
+      console.error('Error al cargar datos:', error);
       showNotification(error.message || 'Errore nel caricamento dei dati', 'error');
     } finally {
       setLoading(false);
-      console.log('[Test] Loading finalizado');
     }
   }, [showNotification]);
 
@@ -897,14 +881,9 @@ export default function Test() {
     }, 150);
   }, []);
 
-  console.log('[Test] Renderizando componente, loading:', loading);
-
   if (loading) {
-    console.log('[Test] Mostrando spinner de carga');
     return <LoadingSpinner message="Caricamento macchine..." />;
   }
-
-  console.log('[Test] Renderizando contenido principal');
 
   return (
     <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>

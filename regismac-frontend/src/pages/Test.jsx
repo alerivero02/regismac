@@ -403,19 +403,43 @@ export default function Test() {
     try {
       const service = await getWebSerialService();
       if (!service) {
-        showNotification('WebSerial no está disponible', 'error');
+        showNotification('WebSerial no está disponible en este navegador. Usa Chrome, Edge o Opera.', 'error');
         return;
       }
+      
+      // Si ya está conectado, desconectar primero
+      if (webSerialConnected) {
+        await desconectarWebSerial();
+        await new Promise(resolve => setTimeout(resolve, 500)); // Esperar un poco
+      }
+      
+      // Solicitar puerto (esto abrirá el selector de puertos del navegador)
       await service.requestPort();
+      
+      // Conectar al puerto seleccionado
       await service.connect(115200);
+      
       setWebSerialConnected(true);
       setConexionSerial({ connected: true, port: 'WebSerial' });
-      showNotification('Conectado por WebSerial USB', 'success');
+      showNotification('✅ Conectado por WebSerial USB', 'success');
     } catch (error) {
       console.error('Error al conectar WebSerial:', error);
-      showNotification(error.message || 'Error al conectar', 'error');
+      
+      // Mensajes de error más específicos
+      let errorMsg = error.message || 'Error al conectar';
+      if (error.message?.includes('No se seleccionó')) {
+        errorMsg = 'No se seleccionó ningún puerto. Intenta de nuevo.';
+      } else if (error.message?.includes('en uso')) {
+        errorMsg = 'El puerto está en uso. Cierra Arduino IDE u otras aplicaciones que usen el puerto.';
+      } else if (error.message?.includes('Access denied')) {
+        errorMsg = 'Acceso denegado. Verifica los permisos del navegador para acceder a puertos USB.';
+      }
+      
+      showNotification(errorMsg, 'error');
+      setWebSerialConnected(false);
+      setConexionSerial({ connected: false, port: null });
     }
-  }, [showNotification, getWebSerialService]);
+  }, [showNotification, getWebSerialService, webSerialConnected, desconectarWebSerial]);
 
   const desconectarWebSerial = useCallback(async () => {
     try {

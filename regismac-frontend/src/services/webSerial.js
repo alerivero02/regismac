@@ -30,58 +30,100 @@ class WebSerialService {
 
   async connect(baudRate = 115200) {
     if (!this.port) {
-      throw new Error('No hay puerto seleccionado');
+      throw new Error('No hay puerto seleccionado. Selecciona un puerto primero.');
+    }
+
+    // Si ya está conectado, desconectar primero
+    if (this.isConnected) {
+      await this.disconnect();
     }
 
     try {
-      await this.port.open({ baudRate });
-      this.isConnected = true;
+      // Verificar si el puerto ya está abierto
+      if (this.port.readable && this.port.writable) {
+        // El puerto ya está abierto, solo configurar el reader/writer
+        this.isConnected = true;
+      } else {
+        // Abrir el puerto
+        await this.port.open({ baudRate });
+        this.isConnected = true;
+      }
 
-      this.writer = this.port.writable.getWriter();
+      // Configurar writer
+      if (this.port.writable && !this.writer) {
+        this.writer = this.port.writable.getWriter();
+      }
       
-      const decoder = new TextDecoderStream();
-      this.readLoop = this.port.readable
-        .pipeTo(decoder.writable)
-        .then(() => {
-          const reader = decoder.readable.getReader();
-          this.reader = reader;
-          this.readData();
+      // Configurar reader
+      if (this.port.readable && !this.reader) {
+        const decoder = new TextDecoderStream();
+        const readableStream = this.port.readable.pipeThrough(decoder);
+        const reader = readableStream.getReader();
+        this.reader = reader;
+        
+        // Iniciar lectura en segundo plano
+        this.readData().catch(err => {
+          console.error('Error en readData:', err);
         });
+      }
 
       return true;
     } catch (error) {
       this.isConnected = false;
-      throw new Error(`Error al conectar: ${error.message}`);
+      this.port = null;
+      
+      // Mensajes de error más descriptivos
+      let errorMessage = 'Error al conectar al puerto serial';
+      if (error.message.includes('Failed to open')) {
+        errorMessage = 'El puerto serial está en uso o no está disponible. Cierra otras aplicaciones que puedan estar usando el puerto (Arduino IDE, Monitor Serial, etc.)';
+      } else if (error.message.includes('No port selected')) {
+        errorMessage = 'No se seleccionó ningún puerto. Selecciona un puerto USB.';
+      } else if (error.message.includes('Access denied')) {
+        errorMessage = 'Acceso denegado al puerto. Verifica los permisos del navegador.';
+      } else {
+        errorMessage = `Error al conectar: ${error.message}`;
+      }
+      
+      throw new Error(errorMessage);
     }
   }
 
   async readData() {
-    if (!this.reader) return;
+    if (!this.reader || !this.isConnected) return;
 
     try {
-      while (this.isConnected && this.port && this.port.readable) {
+      while (this.isConnected && this.port && this.port.readable && this.reader) {
         const { value, done } = await this.reader.read();
-        if (done) break;
+        if (done) {
+          console.log('Reader terminado');
+          break;
+        }
 
-        const text = value;
-        const lines = text.split('\n').filter(line => line.trim());
+        if (value) {
+          const text = value;
+          const lines = text.split('\n').filter(line => line.trim());
 
-        for (const line of lines) {
-          try {
-            if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
-              const data = JSON.parse(line.trim());
-              if (this.onDataCallback) {
-                this.onDataCallback(data);
+          for (const line of lines) {
+            try {
+              if (line.trim().startsWith('{') && line.trim().endsWith('}')) {
+                const data = JSON.parse(line.trim());
+                if (this.onDataCallback) {
+                  this.onDataCallback(data);
+                }
               }
+            } catch (error) {
+              // Ignorar errores de parsing
             }
-          } catch (error) {
-            // Ignorar errores de parsing
           }
         }
       }
     } catch (error) {
       if (this.isConnected && this.onDataCallback) {
         this.onDataCallback({ error: error.message });
+      }
+      // Si hay error, desconectar
+      if (error.name !== 'NetworkError') {
+        console.error('Error en readData:', error);
       }
     }
   }
@@ -90,23 +132,41 @@ class WebSerialService {
     this.isConnected = false;
 
     try {
+      // Cancelar reader primero
       if (this.reader) {
-        await this.reader.cancel();
-        await this.reader.releaseLock();
+        try {
+          await this.reader.cancel();
+          await this.reader.releaseLock();
+        } catch (error) {
+          // Ignorar errores al cancelar reader
+        }
         this.reader = null;
       }
 
+      // Liberar writer
       if (this.writer) {
-        await this.writer.releaseLock();
+        try {
+          await this.writer.releaseLock();
+        } catch (error) {
+          // Ignorar errores al liberar writer
+        }
         this.writer = null;
       }
 
+      // Cerrar puerto
       if (this.port) {
-        await this.port.close();
+        try {
+          // Verificar si el puerto está abierto antes de cerrarlo
+          if (this.port.readable || this.port.writable) {
+            await this.port.close();
+          }
+        } catch (error) {
+          // Ignorar errores al cerrar puerto (puede que ya esté cerrado)
+        }
         this.port = null;
       }
     } catch (error) {
-      // Ignorar errores al desconectar
+      console.error('Error al desconectar:', error);
     }
   }
 

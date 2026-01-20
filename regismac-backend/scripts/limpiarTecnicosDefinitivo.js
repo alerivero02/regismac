@@ -16,10 +16,12 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
   }
   
   try {
-    console.log('🔧 INICIANDO LIMPIEZA DEFINITIVA DE TÉCNICOS...\n');
+    const isProduction = process.env.NODE_ENV === 'production';
+    const log = isProduction ? () => {} : console.log;
+    const logError = console.error;
 
     // PASO 1: Obtener TODOS los técnicos con sus usuarios
-    console.log('📊 Paso 1: Obteniendo todos los técnicos...');
+    log('📊 Paso 1: Obteniendo todos los técnicos...');
     const todosLosTecnicos = await prisma.tecnico.findMany({
       include: {
         usuario: {
@@ -35,10 +37,10 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
       }
     });
 
-    console.log(`   Total encontrados: ${todosLosTecnicos.length}\n`);
+    log(`   Total encontrados: ${todosLosTecnicos.length}\n`);
 
     // PASO 2: ELIMINAR TODOS los técnicos que NO deberían existir
-    console.log('🗑️  Paso 2: Eliminando técnicos con roles incorrectos o asociaciones incorrectas...');
+    log('🗑️  Paso 2: Eliminando técnicos con roles incorrectos o asociaciones incorrectas...');
     let eliminados = 0;
     
     for (const tecnico of todosLosTecnicos) {
@@ -90,18 +92,18 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
             where: { id_tecnico: tecnico.id_tecnico }
           });
 
-          console.log(`   ❌ Eliminado: ${tecnico.nome} ${tecnico.cognome} (ID: ${tecnico.id_tecnico}) - ${razon}`);
+          log(`   ❌ Eliminado: ${tecnico.nome} ${tecnico.cognome} (ID: ${tecnico.id_tecnico}) - ${razon}`);
           eliminados++;
         } catch (error) {
-          console.error(`   ⚠️  Error al eliminar técnico ${tecnico.id_tecnico}:`, error.message);
+          logError(`   ⚠️  Error al eliminar técnico ${tecnico.id_tecnico}:`, error.message);
         }
       }
     }
 
-    console.log(`\n   ✅ Eliminados: ${eliminados} técnicos\n`);
+    log(`\n   ✅ Eliminados: ${eliminados} técnicos\n`);
 
     // PASO 3: Obtener TODOS los usuarios técnicos aprobados
-    console.log('👥 Paso 3: Obteniendo usuarios técnicos aprobados...');
+    log('👥 Paso 3: Obteniendo usuarios técnicos aprobados...');
     const usuariosTecnicos = await prisma.usuario.findMany({
       where: {
         estado: 'aprobado',
@@ -120,14 +122,14 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
       }
     });
 
-    console.log(`   Usuarios técnicos encontrados: ${usuariosTecnicos.length}`);
+    log(`   Usuarios técnicos encontrados: ${usuariosTecnicos.length}`);
     usuariosTecnicos.forEach(u => {
-      console.log(`   - ${u.nombre} ${u.apellido || ''} (${u.email}) - Técnico: ${u.tecnico ? 'SÍ' : 'NO'}`);
+      log(`   - ${u.nombre} ${u.apellido || ''} (${u.email}) - Técnico: ${u.tecnico ? 'SÍ' : 'NO'}`);
     });
-    console.log('');
+    log('');
 
     // PASO 4: CREAR técnicos para usuarios que no los tienen O CORREGIR asociaciones incorrectas
-    console.log('➕ Paso 4: Creando técnicos faltantes y corrigiendo asociaciones...');
+    log('➕ Paso 4: Creando técnicos faltantes y corrigiendo asociaciones...');
     let creados = 0;
     let corregidos = 0;
 
@@ -142,13 +144,13 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
               id_usuario: usuario.id_usuario
             }
           });
-          console.log(`   ✅ Creado: ${usuario.nombre} ${usuario.apellido || ''} (${usuario.email}) - ID técnico: ${nuevoTecnico.id_tecnico}`);
+          log(`   ✅ Creado: ${usuario.nombre} ${usuario.apellido || ''} (${usuario.email}) - ID técnico: ${nuevoTecnico.id_tecnico}`);
           creados++;
         } catch (error) {
           if (error.code === 'P2002') {
-            console.log(`   ℹ️  Ya existe técnico para ${usuario.email} (duplicado ignorado)`);
+            log(`   ℹ️  Ya existe técnico para ${usuario.email} (duplicado ignorado)`);
           } else {
-            console.error(`   ❌ Error al crear técnico para ${usuario.email}:`, error.message);
+            logError(`   ❌ Error al crear técnico para ${usuario.email}:`, error.message);
           }
         }
       } else {
@@ -197,22 +199,22 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
                 }
               });
               
-              console.log(`   🔧 Corregido: Eliminado técnico incorrecto y creado nuevo para ${usuario.nombre} ${usuario.apellido || ''} (${usuario.email})`);
+              log(`   🔧 Corregido: Eliminado técnico incorrecto y creado nuevo para ${usuario.nombre} ${usuario.apellido || ''} (${usuario.email})`);
               corregidos++;
             } catch (error) {
-              console.error(`   ❌ Error al corregir técnico para ${usuario.email}:`, error.message);
+              logError(`   ❌ Error al corregir técnico para ${usuario.email}:`, error.message);
             }
           } else {
-            console.log(`   ✓ Técnico correcto para ${usuario.email}`);
+            log(`   ✓ Técnico correcto para ${usuario.email}`);
           }
         }
       }
     }
 
-    console.log(`\n   ✅ Creados: ${creados} técnicos\n`);
+    log(`\n   ✅ Creados: ${creados} técnicos\n`);
 
     // PASO 5: Limpiar tests con técnicos incorrectos o eliminados
-    console.log('🧹 Paso 5: Limpiando tests con técnicos incorrectos...');
+    log('🧹 Paso 5: Limpiando tests con técnicos incorrectos...');
     let testsCorregidos = 0;
     
     // Obtener todos los tests con id_tecnico
@@ -236,7 +238,7 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
       }
     });
 
-    console.log(`   Tests con técnico asignado: ${testsConTecnico.length}`);
+    log(`   Tests con técnico asignado: ${testsConTecnico.length}`);
 
     for (const test of testsConTecnico) {
       let debeLimpiar = false;
@@ -267,18 +269,18 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
             where: { id_test: test.id_test },
             data: { id_tecnico: null }
           });
-          console.log(`   🔧 Test ${test.id_test} limpiado - ${razon}`);
+          log(`   🔧 Test ${test.id_test} limpiado - ${razon}`);
           testsCorregidos++;
         } catch (error) {
-          console.error(`   ❌ Error al limpiar test ${test.id_test}:`, error.message);
+          logError(`   ❌ Error al limpiar test ${test.id_test}:`, error.message);
         }
       }
     }
 
-    console.log(`\n   ✅ Tests corregidos: ${testsCorregidos}\n`);
+    log(`\n   ✅ Tests corregidos: ${testsCorregidos}\n`);
 
     // PASO 6: Verificación final
-    console.log('🔍 Paso 5: Verificación final...');
+    log('🔍 Paso 5: Verificación final...');
     const tecnicosFinales = await prisma.tecnico.findMany({
       where: {
         usuario: {
@@ -340,7 +342,7 @@ async function limpiarTecnicosDefinitivo(prismaInstance = null) {
       tecnicos: tecnicosFinales
     };
   } catch (error) {
-    console.error('❌ ERROR FATAL en limpieza definitiva:', error);
+    logError('❌ ERROR FATAL en limpieza definitiva:', error);
     throw error;
   } finally {
     if (shouldDisconnect) {
@@ -354,7 +356,9 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   const prisma = new PrismaClient();
   limpiarTecnicosDefinitivo(prisma)
     .then(() => {
-      console.log('\n✅ Script completado exitosamente');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('\n✅ Script completado exitosamente');
+      }
       process.exit(0);
     })
     .catch((error) => {

@@ -20,17 +20,7 @@ import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from
 import Notification from '../components/Notification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
-
-// Función helper para detectar si estamos en producción
-const isProduction = () => {
-  if (typeof window === 'undefined') return false;
-  const hostname = window.location.hostname;
-  return hostname !== 'localhost' && 
-         hostname !== '127.0.0.1' &&
-         !hostname.match(/^192\.168\./) &&
-         !hostname.match(/^10\./) &&
-         !hostname.match(/^172\.(1[6-9]|2[0-9]|3[0-1])\./);
-};
+import webSerialService from '../services/webSerial';
 
 export default function Test() {
   const [maquinas, setMaquinas] = useState([]);
@@ -54,9 +44,8 @@ export default function Test() {
   const [time0Marked, setTime0Marked] = useState(null);
   const [timeMinus8Marked, setTimeMinus8Marked] = useState(null);
   const [intervalId, setIntervalId] = useState(null);
-  const [modoManual, setModoManual] = useState(true); // Modo manual activado por defecto
+  const [modoManual, setModoManual] = useState(true);
   
-  // Estados para el modal ESP32
   const [showESP32Modal, setShowESP32Modal] = useState(false);
   const [esp32Estado, setEsp32Estado] = useState(null);
   const [esp32PollingInterval, setEsp32PollingInterval] = useState(null);
@@ -65,8 +54,9 @@ export default function Test() {
   const [puertosDisponibles, setPuertosDisponibles] = useState([]);
   const [conexionSerial, setConexionSerial] = useState({ connected: false, port: null });
   const [mostrarSelectorPuerto, setMostrarSelectorPuerto] = useState(false);
+  const [webSerialSupported, setWebSerialSupported] = useState(false);
+  const [webSerialConnected, setWebSerialConnected] = useState(false);
   
-  // Estado para el modal del cronómetro
   const [showCronometroModal, setShowCronometroModal] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -90,19 +80,20 @@ export default function Test() {
   useEffect(() => {
     loadData();
     loadCurrentUser();
+    webSerialService.isSupported().then(setWebSerialSupported);
     
-    // Limpiar polling al desmontar
     return () => {
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
       }
+      if (webSerialConnected) {
+        webSerialService.disconnect();
+      }
     };
   }, []);
 
-  // Efecto para polling del estado del sensor cuando el modal está abierto
   useEffect(() => {
     if (!showESP32Modal) {
-      // Limpiar intervalo cuando se cierra el modal
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
         setEsp32PollingInterval(null);
@@ -110,7 +101,6 @@ export default function Test() {
       return;
     }
     
-    // Cargar estado inicial con manejo de errores mejorado
     const cargarEstadoInicial = async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();
@@ -121,78 +111,62 @@ export default function Test() {
         });
       } catch (error) {
         console.error('Error al obtener estado inicial del sensor:', error);
-        // Si es error de autenticación, mostrar mensaje específico
-        if (error.status === 401 || error.message?.includes('autenticat') || error.message?.includes('Sessione')) {
-          setEsp32Estado({
-            temperatura: null,
-            humedad: null,
-            timestamp: null,
-            testActivo: false,
-            temperaturaInicial: null,
-            tiempoInicio: null,
-            tiempoTranscurrido: 0,
-            tiempo0Grados: null,
-            tiempoMenos8Grados: null,
-            error: 'Sessione scaduta. Effettua nuovamente il login.',
-          });
-        } else {
-          // Inicializar con valores por defecto si hay otro error
-          setEsp32Estado({
-            temperatura: null,
-            humedad: null,
-            timestamp: null,
-            testActivo: false,
-            temperaturaInicial: null,
-            tiempoInicio: null,
-            tiempoTranscurrido: 0,
-            tiempo0Grados: null,
-            tiempoMenos8Grados: null,
-            error: error.message || 'Errore di connessione con il sensore',
-          });
-        }
+        const errorMsg = error.status === 401 || error.message?.includes('autenticat') || error.message?.includes('Sessione')
+          ? 'Sessione scaduta. Effettua nuovamente il login.'
+          : error.message || 'Errore di connessione con il sensore';
+        setEsp32Estado({
+          temperatura: null,
+          humedad: null,
+          timestamp: null,
+          testActivo: false,
+          temperaturaInicial: null,
+          tiempoInicio: null,
+          tiempoTranscurrido: 0,
+          tiempo0Grados: null,
+          tiempoMenos8Grados: null,
+          error: errorMsg,
+        });
       }
     };
     
     cargarEstadoInicial();
     
-    // Cargar puertos disponibles (solo en desarrollo)
     const cargarPuertos = async () => {
       try {
         const response = await sensorAPI.listarPuertos();
         if (response.success !== false) {
           setPuertosDisponibles(response.ports || []);
         } else {
-          // Si no está disponible (producción), no mostrar selector
           setPuertosDisponibles([]);
-          if (response.message) {
-            console.log('Info:', response.message);
-          }
         }
       } catch (error) {
-        console.error('Error al cargar puertos:', error);
-        // En producción, esto es esperado, no mostrar error
-        if (!error.message?.includes('no está disponible')) {
-          console.warn('La funcionalidad serial no está disponible en este entorno');
-        }
         setPuertosDisponibles([]);
       }
     };
     
     cargarPuertos();
     
-    // Configurar polling
+    webSerialService.setDataCallback(async (data) => {
+      if (data.error) return;
+      if (data.temperatura !== undefined && data.temperatura !== null) {
+        try {
+          await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura, humedad: data.humedad });
+        } catch (error) {
+          console.error('Error al enviar datos al servidor:', error);
+        }
+      }
+    });
+    
     const interval = setInterval(async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();
         setEsp32Estado(estado);
         setConexionSerial({
-          connected: estado.serialConnected || false,
-          port: estado.serialPort || null,
+          connected: estado.serialConnected || webSerialConnected,
+          port: estado.serialPort || (webSerialConnected ? 'WebSerial' : null),
         });
         
-        // Si hay un test activo y se detectaron las temperaturas, actualizar el formulario
         if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempoMenos8Grados !== null) {
-          // Convertir segundos a formato MM:SS
           const minutos0 = Math.floor(estado.tiempo0Grados / 60);
           const segundos0 = estado.tiempo0Grados % 60;
           const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
@@ -212,10 +186,9 @@ export default function Test() {
           showNotification('Temperaturas detectadas automáticamente!', 'success');
         }
       } catch (error) {
-        console.error('Error al obtener estado del sensor en polling:', error);
-        // No mostrar error al usuario en cada polling, solo loguear
+        console.error('Error en polling:', error);
       }
-    }, 2000); // Polling cada 2 segundos
+    }, 2000);
     
     setEsp32PollingInterval(interval);
     
@@ -223,17 +196,38 @@ export default function Test() {
       clearInterval(interval);
       setEsp32PollingInterval(null);
     };
-  }, [showESP32Modal]);
+  }, [showESP32Modal, webSerialConnected]);
 
-  const iniciarTestESP32 = async () => {
+  const conectarWebSerial = useCallback(async () => {
     try {
-      // Validar que se haya seleccionado una máquina
+      await webSerialService.requestPort();
+      await webSerialService.connect(115200);
+      setWebSerialConnected(true);
+      setConexionSerial({ connected: true, port: 'WebSerial' });
+      showNotification('Conectado por WebSerial USB', 'success');
+    } catch (error) {
+      showNotification(error.message || 'Error al conectar', 'error');
+    }
+  }, [showNotification]);
+
+  const desconectarWebSerial = useCallback(async () => {
+    try {
+      await webSerialService.disconnect();
+      setWebSerialConnected(false);
+      setConexionSerial({ connected: false, port: null });
+      showNotification('Desconectado de WebSerial', 'info');
+    } catch (error) {
+      showNotification('Error al desconectar', 'error');
+    }
+  }, [showNotification]);
+
+  const iniciarTestESP32 = useCallback(async () => {
+    try {
       if (!selectedMaquina) {
         showNotification('Selecciona una máquina antes de iniciar el test', 'error');
         return;
       }
 
-      // Validar que se haya seleccionado un técnico
       if (!formData.tecnicoId) {
         showNotification('Selecciona un técnico antes de iniciar el test', 'error');
         return;
@@ -246,31 +240,25 @@ export default function Test() {
       
       await sensorAPI.iniciarTest(esp32Estado.temperatura);
       setTestESP32Activo(true);
-      // Guardar la fecha y hora de inicio del test
       setFechaHoraInicioTestESP32(new Date().toISOString());
       showNotification('Test iniciado. Monitoreando temperatura...', 'success');
     } catch (error) {
       showNotification(error.message || 'Error al iniciar el test', 'error');
     }
-  };
+  }, [selectedMaquina, formData.tecnicoId, esp32Estado, showNotification]);
 
-  const finalizarTestESP32 = async () => {
-    // Prevenir doble envío
-    if (isSubmitting) {
-      return;
-    }
+  const finalizarTestESP32 = useCallback(async () => {
+    if (isSubmitting) return;
     
     setIsSubmitting(true);
     
     try {
-      // Validar que se haya seleccionado una máquina
       if (!selectedMaquina) {
         showNotification('Selecciona una máquina antes de finalizar el test', 'error');
         setIsSubmitting(false);
         return;
       }
 
-      // Validar que se haya seleccionado un técnico
       if (!formData.tecnicoId) {
         showNotification('Selecciona un técnico antes de finalizar el test', 'error');
         setIsSubmitting(false);
@@ -281,31 +269,26 @@ export default function Test() {
       setTestESP32Activo(false);
       
       if (resultado.resultado.tiempo0Grados && resultado.resultado.tiempoMenos8Grados) {
-        // Obtener la fecha/hora de inicio (o usar la actual si no se guardó)
         const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
         
-        // Preparar los datos del test
         const dataToSend = {
           maquinaId: parseInt(selectedMaquina),
           tecnicoId: parseInt(formData.tecnicoId),
           temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
-          tiempo_0_gradi: resultado.resultado.tiempo0Grados, // Ya está en segundos
-          tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados, // Ya está en segundos
+          tiempo_0_gradi: resultado.resultado.tiempo0Grados,
+          tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados,
           humedad_ambiente: resultado.resultado.humedad || undefined,
           regolazione_vite: formData.regolazione_vite || undefined,
           quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
           observazioni: formData.observazioni || undefined,
-          hora_test: fechaHoraTest, // Fecha y hora de inicio del test
+          hora_test: fechaHoraTest,
         };
 
-        // Crear el test automáticamente
         await testsAPI.create(dataToSend);
         
-        // Actualizar la lista de tests
         const testsActualizados = await testsAPI.getAll();
         setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
         
-        // También actualizar el formulario para mostrar los datos
         const minutos0 = Math.floor(resultado.resultado.tiempo0Grados / 60);
         const segundos0 = resultado.resultado.tiempo0Grados % 60;
         const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
@@ -322,7 +305,6 @@ export default function Test() {
           humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
         }));
         
-        // Cerrar el modal y resetear el estado
         setShowESP32Modal(false);
         setFechaHoraInicioTestESP32(null);
         showNotification('Test completado y guardado automáticamente!', 'success');
@@ -339,9 +321,9 @@ export default function Test() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [isSubmitting, selectedMaquina, formData, fechaHoraInicioTestESP32, showNotification]);
 
-  const cancelarTestESP32 = async () => {
+  const cancelarTestESP32 = useCallback(async () => {
     try {
       await sensorAPI.cancelarTest();
       setTestESP32Activo(false);
@@ -350,9 +332,9 @@ export default function Test() {
     } catch (error) {
       showNotification(error.message || 'Error al cancelar el test', 'error');
     }
-  };
+  }, [showNotification]);
 
-  const loadCurrentUser = async () => {
+  const loadCurrentUser = useCallback(async () => {
     try {
       const user = await authAPI.getCurrentUser();
       setCurrentUser(user);
@@ -365,9 +347,9 @@ export default function Test() {
     } catch (error) {
       console.error('Error al cargar usuario actual:', error);
     }
-  };
+  }, [tecnicos]);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       const [maquinasData, testsData, tecnicosData, lottiData] = await Promise.all([
@@ -378,18 +360,8 @@ export default function Test() {
       ]);
       setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
       setTests(Array.isArray(testsData) ? testsData : []);
-      // Filtrar técnicos: solo aquellos con rol 'tecnico' y estado 'aprobado'
-      // Doble verificación para asegurar que solo se muestren técnicos válidos
       const tecnicosFiltrados = Array.isArray(tecnicosData) 
-        ? tecnicosData.filter(t => {
-            // Si tiene usuario asociado, verificar rol y estado
-            if (t.usuario) {
-              return t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado';
-            }
-            // Si no tiene usuario pero tiene id_usuario, verificar que el id_usuario pertenezca a un técnico válido
-            // En este caso, el backend ya debería haber filtrado, pero por seguridad lo verificamos
-            return false; // Sin usuario asociado, no mostrar
-          })
+        ? tecnicosData.filter(t => t.usuario?.rol === 'tecnico' && t.usuario?.estado === 'aprobado')
         : [];
       setTecnicos(tecnicosFiltrados);
       setLotti(Array.isArray(lottiData) ? lottiData : []);
@@ -399,7 +371,7 @@ export default function Test() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [showNotification]);
 
   const showNotification = useCallback((message, type = 'success') => {
     setNotification({ show: true, message, type });
@@ -575,30 +547,25 @@ export default function Test() {
     }
   }, [agregarSegundaPrueba]);
 
-  const tiempoASegundos = (tiempoStr) => {
+  const tiempoASegundos = useCallback((tiempoStr) => {
     if (!tiempoStr) return null;
     const partes = tiempoStr.split(':');
     if (partes.length === 2) {
       const minutos = parseInt(partes[0]) || 0;
       const segundos = parseInt(partes[1]) || 0;
-      if (segundos > 59) {
-        return null;
-      }
+      if (segundos > 59) return null;
       return minutos * 60 + segundos;
     }
     if (/^\d+$/.test(tiempoStr)) {
       const num = parseInt(tiempoStr);
-      if (num < 100) {
-        return num;
-      } else {
-        const minutos = Math.floor(num / 100);
-        const segundos = num % 100;
-        if (segundos > 59) return null;
-        return minutos * 60 + segundos;
-      }
+      if (num < 100) return num;
+      const minutos = Math.floor(num / 100);
+      const segundos = num % 100;
+      if (segundos > 59) return null;
+      return minutos * 60 + segundos;
     }
     return null;
-  };
+  }, []);
 
   const handleKeyDown = useCallback((e, currentField, nextField) => {
     if (e.key === 'Enter' && nextField) {
@@ -1615,18 +1582,6 @@ export default function Test() {
                 <span>Annulla</span>
               </button>
             </div>
-
-            {/* Instrucciones */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-xl">
-              <h4 className="font-semibold text-blue-900 mb-2">Istruzioni:</h4>
-              <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-                <li>Clicca su "Avvia" per iniziare il cronometro</li>
-                <li>Quando viene raggiunto 0°C, clicca su "Segna 0°C"</li>
-                <li>Quando viene raggiunto -8°C, clicca su "Segna -8°C"</li>
-                <li>Il cronometro si fermerà automaticamente</li>
-                <li>Clicca su "Usa questi tempi" per caricare i valori nel formulario</li>
-              </ol>
-            </div>
           </div>
         </div>
       )}
@@ -1682,97 +1637,134 @@ export default function Test() {
               </button>
             </div>
 
-            {/* Estado de conexión USB - Solo mostrar si hay puertos disponibles o está conectado */}
-            {(puertosDisponibles.length > 0 || conexionSerial.connected) && (
-              <div className={`mb-4 p-3 rounded-lg ${
-                conexionSerial.connected 
-                  ? 'bg-green-50 border border-green-200' 
-                  : 'bg-yellow-50 border border-yellow-200'
-              }`}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-3 h-3 rounded-full ${
-                      conexionSerial.connected ? 'bg-green-500' : 'bg-yellow-500'
-                    }`}></div>
-                    <p className={`text-sm font-semibold ${
-                      conexionSerial.connected ? 'text-green-800' : 'text-yellow-800'
-                    }`}>
-                      {conexionSerial.connected 
-                        ? `✅ Conectado por USB: ${conexionSerial.port || 'Puerto desconocido'}`
-                        : '⚠️ No conectado por USB'}
-                    </p>
+            <div className="mb-4 space-y-3">
+              {webSerialSupported && (
+                <div className={`p-3 rounded-lg ${
+                  webSerialConnected 
+                    ? 'bg-green-50 border border-green-200' 
+                    : 'bg-gray-50 border border-gray-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${
+                        webSerialConnected ? 'bg-green-500' : 'bg-gray-400'
+                      }`}></div>
+                      <p className={`text-sm font-semibold ${
+                        webSerialConnected ? 'text-green-800' : 'text-gray-800'
+                      }`}>
+                        {webSerialConnected 
+                          ? '✅ Conectado por WebSerial USB (funciona en producción)'
+                          : '📡 WebSerial USB disponible'}
+                      </p>
+                    </div>
+                    {!webSerialConnected ? (
+                      <button
+                        onClick={conectarWebSerial}
+                        className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold"
+                      >
+                        Conectar USB
+                      </button>
+                    ) : (
+                      <button
+                        onClick={desconectarWebSerial}
+                        className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-semibold"
+                      >
+                        Desconectar
+                      </button>
+                    )}
                   </div>
-                  {!conexionSerial.connected && puertosDisponibles.length > 0 && (
-                    <button
-                      onClick={() => setMostrarSelectorPuerto(!mostrarSelectorPuerto)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold"
-                    >
-                      {mostrarSelectorPuerto ? 'Ocultar' : 'Conectar'}
-                    </button>
-                  )}
-                  {conexionSerial.connected && (
-                    <button
-                      onClick={async () => {
-                        try {
-                          await sensorAPI.desconectarESP32();
-                          setConexionSerial({ connected: false, port: null });
-                          showNotification('Desconectado del ESP32', 'info');
-                        } catch (error) {
-                          showNotification('Error al desconectar', 'error');
-                        }
-                      }}
-                      className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-semibold"
-                    >
-                      Desconectar
-                    </button>
+                </div>
+              )}
+
+              {(puertosDisponibles.length > 0 || conexionSerial.connected) && (
+                <div className={`p-3 rounded-lg ${
+                  conexionSerial.connected 
+                    ? 'bg-green-50 border border-green-200' 
+                    : 'bg-yellow-50 border border-yellow-200'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-3 h-3 rounded-full ${
+                        conexionSerial.connected ? 'bg-green-500' : 'bg-yellow-500'
+                      }`}></div>
+                      <p className={`text-sm font-semibold ${
+                        conexionSerial.connected ? 'text-green-800' : 'text-yellow-800'
+                      }`}>
+                        {conexionSerial.connected 
+                          ? `✅ Conectado por servidor: ${conexionSerial.port || 'Puerto desconocido'}`
+                          : '⚠️ No conectado por servidor'}
+                      </p>
+                    </div>
+                    {!conexionSerial.connected && puertosDisponibles.length > 0 && (
+                      <button
+                        onClick={() => setMostrarSelectorPuerto(!mostrarSelectorPuerto)}
+                        className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold"
+                      >
+                        {mostrarSelectorPuerto ? 'Ocultar' : 'Conectar'}
+                      </button>
+                    )}
+                    {conexionSerial.connected && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await sensorAPI.desconectarESP32();
+                            setConexionSerial({ connected: false, port: null });
+                            showNotification('Desconectado del ESP32', 'info');
+                          } catch (error) {
+                            showNotification('Error al desconectar', 'error');
+                          }
+                        }}
+                        className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-semibold"
+                      >
+                        Desconectar
+                      </button>
+                    )}
+                  </div>
+                  
+                  {mostrarSelectorPuerto && !conexionSerial.connected && puertosDisponibles.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <select
+                        id="puerto-select"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        defaultValue=""
+                      >
+                        <option value="">Seleccionar puerto automáticamente</option>
+                        {puertosDisponibles.map((puerto, index) => (
+                          <option key={index} value={puerto.path}>
+                            {puerto.path} - {puerto.manufacturer}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={async () => {
+                          try {
+                            const select = document.getElementById('puerto-select');
+                            const portPath = select.value;
+                            await sensorAPI.conectarESP32(portPath || null);
+                            setConexionSerial({ connected: true, port: portPath || 'Auto' });
+                            setMostrarSelectorPuerto(false);
+                            showNotification('Conectado al ESP32', 'success');
+                          } catch (error) {
+                            showNotification(error.message || 'Error al conectar', 'error');
+                          }
+                        }}
+                        className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-semibold"
+                      >
+                        Conectar
+                      </button>
+                    </div>
                   )}
                 </div>
-                
-                {/* Selector de puerto */}
-                {mostrarSelectorPuerto && !conexionSerial.connected && puertosDisponibles.length > 0 && (
-                  <div className="mt-3 space-y-2">
-                    <select
-                      id="puerto-select"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                      defaultValue=""
-                    >
-                      <option value="">Seleccionar puerto automáticamente</option>
-                      {puertosDisponibles.map((puerto, index) => (
-                        <option key={index} value={puerto.path}>
-                          {puerto.path} - {puerto.manufacturer}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={async () => {
-                        try {
-                          const select = document.getElementById('puerto-select');
-                          const portPath = select.value;
-                          await sensorAPI.conectarESP32(portPath || null);
-                          setConexionSerial({ connected: true, port: portPath || 'Auto' });
-                          setMostrarSelectorPuerto(false);
-                          showNotification('Conectado al ESP32', 'success');
-                        } catch (error) {
-                          showNotification(error.message || 'Error al conectar', 'error');
-                        }
-                      }}
-                      className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-semibold"
-                    >
-                      Conectar
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            
-            {/* Mensaje informativo si estamos en producción */}
-            {puertosDisponibles.length === 0 && !conexionSerial.connected && (
-              <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
-                <p className="text-sm text-blue-800">
-                  ℹ️ La conexión USB Serial solo está disponible en desarrollo local. En producción, usa la conexión WiFi/HTTP del ESP32.
-                </p>
-              </div>
-            )}
+              )}
+
+              {!webSerialSupported && puertosDisponibles.length === 0 && !conexionSerial.connected && (
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    ℹ️ Conecta el ESP32 por WiFi/HTTP o usa un navegador compatible (Chrome/Edge) para WebSerial USB.
+                  </p>
+                </div>
+              )}
+            </div>
 
             {/* Mensaje de advertencia si no hay conexión o hay error */}
             {(esp32Estado === null || esp32Estado?.error) && (

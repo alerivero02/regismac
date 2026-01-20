@@ -155,13 +155,26 @@ export default function Test() {
     
     cargarEstadoInicial();
     
-    // Cargar puertos disponibles
+    // Cargar puertos disponibles (solo en desarrollo)
     const cargarPuertos = async () => {
       try {
         const response = await sensorAPI.listarPuertos();
-        setPuertosDisponibles(response.ports || []);
+        if (response.success !== false) {
+          setPuertosDisponibles(response.ports || []);
+        } else {
+          // Si no está disponible (producción), no mostrar selector
+          setPuertosDisponibles([]);
+          if (response.message) {
+            console.log('Info:', response.message);
+          }
+        }
       } catch (error) {
         console.error('Error al cargar puertos:', error);
+        // En producción, esto es esperado, no mostrar error
+        if (!error.message?.includes('no está disponible')) {
+          console.warn('La funcionalidad serial no está disponible en este entorno');
+        }
+        setPuertosDisponibles([]);
       }
     };
     
@@ -1669,92 +1682,97 @@ export default function Test() {
               </button>
             </div>
 
-            {/* Estado de conexión USB */}
-            <div className={`mb-4 p-3 rounded-lg ${
-              conexionSerial.connected 
-                ? 'bg-green-50 border border-green-200' 
-                : 'bg-yellow-50 border border-yellow-200'
-            }`}>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className={`w-3 h-3 rounded-full ${
-                    conexionSerial.connected ? 'bg-green-500' : 'bg-yellow-500'
-                  }`}></div>
-                  <p className={`text-sm font-semibold ${
-                    conexionSerial.connected ? 'text-green-800' : 'text-yellow-800'
-                  }`}>
-                    {conexionSerial.connected 
-                      ? `✅ Conectado por USB: ${conexionSerial.port || 'Puerto desconocido'}`
-                      : '⚠️ No conectado por USB'}
-                  </p>
-                </div>
-                {!conexionSerial.connected && (
-                  <button
-                    onClick={() => setMostrarSelectorPuerto(!mostrarSelectorPuerto)}
-                    className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold"
-                  >
-                    {mostrarSelectorPuerto ? 'Ocultar' : 'Conectar'}
-                  </button>
-                )}
-                {conexionSerial.connected && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        await sensorAPI.desconectarESP32();
-                        setConexionSerial({ connected: false, port: null });
-                        showNotification('Desconectado del ESP32', 'info');
-                      } catch (error) {
-                        showNotification('Error al desconectar', 'error');
-                      }
-                    }}
-                    className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-semibold"
-                  >
-                    Desconectar
-                  </button>
-                )}
-              </div>
-              
-              {/* Selector de puerto */}
-              {mostrarSelectorPuerto && !conexionSerial.connected && (
-                <div className="mt-3 space-y-2">
-                  {puertosDisponibles.length > 0 ? (
-                    <>
-                      <select
-                        id="puerto-select"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        defaultValue=""
-                      >
-                        <option value="">Seleccionar puerto automáticamente</option>
-                        {puertosDisponibles.map((puerto, index) => (
-                          <option key={index} value={puerto.path}>
-                            {puerto.path} - {puerto.manufacturer}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const select = document.getElementById('puerto-select');
-                            const portPath = select.value;
-                            await sensorAPI.conectarESP32(portPath || null);
-                            setConexionSerial({ connected: true, port: portPath || 'Auto' });
-                            setMostrarSelectorPuerto(false);
-                            showNotification('Conectado al ESP32', 'success');
-                          } catch (error) {
-                            showNotification(error.message || 'Error al conectar', 'error');
-                          }
-                        }}
-                        className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-semibold"
-                      >
-                        Conectar
-                      </button>
-                    </>
-                  ) : (
-                    <p className="text-xs text-gray-600">No se encontraron puertos USB disponibles</p>
+            {/* Estado de conexión USB - Solo mostrar si hay puertos disponibles o está conectado */}
+            {(puertosDisponibles.length > 0 || conexionSerial.connected) && (
+              <div className={`mb-4 p-3 rounded-lg ${
+                conexionSerial.connected 
+                  ? 'bg-green-50 border border-green-200' 
+                  : 'bg-yellow-50 border border-yellow-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${
+                      conexionSerial.connected ? 'bg-green-500' : 'bg-yellow-500'
+                    }`}></div>
+                    <p className={`text-sm font-semibold ${
+                      conexionSerial.connected ? 'text-green-800' : 'text-yellow-800'
+                    }`}>
+                      {conexionSerial.connected 
+                        ? `✅ Conectado por USB: ${conexionSerial.port || 'Puerto desconocido'}`
+                        : '⚠️ No conectado por USB'}
+                    </p>
+                  </div>
+                  {!conexionSerial.connected && puertosDisponibles.length > 0 && (
+                    <button
+                      onClick={() => setMostrarSelectorPuerto(!mostrarSelectorPuerto)}
+                      className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold"
+                    >
+                      {mostrarSelectorPuerto ? 'Ocultar' : 'Conectar'}
+                    </button>
+                  )}
+                  {conexionSerial.connected && (
+                    <button
+                      onClick={async () => {
+                        try {
+                          await sensorAPI.desconectarESP32();
+                          setConexionSerial({ connected: false, port: null });
+                          showNotification('Desconectado del ESP32', 'info');
+                        } catch (error) {
+                          showNotification('Error al desconectar', 'error');
+                        }
+                      }}
+                      className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-semibold"
+                    >
+                      Desconectar
+                    </button>
                   )}
                 </div>
-              )}
-            </div>
+                
+                {/* Selector de puerto */}
+                {mostrarSelectorPuerto && !conexionSerial.connected && puertosDisponibles.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <select
+                      id="puerto-select"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      defaultValue=""
+                    >
+                      <option value="">Seleccionar puerto automáticamente</option>
+                      {puertosDisponibles.map((puerto, index) => (
+                        <option key={index} value={puerto.path}>
+                          {puerto.path} - {puerto.manufacturer}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const select = document.getElementById('puerto-select');
+                          const portPath = select.value;
+                          await sensorAPI.conectarESP32(portPath || null);
+                          setConexionSerial({ connected: true, port: portPath || 'Auto' });
+                          setMostrarSelectorPuerto(false);
+                          showNotification('Conectado al ESP32', 'success');
+                        } catch (error) {
+                          showNotification(error.message || 'Error al conectar', 'error');
+                        }
+                      }}
+                      className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-semibold"
+                    >
+                      Conectar
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            
+            {/* Mensaje informativo si estamos en producción */}
+            {puertosDisponibles.length === 0 && !conexionSerial.connected && (
+              <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
+                <p className="text-sm text-blue-800">
+                  ℹ️ La conexión USB Serial solo está disponible en desarrollo local. En producción, usa la conexión WiFi/HTTP del ESP32.
+                </p>
+              </div>
+            )}
 
             {/* Mensaje de advertencia si no hay conexión o hay error */}
             {(esp32Estado === null || esp32Estado?.error) && (

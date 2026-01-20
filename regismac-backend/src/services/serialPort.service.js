@@ -8,10 +8,27 @@ let isConnected = false;
 let currentPort = null;
 let onDataCallback = null;
 
+// Verificar si estamos en producción
+const isProduction = process.env.NODE_ENV === 'production';
+
+/**
+ * Verificar si la funcionalidad serial está disponible
+ */
+function isSerialAvailable() {
+  if (isProduction) {
+    return false; // En producción no hay acceso a puertos USB
+  }
+  return true;
+}
+
 /**
  * Detectar puertos USB disponibles
  */
 export async function detectPorts() {
+  if (!isSerialAvailable()) {
+    throw new Error('La funcionalidad de puertos seriales no está disponible en producción. Solo funciona en desarrollo local.');
+  }
+  
   try {
     const ports = await SerialPort.list();
     return ports.map(port => ({
@@ -23,6 +40,11 @@ export async function detectPorts() {
     }));
   } catch (error) {
     console.error('Error al detectar puertos:', error);
+    // Si es un error de sistema operativo, retornar array vacío en lugar de lanzar error
+    if (error.message && (error.message.includes('ENOENT') || error.message.includes('spawn'))) {
+      console.warn('⚠️  SerialPort no disponible en este entorno');
+      return [];
+    }
     throw error;
   }
 }
@@ -32,8 +54,16 @@ export async function detectPorts() {
  * Busca puertos que puedan ser ESP32 (basado en manufacturer o vendorId común)
  */
 export async function detectESP32Port() {
+  if (!isSerialAvailable()) {
+    return null;
+  }
+  
   try {
     const ports = await detectPorts();
+    
+    if (ports.length === 0) {
+      return null;
+    }
     
     // Buscar ESP32 por manufacturer común
     const esp32Ports = ports.filter(port => {
@@ -70,6 +100,10 @@ export async function detectESP32Port() {
  * Conectar al puerto serial
  */
 export async function connectToPort(portPath, baudRate = 115200) {
+  if (!isSerialAvailable()) {
+    throw new Error('La funcionalidad de puertos seriales no está disponible en producción. Solo funciona en desarrollo local.');
+  }
+  
   try {
     // Cerrar conexión existente si hay
     if (serialPort && serialPort.isOpen) {

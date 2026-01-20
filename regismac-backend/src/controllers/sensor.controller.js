@@ -217,8 +217,21 @@ export const listarPuertos = async (req, res, next) => {
     res.json({
       success: true,
       ports,
+      available: ports.length > 0,
+      message: ports.length === 0 
+        ? 'No hay puertos USB disponibles. La funcionalidad serial solo está disponible en desarrollo local.'
+        : null,
     });
   } catch (err) {
+    // En producción, retornar respuesta amigable en lugar de error
+    if (process.env.NODE_ENV === 'production' || err.message?.includes('no está disponible')) {
+      return res.json({
+        success: false,
+        ports: [],
+        available: false,
+        message: 'La funcionalidad de puertos seriales no está disponible en producción. Solo funciona en desarrollo local.',
+      });
+    }
     next(err);
   }
 };
@@ -237,12 +250,26 @@ export const conectarESP32 = async (req, res, next) => {
       connectedPort = await serialPortService.connectToESP32();
     }
     
+    if (!connectedPort) {
+      return res.status(404).json({
+        success: false,
+        message: "No se encontró ningún puerto ESP32 disponible",
+      });
+    }
+    
     res.json({
       success: true,
       message: "Conectado al ESP32",
       port: connectedPort,
     });
   } catch (err) {
+    // En producción, retornar respuesta amigable
+    if (process.env.NODE_ENV === 'production' || err.message?.includes('no está disponible')) {
+      return res.status(400).json({
+        success: false,
+        message: 'La funcionalidad de puertos seriales no está disponible en producción. Solo funciona en desarrollo local.',
+      });
+    }
     next(new ApiError(err.message || "Error al conectar al ESP32", 500));
   }
 };

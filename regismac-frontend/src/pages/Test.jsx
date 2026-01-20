@@ -54,6 +54,9 @@ export default function Test() {
   const [temperaturaWebSerial, setTemperaturaWebSerial] = useState(null);
   const [humedadWebSerial, setHumedadWebSerial] = useState(null);
   const autoSaveRef = useRef(false);
+  const tiempoInicioTestRef = useRef(null);
+  const tiempo0GradosRef = useRef(null);
+  const tiempoMenos8GradosRef = useRef(null);
   const [puertosDisponibles, setPuertosDisponibles] = useState([]);
   const [conexionSerial, setConexionSerial] = useState({ connected: false, port: null });
   const [mostrarSelectorPuerto, setMostrarSelectorPuerto] = useState(false);

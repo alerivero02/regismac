@@ -129,14 +129,18 @@ export default function Layout() {
   const handleLogout = async () => {
     try {
       await authAPI.logout();
-      // Limpiar cualquier dato local
+      // Limpiar cualquier dato local (sessionStorage y localStorage)
       setUser(null);
+      sessionStorage.clear();
+      localStorage.clear();
       // Redirigir al login
       navigate('/login', { replace: true });
     } catch (error) {
       console.error('Error al cerrar sesión:', error);
-      // Aún así redirigir al login aunque haya error
+      // Aún así limpiar todo y redirigir al login aunque haya error
       setUser(null);
+      sessionStorage.clear();
+      localStorage.clear();
       navigate('/login', { replace: true });
     }
   };

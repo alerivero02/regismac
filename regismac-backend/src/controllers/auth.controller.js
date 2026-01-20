@@ -255,9 +255,29 @@ export const logout = (req, res) => {
         if (err) {
           return res.status(500).json({ error: "Error al destruir sesión" });
         }
+        // Limpiar explícitamente la cookie de sesión
+        const cookieName = 'regismac.sid';
+        const cookieOptions = {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === 'production',
+          sameSite: process.env.NODE_ENV === 'production' ? 'strict' : false,
+          path: '/',
+          maxAge: 0, // Expirar inmediatamente
+        };
+        res.clearCookie(cookieName, cookieOptions);
         res.json({ message: "Sesión cerrada correctamente" });
       });
     } else {
+      // Limpiar cookie aunque no haya sesión activa
+      const cookieName = 'regismac.sid';
+      const cookieOptions = {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: process.env.NODE_ENV === 'production' ? 'strict' : false,
+        path: '/',
+        maxAge: 0,
+      };
+      res.clearCookie(cookieName, cookieOptions);
       res.json({ message: "Sesión cerrada correctamente" });
     }
   });

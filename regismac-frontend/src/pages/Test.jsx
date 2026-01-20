@@ -2156,15 +2156,21 @@ export default function Test() {
                   <div>
                     <label className="text-xs text-gray-600 mb-1 block">Tiempo Transcurrido</label>
                     <span className="font-semibold text-gray-900">
-                      {esp32Estado?.tiempoTranscurrido 
-                        ? `${Math.floor(esp32Estado.tiempoTranscurrido / 60)}:${(esp32Estado.tiempoTranscurrido % 60).toString().padStart(2, '0')}`
-                        : '0:00'}
+                      {tiempoInicioTestRef.current
+                        ? (() => {
+                            const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
+                            return `${Math.floor(tiempoTranscurrido / 60)}:${(tiempoTranscurrido % 60).toString().padStart(2, '0')}`;
+                          })()
+                        : (esp32Estado?.tiempoTranscurrido 
+                          ? `${Math.floor(esp32Estado.tiempoTranscurrido / 60)}:${(esp32Estado.tiempoTranscurrido % 60).toString().padStart(2, '0')}`
+                          : '0:00')}
                     </span>
                   </div>
                   <div>
                     <label className="text-xs text-gray-600 mb-1 block">Estado</label>
                     <span className="font-semibold text-green-600">
-                      {esp32Estado?.tiempo0Grados && esp32Estado?.tiempoMenos8Grados 
+                      {(tiempo0GradosRef.current !== null && tiempoMenos8GradosRef.current !== null) ||
+                       (esp32Estado?.tiempo0Grados && esp32Estado?.tiempoMenos8Grados)
                         ? 'Completado ✓' 
                         : 'Monitoreando...'}
                     </span>

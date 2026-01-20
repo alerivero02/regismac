@@ -281,9 +281,14 @@ export default function Test() {
       .then(service => {
         if (service) {
           service.setDataCallback(async (data) => {
-            if (data.error) return;
+            console.log('[Test] Datos recibidos de WebSerial:', data);
+            if (data.error) {
+              console.error('[Test] Error en datos WebSerial:', data.error);
+              return;
+            }
             if (data.temperatura !== undefined && data.temperatura !== null) {
               const temperatura = parseFloat(data.temperatura);
+              console.log('[Test] Temperatura recibida:', temperatura);
               
               // Actualizar estado local inmediatamente para uso USB directo
               setTemperaturaWebSerial(temperatura);
@@ -625,7 +630,7 @@ export default function Test() {
       showNotification(error.message || 'Error al iniciar el test', 'error');
       setIsIniciandoTest(false);
     }
-  }, [selectedMaquina, formData.tecnicoId, esp32Estado, temperaturaWebSerial, webSerialConnected, showNotification, isIniciandoTest, testESP32Activo]);
+  }, [selectedMaquina, formData.tecnicoId, esp32Estado, temperaturaWebSerial, webSerialConnected, conexionSerial, showNotification, isIniciandoTest, testESP32Activo]);
 
   const finalizarTestESP32 = useCallback(async () => {
     if (isSubmitting) return;

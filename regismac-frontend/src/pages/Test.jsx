@@ -399,6 +399,24 @@ export default function Test() {
     };
   }, [showESP32Modal, webSerialConnected, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, showNotification]);
 
+  const desconectarWebSerial = useCallback(async () => {
+    try {
+      const service = await getWebSerialService();
+      if (service) {
+        await service.disconnect();
+      }
+      setWebSerialConnected(false);
+      setConexionSerial({ connected: false, port: null });
+      showNotification('Desconectado de WebSerial', 'info');
+    } catch (error) {
+      console.error('Error al desconectar WebSerial:', error);
+      showNotification('Error al desconectar', 'error');
+      // Forzar desconexión incluso si hay error
+      setWebSerialConnected(false);
+      setConexionSerial({ connected: false, port: null });
+    }
+  }, [showNotification, getWebSerialService]);
+
   const conectarWebSerial = useCallback(async () => {
     try {
       const service = await getWebSerialService();
@@ -409,8 +427,15 @@ export default function Test() {
       
       // Si ya está conectado, desconectar primero
       if (webSerialConnected) {
-        await desconectarWebSerial();
-        await new Promise(resolve => setTimeout(resolve, 500)); // Esperar un poco
+        try {
+          const status = service.getConnectionStatus();
+          if (status.connected) {
+            await service.disconnect();
+            await new Promise(resolve => setTimeout(resolve, 500)); // Esperar un poco
+          }
+        } catch (err) {
+          // Ignorar errores al desconectar
+        }
       }
       
       // Solicitar puerto (esto abrirá el selector de puertos del navegador)
@@ -439,22 +464,8 @@ export default function Test() {
       setWebSerialConnected(false);
       setConexionSerial({ connected: false, port: null });
     }
-  }, [showNotification, getWebSerialService, webSerialConnected, desconectarWebSerial]);
+  }, [showNotification, getWebSerialService, webSerialConnected]);
 
-  const desconectarWebSerial = useCallback(async () => {
-    try {
-      const service = await getWebSerialService();
-      if (service) {
-        await service.disconnect();
-      }
-      setWebSerialConnected(false);
-      setConexionSerial({ connected: false, port: null });
-      showNotification('Desconectado de WebSerial', 'info');
-    } catch (error) {
-      console.error('Error al desconectar WebSerial:', error);
-      showNotification('Error al desconectar', 'error');
-    }
-  }, [showNotification, getWebSerialService]);
 
   const iniciarTestESP32 = useCallback(async () => {
     try {

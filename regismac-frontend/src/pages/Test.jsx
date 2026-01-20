@@ -237,11 +237,15 @@ export default function Test() {
         const estado = await sensorAPI.obtenerEstado();
         setEsp32Estado(estado);
         setConexionSerial({
-          connected: estado.serialConnected || false,
-          port: estado.serialPort || null,
+          connected: estado.serialConnected || webSerialConnected || false,
+          port: estado.serialPort || (webSerialConnected ? 'WebSerial' : null),
         });
       } catch (error) {
-        console.error('Error al obtener estado inicial del sensor:', error);
+        // Solo loguear errores críticos, no 401/403 esperados
+        const isDev = import.meta.env.DEV;
+        if (isDev && error.status !== 401 && error.status !== 403) {
+          console.error('Error al obtener estado inicial del sensor:', error);
+        }
         const errorMsg = error.status === 401 || error.message?.includes('autenticat') || error.message?.includes('Sessione')
           ? 'Sessione scaduta. Effettua nuovamente il login.'
           : error.message || 'Errore di connessione con il sensore';
@@ -281,14 +285,23 @@ export default function Test() {
       .then(service => {
         if (service) {
           service.setDataCallback(async (data) => {
-            console.log('[Test] Datos recibidos de WebSerial:', data);
+            // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
+            const isDev = import.meta.env.DEV;
+            if (isDev) {
+              console.log('[Test] Datos recibidos de WebSerial:', data);
+            }
             if (data.error) {
-              console.error('[Test] Error en datos WebSerial:', data.error);
+              if (isDev) {
+                console.error('[Test] Error en datos WebSerial:', data.error);
+              }
               return;
             }
             if (data.temperatura !== undefined && data.temperatura !== null) {
               const temperatura = parseFloat(data.temperatura);
-              console.log('[Test] Temperatura recibida:', temperatura);
+              // Logs solo en desarrollo
+              if (isDev) {
+                console.log('[Test] Temperatura recibida:', temperatura);
+              }
               
               // Actualizar estado local inmediatamente para uso USB directo
               setTemperaturaWebSerial(temperatura);
@@ -351,7 +364,11 @@ export default function Test() {
     const interval = setInterval(async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();
-        console.log('[Test] Estado del sensor obtenido:', estado);
+        // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
+        const isDev = import.meta.env.DEV;
+        if (isDev) {
+          console.log('[Test] Estado del sensor obtenido:', estado);
+        }
         setEsp32Estado(estado);
         setConexionSerial({
           connected: estado.serialConnected || webSerialConnected,
@@ -360,7 +377,9 @@ export default function Test() {
         
         // Si el servidor tiene temperatura pero no tenemos de WebSerial, usarla
         if (estado.temperatura !== null && estado.temperatura !== undefined && temperaturaWebSerial === null) {
-          console.log('[Test] Usando temperatura del servidor:', estado.temperatura);
+          if (isDev) {
+            console.log('[Test] Usando temperatura del servidor:', estado.temperatura);
+          }
           setTemperaturaWebSerial(estado.temperatura);
         }
         
@@ -593,24 +612,34 @@ export default function Test() {
       // Obtener temperatura: primero de WebSerial (USB directo), luego del servidor
       let temperaturaInicial = null;
       
-      console.log('[Test] Intentando iniciar test. Estado:', {
-        webSerialConnected,
-        temperaturaWebSerial,
-        esp32Estado: esp32Estado?.temperatura,
-        conexionSerial
-      });
+      // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.log('[Test] Intentando iniciar test. Estado:', {
+          webSerialConnected,
+          temperaturaWebSerial,
+          esp32Estado: esp32Estado?.temperatura,
+          conexionSerial
+        });
+      }
       
       if (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined) {
         // Usar temperatura directamente de WebSerial (USB)
         temperaturaInicial = temperaturaWebSerial;
-        console.log('[Test] Usando temperatura de WebSerial:', temperaturaInicial);
+        if (isDev) {
+          console.log('[Test] Usando temperatura de WebSerial:', temperaturaInicial);
+        }
       } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
         // Usar temperatura del servidor
         temperaturaInicial = esp32Estado.temperatura;
-        console.log('[Test] Usando temperatura del servidor:', temperaturaInicial);
+        if (isDev) {
+          console.log('[Test] Usando temperatura del servidor:', temperaturaInicial);
+        }
       } else if (conexionSerial.connected) {
         // Si hay conexión pero no tenemos temperatura aún, esperar un poco y reintentar
-        console.log('[Test] Hay conexión pero no hay temperatura. Esperando...');
+        if (isDev) {
+          console.log('[Test] Hay conexión pero no hay temperatura. Esperando...');
+        }
         showNotification('Aspettando i dati del sensore...', 'info');
         setIsIniciandoTest(false);
         

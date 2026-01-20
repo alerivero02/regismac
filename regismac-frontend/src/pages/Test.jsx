@@ -1936,8 +1936,8 @@ export default function Test() {
         </div>
       )}
 
-      {/* Modal ESP32 */}
-      {showESP32Modal && (
+      {/* Modal ESP32 - Solo se muestra si hay máquina y técnico seleccionados */}
+      {showESP32Modal && selectedMaquina && formData.tecnicoId && (
         <div 
           className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4" 
           style={{ zIndex: 9999, position: 'fixed' }}

@@ -232,11 +232,15 @@ class WebSerialService {
         }
 
         if (value) {
-          if (isDev) {
-            console.log('[WebSerial] 📦 Datos recibidos (raw):', value, 'Tipo:', typeof value, 'Longitud:', value.length);
-          }
+          console.log('[WebSerial] 📦 Datos recibidos (raw):', {
+            valor: value,
+            tipo: typeof value,
+            longitud: value.length,
+            primerosCaracteres: value.substring(0, 50)
+          });
           // Agregar datos al buffer
           this.buffer += value;
+          console.log('[WebSerial] 📋 Buffer actualizado, longitud total:', this.buffer.length);
           
           // Buscar líneas completas (terminadas en \n)
           const lines = this.buffer.split('\n');

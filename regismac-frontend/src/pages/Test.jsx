@@ -534,88 +534,110 @@ export default function Test() {
   }, [showNotification, getWebSerialService]);
 
   const conectarWebSerial = useCallback(async () => {
+    console.log('[SENSOR] 🔌 Iniciando conexión WebSerial...');
+    console.log('[SENSOR] 📊 Estado inicial:', {
+      webSerialConnected,
+      temperaturaWebSerial,
+      esp32Estado: esp32Estado?.temperatura,
+      conexionSerial
+    });
+    
     try {
       const service = await getWebSerialService();
       if (!service) {
+        console.error('[SENSOR] ❌ WebSerial no disponible en este navegador');
         showNotification('WebSerial non disponibile in questo browser. Usa Chrome, Edge o Opera.', 'error');
         return;
       }
       
+      console.log('[SENSOR] ✅ Servicio WebSerial obtenido');
+      
       // Si ya está conectado, desconectar primero
       if (webSerialConnected) {
+        console.log('[SENSOR] ⚠️ Ya hay una conexión activa, desconectando primero...');
         try {
           const status = service.getConnectionStatus();
+          console.log('[SENSOR] 📊 Estado de conexión actual:', status);
           if (status.connected) {
             await service.disconnect();
+            console.log('[SENSOR] ✅ Desconectado correctamente');
             await new Promise(resolve => setTimeout(resolve, 500)); // Esperar un poco
           }
         } catch (err) {
-          // Ignorar errores al desconectar
+          console.warn('[SENSOR] ⚠️ Error al desconectar (continuando):', err.message);
         }
       }
       
       // Solicitar puerto (esto abrirá el selector de puertos del navegador)
+      console.log('[SENSOR] 🔍 Solicitando selección de puerto...');
       await service.requestPort();
+      console.log('[SENSOR] ✅ Puerto seleccionado por el usuario');
       
       // Asegurar que el callback esté configurado ANTES de conectar
-      const isDev = import.meta.env.DEV;
-      if (isDev) {
-        console.log('[Test] 🔌 Conectando al puerto WebSerial...');
-        console.log('[Test] 🔍 Reconfigurando callback antes de conectar...');
-      }
+      console.log('[SENSOR] 🔌 Conectando al puerto WebSerial...');
+      console.log('[SENSOR] 🔍 Configurando callback antes de conectar...');
       
       // Reconfigurar el callback para asegurar que esté activo cuando se conecte
       // Usar función wrapper que siempre accede a los valores más recientes
       service.setDataCallback(async (data) => {
-        const isDev = import.meta.env.DEV;
-        if (isDev) {
-          console.log('[Test] 📥 Callback WebSerial llamado con datos:', data);
-        }
+        console.log('[SENSOR] 📥 Callback WebSerial llamado con datos:', data);
+        console.log('[SENSOR] 📋 Tipo de datos recibidos:', {
+          tieneTemperatura: data?.temperatura !== undefined && data?.temperatura !== null,
+          temperatura: data?.temperatura,
+          tipoTemperatura: typeof data?.temperatura,
+          tieneError: !!data?.error,
+          error: data?.error,
+          timestamp: new Date().toISOString()
+        });
+        
         if (data?.error) {
-          if (isDev) {
-            console.error('[Test] ❌ Error en datos WebSerial:', data.error);
-          }
+          console.error('[SENSOR] ❌ Error en datos WebSerial:', data.error);
           return;
         }
         if (data?.temperatura !== undefined && data?.temperatura !== null) {
           const temperatura = parseFloat(data.temperatura);
           if (!isNaN(temperatura)) {
-            if (isDev) {
-              console.log('[Test] 🌡️ Temperatura recibida:', temperatura);
-              console.log('[Test] 🔄 Actualizando estado...');
-            }
+            console.log('[SENSOR] 🌡️ Temperatura recibida y parseada:', temperatura);
+            console.log('[SENSOR] 📊 Estado ANTES de actualizar:', {
+              temperaturaWebSerialActual: temperaturaWebSerial,
+              temperaturaWebSerialRef: temperaturaWebSerialRef.current,
+              temperaturaNueva: temperatura,
+              diferencia: temperaturaWebSerial !== null ? Math.abs(temperaturaWebSerial - temperatura) : null
+            });
             
             // Actualizar ref y estado para forzar re-render inmediato
+            const temperaturaAnterior = temperaturaWebSerialRef.current;
             temperaturaWebSerialRef.current = temperatura;
+            console.log('[SENSOR] 🔄 Ref actualizado:', temperaturaAnterior, '->', temperatura);
             
             // Forzar actualización del estado de múltiples formas para asegurar que React lo detecte
             setTemperaturaWebSerial(prev => {
               // Si el valor cambió significativamente (>0.1°C), forzar actualización
               if (prev === null || prev === undefined || Math.abs(prev - temperatura) > 0.1) {
-                if (isDev) {
-                  console.log('[Test] 🔄 Actualizando temperatura:', prev, '->', temperatura);
-                }
+                console.log('[SENSOR] 🔄 Actualizando temperatura (cambio significativo):', prev, '->', temperatura);
                 return temperatura;
               }
               // Si el valor es similar pero no igual, actualizar de todas formas para mantener sincronización
+              if (prev !== temperatura) {
+                console.log('[SENSOR] 🔄 Actualizando temperatura (cambio menor):', prev, '->', temperatura);
+              }
               return temperatura;
             });
             
             // Forzar re-render con key que incluye timestamp para asegurar actualización
             setTemperaturaUpdateKey(prev => {
               const newKey = prev + 1;
-              if (isDev) {
-                console.log('[Test] 🔑 Nueva key de actualización:', newKey);
-              }
+              console.log('[SENSOR] 🔑 Nueva key de actualización:', prev, '->', newKey);
               return newKey;
             });
             
             // Usar requestAnimationFrame para asegurar que React procese el estado en el próximo frame
             requestAnimationFrame(() => {
-              // Verificar que el estado se actualizó correctamente
-              if (isDev) {
-                console.log('[Test] ✅ Estado actualizado después de RAF, temperatura:', temperatura);
-              }
+              console.log('[SENSOR] ✅ Estado actualizado después de RAF, temperatura:', temperatura);
+              console.log('[SENSOR] 📊 Estado DESPUÉS de actualizar:', {
+                temperaturaWebSerialRef: temperaturaWebSerialRef.current,
+                temperaturaUpdateKey: temperaturaUpdateKey
+              });
               // Forzar otro update si es necesario (para casos extremos)
               setTemperaturaUpdateKey(prev => prev + 0.0001);
             });
@@ -648,59 +670,61 @@ export default function Test() {
             
             // Enviar al servidor si está disponible
             try {
+              console.log('[SENSOR] 📤 Enviando temperatura al servidor:', temperatura);
               await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura });
+              console.log('[SENSOR] ✅ Temperatura enviada al servidor correctamente');
             } catch (error) {
-              if (isDev) {
-                console.warn('[Test] No se pudo enviar al servidor:', error.message);
-              }
+              console.warn('[SENSOR] ⚠️ No se pudo enviar al servidor:', error.message);
             }
+          } else {
+            console.warn('[SENSOR] ⚠️ Temperatura no es un número válido:', data.temperatura);
           }
+        } else {
+          console.warn('[SENSOR] ⚠️ Datos recibidos sin campo temperatura:', data);
         }
       });
       
-      if (isDev) {
-        console.log('[Test] ✅ Callback reconfigurado');
-      }
+      console.log('[SENSOR] ✅ Callback configurado correctamente');
       
+      console.log('[SENSOR] 🔌 Conectando al puerto con baudrate 115200...');
       await service.connect(115200);
       
-      if (isDev) {
-        console.log('[Test] ✅ Conectado exitosamente, verificando callback...');
-        const status = service.getConnectionStatus();
-        console.log('[Test] 📊 Estado de conexión:', status);
-      }
+      console.log('[SENSOR] ✅ Conectado exitosamente');
+      const status = service.getConnectionStatus();
+      console.log('[SENSOR] 📊 Estado de conexión después de conectar:', status);
       
       setWebSerialConnected(true);
       setConexionSerial({ connected: true, port: 'WebSerial' });
+      console.log('[SENSOR] ✅ Estado actualizado: webSerialConnected=true');
       showNotification('✅ Connesso tramite WebSerial USB', 'success');
     } catch (error) {
-      // En producción, solo loguear errores si no son críticos
-      const isProduction = typeof window !== 'undefined' && 
-                          window.location.hostname !== 'localhost' && 
-                          window.location.hostname !== '127.0.0.1';
-      
-      if (!isProduction) {
-        const isDev = import.meta.env.DEV;
-        if (isDev) {
-          console.error('Error al conectar WebSerial:', error);
-        }
-      }
+      console.error('[SENSOR] ❌ Error al conectar WebSerial:', error);
+      console.error('[SENSOR] 📋 Detalles del error:', {
+        message: error.message,
+        stack: error.stack,
+        name: error.name
+      });
       
       // Mensajes de error más específicos en italiano
       let errorMsg = error.message || 'Errore nella connessione';
       if (error.message?.includes('No se seleccionó') || error.message?.includes('No se seleccion')) {
         errorMsg = 'Nessun porta selezionata. Riprova.';
+        console.warn('[SENSOR] ⚠️ Usuario canceló la selección de puerto');
       } else if (error.message?.includes('en uso') || error.message?.includes('en uso')) {
         errorMsg = 'La porta è in uso. Chiudi Arduino IDE o altre applicazioni che usano la porta.';
+        console.warn('[SENSOR] ⚠️ Puerto en uso por otra aplicación');
       } else if (error.message?.includes('Access denied') || error.message?.includes('denegado')) {
         errorMsg = 'Accesso negato. Verifica i permessi del browser per accedere alle porte USB.';
+        console.warn('[SENSOR] ⚠️ Acceso denegado al puerto');
       } else if (error.message?.includes('no está disponible') || error.message?.includes('non disponibile')) {
         errorMsg = 'WebSerial non disponibile in questo browser. Usa Chrome, Edge o Opera.';
+        console.warn('[SENSOR] ⚠️ WebSerial no disponible en este navegador');
       }
       
       showNotification(errorMsg, 'error');
       setWebSerialConnected(false);
       setConexionSerial({ connected: false, port: null });
+      console.log('[SENSOR] ✅ Estado actualizado: webSerialConnected=false');
     }
   }, [showNotification, getWebSerialService, webSerialConnected]);
 

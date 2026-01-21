@@ -40,4 +40,21 @@ if (!prismaClientExists) {
   }
 }
 
+// En producción, ejecutar migraciones pendientes
+if (isProduction) {
+  log('🔄 Ejecutando migraciones de Prisma en producción...');
+  try {
+    execSync('npx prisma migrate deploy', {
+      stdio: 'inherit',
+      cwd: join(__dirname, '..'),
+      env: { ...process.env }
+    });
+    log('✅ Migraciones ejecutadas correctamente');
+  } catch (error) {
+    logError('❌ Error al ejecutar migraciones:', error.message);
+    // En producción, continuar aunque falle (puede que ya estén aplicadas)
+    log('⚠️  Continuando sin aplicar migraciones...');
+  }
+}
+
 

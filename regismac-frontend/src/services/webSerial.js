@@ -57,16 +57,23 @@ class WebSerialService {
       
       // Configurar reader
       if (this.port.readable && !this.reader) {
+        const isDev = import.meta.env.DEV;
+        if (isDev) {
+          console.log('[WebSerial] 🔧 Configurando reader...');
+        }
         const decoder = new TextDecoderStream();
         const readableStream = this.port.readable.pipeThrough(decoder);
         const reader = readableStream.getReader();
         this.reader = reader;
         
+        if (isDev) {
+          console.log('[WebSerial] ✅ Reader configurado, iniciando lectura...');
+        }
+        
         // Iniciar lectura en segundo plano
         this.readData().catch(err => {
-          const isDev = import.meta.env.DEV;
           if (isDev) {
-            console.error('Error en readData:', err);
+            console.error('[WebSerial] ❌ Error en readData:', err);
           }
         });
       }
@@ -93,20 +100,79 @@ class WebSerialService {
   }
 
   async readData() {
-    if (!this.reader || !this.isConnected) return;
+    const isDev = import.meta.env.DEV;
+    if (!this.reader || !this.isConnected) {
+      if (isDev) {
+        console.warn('[WebSerial] ⚠️ readData: reader o conexión no disponible', {
+          reader: !!this.reader,
+          isConnected: this.isConnected
+        });
+      }
+      return;
+    }
+
+    if (isDev) {
+      console.log('[WebSerial] 🔄 Iniciando lectura de datos...');
+    }
 
     try {
       while (this.isConnected && this.port && this.port.readable && this.reader) {
         const { value, done } = await this.reader.read();
+        
         if (done) {
-          const isDev = import.meta.env.DEV;
           if (isDev) {
-            console.log('[WebSerial] Reader terminado');
+            console.log('[WebSerial] ⚠️ Reader marcado como terminado (done=true)');
+            console.log('[WebSerial] 🔍 Verificando si el puerto sigue siendo readable...');
+            console.log('[WebSerial] Estado:', {
+              isConnected: this.isConnected,
+              portReadable: this.port?.readable,
+              reader: !!this.reader
+            });
           }
-          break;
+          
+          // Si el puerto sigue siendo readable, intentar recrear el reader
+          if (this.isConnected && this.port && this.port.readable) {
+            if (isDev) {
+              console.log('[WebSerial] 🔄 El puerto sigue siendo readable, recreando reader...');
+            }
+            try {
+              // Cerrar el reader anterior
+              if (this.reader) {
+                try {
+                  await this.reader.cancel();
+                } catch (e) {
+                  // Ignorar errores al cancelar
+                }
+              }
+              
+              // Crear un nuevo reader
+              const decoder = new TextDecoderStream();
+              const readableStream = this.port.readable.pipeThrough(decoder);
+              this.reader = readableStream.getReader();
+              
+              if (isDev) {
+                console.log('[WebSerial] ✅ Reader recreado, continuando lectura...');
+              }
+              continue; // Continuar el loop con el nuevo reader
+            } catch (error) {
+              if (isDev) {
+                console.error('[WebSerial] ❌ Error recreando reader:', error);
+              }
+              break;
+            }
+          } else {
+            // El puerto realmente se cerró
+            if (isDev) {
+              console.log('[WebSerial] Reader terminado - puerto cerrado');
+            }
+            break;
+          }
         }
 
         if (value) {
+          if (isDev) {
+            console.log('[WebSerial] 📦 Datos recibidos (raw):', value, 'Tipo:', typeof value, 'Longitud:', value.length);
+          }
           // Agregar datos al buffer
           this.buffer += value;
           
@@ -155,9 +221,13 @@ class WebSerialService {
                   if (isDev) {
                     console.log('[WebSerial] 🔔 Llamando callback con temperatura:', data.temperatura);
                     console.log('[WebSerial] 📋 Callback disponible:', !!this.onDataCallback);
+                    console.log('[WebSerial] 📋 Tipo de callback:', typeof this.onDataCallback);
                   }
                   if (this.onDataCallback) {
                     try {
+                      if (isDev) {
+                        console.log('[WebSerial] 🚀 Ejecutando callback...');
+                      }
                       this.onDataCallback(data);
                       if (isDev) {
                         console.log('[WebSerial] ✅ Callback ejecutado correctamente');
@@ -165,10 +235,14 @@ class WebSerialService {
                     } catch (error) {
                       if (isDev) {
                         console.error('[WebSerial] ❌ Error ejecutando callback:', error);
+                        console.error('[WebSerial] Stack trace:', error.stack);
                       }
                     }
-                  } else if (isDev) {
-                    console.warn('[WebSerial] ⚠️ No hay callback configurado');
+                  } else {
+                    if (isDev) {
+                      console.warn('[WebSerial] ⚠️ No hay callback configurado - los datos se perderán!');
+                      console.warn('[WebSerial] ⚠️ Esto puede pasar si el callback se configura después de que los datos lleguen');
+                    }
                   }
                 } else if (isDev) {
                   console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);

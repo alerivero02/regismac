@@ -167,11 +167,17 @@ export const finalizarTest = async (req, res, next) => {
       throw new ApiError("No hay un test activo", 400);
     }
 
+    // Calcular tiempo transcurrido total
+    const tiempoTranscurrido = sensorState.tiempoInicio 
+      ? Math.floor((Date.now() - sensorState.tiempoInicio) / 1000) 
+      : 0;
+    
     const resultado = {
       temperaturaInicial: sensorState.temperaturaInicial,
       tiempo0Grados: sensorState.tiempo0Grados,
       tiempoMenos8Grados: sensorState.tiempoMenos8Grados,
       humedad: sensorState.humedad,
+      tiempoTranscurrido: tiempoTranscurrido,
     };
 
     // Resetear estado

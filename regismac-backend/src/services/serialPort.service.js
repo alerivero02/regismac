@@ -122,15 +122,65 @@ export async function connectToPort(portPath, baudRate = 115200) {
     
     // Manejar datos recibidos
     parser.on('data', (data) => {
+      const line = data.toString().trim();
+      
+      // Ignorar líneas de boot del ESP32
+      if (line.includes('ets Jul') || 
+          line.includes('rst:') || 
+          line.includes('boot:') ||
+          line.includes('configsip:') ||
+          line.includes('load:') ||
+          line.includes('entry') ||
+          line.includes('ESP32 Sensor') ||
+          line.includes('Sensor iniciado') ||
+          line.includes('Sistema listo')) {
+        // Ignorar mensajes de boot
+        return;
+      }
+      
       try {
         // Intentar parsear JSON
-        const jsonData = JSON.parse(data.toString().trim());
-        if (onDataCallback) {
+        let jsonData;
+        
+        // Buscar JSON en la línea (puede tener texto adicional)
+        if (line.startsWith('{') && line.endsWith('}')) {
+          jsonData = JSON.parse(line);
+        } else {
+          // Intentar extraer JSON de la línea
+          const jsonMatch = line.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            jsonData = JSON.parse(jsonMatch[0]);
+          } else {
+            console.log('📥 Datos recibidos (no JSON):', line);
+            return;
+          }
+        }
+        
+        if (process.env.NODE_ENV !== 'production') {
+          console.log('✅ JSON parseado del ESP32:', jsonData);
+        }
+        
+        if (onDataCallback && jsonData.temperatura !== undefined) {
           onDataCallback(jsonData);
         }
       } catch (error) {
-        // Si no es JSON válido, intentar leer como texto plano
-        console.log('Datos recibidos (no JSON):', data.toString());
+        // Si no es JSON válido, intentar extraer temperatura directamente
+        const tempMatch = line.match(/"temperatura"\s*:\s*([\d.-]+)/);
+        if (tempMatch) {
+          const temperatura = parseFloat(tempMatch[1]);
+          if (!isNaN(temperatura)) {
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('✅ Temperatura extraída:', temperatura);
+            }
+            if (onDataCallback) {
+              onDataCallback({ temperatura });
+            }
+          }
+        } else {
+          if (process.env.NODE_ENV !== 'production') {
+            console.log('📥 Datos recibidos (no JSON):', line);
+          }
+        }
       }
     });
     

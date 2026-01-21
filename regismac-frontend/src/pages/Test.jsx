@@ -295,6 +295,7 @@ export default function Test() {
             // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
             if (isDev) {
               console.log('[Test] 📥 Callback WebSerial llamado con datos:', data);
+              console.log('[Test] 🔍 Tipo de datos:', typeof data, 'Keys:', Object.keys(data || {}));
             }
             if (data.error) {
               if (isDev) {
@@ -302,12 +303,28 @@ export default function Test() {
               }
               return;
             }
+            if (isDev) {
+              console.log('[Test] 🔍 Verificando temperatura en datos:', {
+                tieneTemperatura: data.temperatura !== undefined && data.temperatura !== null,
+                valor: data.temperatura,
+                tipo: typeof data.temperatura
+              });
+            }
+            
             if (data.temperatura !== undefined && data.temperatura !== null) {
               const temperatura = parseFloat(data.temperatura);
+              
+              if (isNaN(temperatura)) {
+                if (isDev) {
+                  console.warn('[Test] ⚠️ Temperatura no es un número válido:', data.temperatura);
+                }
+                return;
+              }
+              
               // Logs solo en desarrollo
               if (isDev) {
                 console.log('[Test] 🌡️ Temperatura recibida y parseada:', temperatura);
-                console.log('[Test] 📊 Estado actual:', {
+                console.log('[Test] 📊 Estado ANTES de actualizar:', {
                   webSerialConnected,
                   temperaturaWebSerial,
                   temperaturaNueva: temperatura
@@ -318,7 +335,14 @@ export default function Test() {
               setTemperaturaWebSerial(temperatura);
               
               if (isDev) {
-                console.log('[Test] ✅ Estado temperaturaWebSerial actualizado a:', temperatura);
+                console.log('[Test] ✅ setTemperaturaWebSerial llamado con:', temperatura);
+                // Verificar el estado después de un pequeño delay
+                setTimeout(() => {
+                  console.log('[Test] 🔍 Estado DESPUÉS de actualizar (verificación):', {
+                    webSerialConnected,
+                    // Nota: temperaturaWebSerial puede no estar actualizado aquí por el closure
+                  });
+                }, 100);
               }
               
               // Si hay un test activo, detectar temperaturas objetivo localmente
@@ -394,11 +418,15 @@ export default function Test() {
         });
         
         // Si el servidor tiene temperatura pero no tenemos de WebSerial, usarla
-        if (estado.temperatura !== null && estado.temperatura !== undefined && temperaturaWebSerial === null) {
-          if (isDev) {
-            console.log('[Test] Usando temperatura del servidor:', estado.temperatura);
+        // Solo si NO estamos usando WebSerial (para evitar conflictos)
+        if (!webSerialConnected && estado.temperatura !== null && estado.temperatura !== undefined) {
+          // Actualizar solo si no tenemos temperatura de WebSerial o si la del servidor es más reciente
+          if (temperaturaWebSerial === null || (estado.timestamp && estado.timestamp > (esp32Estado?.timestamp || 0))) {
+            if (isDev) {
+              console.log('[Test] Usando temperatura del servidor (WebSerial no conectado):', estado.temperatura);
+            }
+            setTemperaturaWebSerial(estado.temperatura);
           }
-          setTemperaturaWebSerial(estado.temperatura);
         }
         
         // Actualizar temperatura inicial cuando se inicia el test
@@ -460,52 +488,70 @@ export default function Test() {
           setTimeout(async () => {
             try {
               const resultado = await sensorAPI.finalizarTest();
-              if (resultado.resultado.tiempo0Grados && resultado.resultado.tiempoMenos8Grados) {
-                const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
-                
-                const dataToSend = {
-                  maquinaId: parseInt(selectedMaquina),
-                  tecnicoId: parseInt(formData.tecnicoId),
-                  temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
-                  tiempo_0_gradi: resultado.resultado.tiempo0Grados,
-                  tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados,
-                  humedad_ambiente: resultado.resultado.humedad || undefined,
-                  regolazione_vite: formData.regolazione_vite || undefined,
-                  quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
-                  observazioni: formData.observazioni || undefined,
-                  hora_test: fechaHoraTest,
-                };
-
-                await testsAPI.create(dataToSend);
-                
-                const testsActualizados = await testsAPI.getAll();
-                setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
-                
+              
+              // Guardar SIEMPRE el test, incluso si no se alcanzaron todas las temperaturas objetivo
+              const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
+              
+              // Formatear tiempos si están disponibles
+              let tiempo0Formato = null;
+              let tiempoMenos8Formato = null;
+              
+              if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempo0Grados !== undefined) {
                 const minutos0 = Math.floor(resultado.resultado.tiempo0Grados / 60);
                 const segundos0 = resultado.resultado.tiempo0Grados % 60;
-                const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
-                
+                tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+              }
+              
+              if (resultado.resultado.tiempoMenos8Grados !== null && resultado.resultado.tiempoMenos8Grados !== undefined) {
                 const minutosMenos8 = Math.floor(resultado.resultado.tiempoMenos8Grados / 60);
                 const segundosMenos8 = resultado.resultado.tiempoMenos8Grados % 60;
-          const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
-          
-          setFormData(prev => ({
-            ...prev,
-                  temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
-            tiempo_0_manual: tiempo0Formato,
-            tiempo_meno8_manual: tiempoMenos8Formato,
-                  humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
-                }));
-                
-                setTestESP32Activo(false);
-                setFechaHoraInicioTestESP32(null);
-                setShowESP32Modal(false);
-                autoSaveRef.current = false;
+                tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+              }
+              
+              const dataToSend = {
+                maquinaId: parseInt(selectedMaquina),
+                tecnicoId: parseInt(formData.tecnicoId),
+                temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
+                tiempo_0_gradi: resultado.resultado.tiempo0Grados || undefined,
+                tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados || undefined,
+                humedad_ambiente: resultado.resultado.humedad || undefined,
+                regolazione_vite: formData.regolazione_vite || undefined,
+                quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
+                observazioni: formData.observazioni || 
+                  (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null
+                    ? 'Test completado sin alcanzar todas las temperaturas objetivo. ' + (formData.observazioni || '')
+                    : formData.observazioni) || undefined,
+                hora_test: fechaHoraTest,
+              };
+
+              await testsAPI.create(dataToSend);
+              
+              const testsActualizados = await testsAPI.getAll();
+              setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
+              
+              setFormData(prev => ({
+                ...prev,
+                temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
+                tiempo_0_manual: tiempo0Formato || prev.tiempo_0_manual,
+                tiempo_meno8_manual: tiempoMenos8Formato || prev.tiempo_meno8_manual,
+                humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
+              }));
+              
+              setTestESP32Activo(false);
+              setFechaHoraInicioTestESP32(null);
+              setShowESP32Modal(false);
+              autoSaveRef.current = false;
+              
+              // Mensaje según si se alcanzaron todas las temperaturas
+              if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempoMenos8Grados !== null) {
                 showNotification('✅ Test completado y guardado automáticamente!', 'success');
               } else {
-                autoSaveRef.current = false;
-        }
-      } catch (error) {
+                const temperaturasNoAlcanzadas = [];
+                if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
+                if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
+                showNotification(`✅ Test guardado automáticamente. Temperaturas no alcanzadas: ${temperaturasNoAlcanzadas.join(', ')}`, 'info');
+              }
+            } catch (error) {
               const isDev = import.meta.env.DEV;
               if (isDev) {
                 console.error('Error al guardar test automáticamente:', error);
@@ -577,8 +623,80 @@ export default function Test() {
       // Solicitar puerto (esto abrirá el selector de puertos del navegador)
       await service.requestPort();
       
-      // Conectar al puerto seleccionado
+      // Asegurar que el callback esté configurado ANTES de conectar
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.log('[Test] 🔌 Conectando al puerto WebSerial...');
+        console.log('[Test] 🔍 Reconfigurando callback antes de conectar...');
+      }
+      
+      // Reconfigurar el callback para asegurar que esté activo cuando se conecte
+      service.setDataCallback(async (data) => {
+        if (isDev) {
+          console.log('[Test] 📥 Callback WebSerial llamado con datos:', data);
+        }
+        if (data?.error) {
+          if (isDev) {
+            console.error('[Test] ❌ Error en datos WebSerial:', data.error);
+          }
+          return;
+        }
+        if (data?.temperatura !== undefined && data?.temperatura !== null) {
+          const temperatura = parseFloat(data.temperatura);
+          if (!isNaN(temperatura)) {
+            if (isDev) {
+              console.log('[Test] 🌡️ Temperatura recibida:', temperatura);
+            }
+            setTemperaturaWebSerial(temperatura);
+            
+            // Detección de temperaturas objetivo si hay test activo
+            if (testESP32Activo && tiempoInicioTestRef.current) {
+              const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
+              if (tiempo0GradosRef.current === null && temperatura >= -0.5 && temperatura <= 0.5) {
+                tiempo0GradosRef.current = tiempoTranscurrido;
+                const minutos0 = Math.floor(tiempoTranscurrido / 60);
+                const segundos0 = tiempoTranscurrido % 60;
+                setFormData(prev => ({
+                  ...prev,
+                  tiempo_0_manual: `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`,
+                }));
+                showNotification(`✅ Temperatura 0°C detectada`, 'success');
+              }
+              if (tiempoMenos8GradosRef.current === null && temperatura >= -8.5 && temperatura <= -7.5) {
+                tiempoMenos8GradosRef.current = tiempoTranscurrido;
+                const minutosMenos8 = Math.floor(tiempoTranscurrido / 60);
+                const segundosMenos8 = tiempoTranscurrido % 60;
+                setFormData(prev => ({
+                  ...prev,
+                  tiempo_meno8_manual: `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`,
+                }));
+                showNotification(`✅ Temperatura -8°C detectada`, 'success');
+              }
+            }
+            
+            // Enviar al servidor si está disponible
+            try {
+              await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura });
+            } catch (error) {
+              if (isDev) {
+                console.warn('[Test] No se pudo enviar al servidor:', error.message);
+              }
+            }
+          }
+        }
+      });
+      
+      if (isDev) {
+        console.log('[Test] ✅ Callback reconfigurado');
+      }
+      
       await service.connect(115200);
+      
+      if (isDev) {
+        console.log('[Test] ✅ Conectado exitosamente, verificando callback...');
+        const status = service.getConnectionStatus();
+        console.log('[Test] 📊 Estado de conexión:', status);
+      }
       
       setWebSerialConnected(true);
       setConexionSerial({ connected: true, port: 'WebSerial' });
@@ -752,50 +870,70 @@ export default function Test() {
       const resultado = await sensorAPI.finalizarTest();
       setTestESP32Activo(false);
       
-      if (resultado.resultado.tiempo0Grados && resultado.resultado.tiempoMenos8Grados) {
-        const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
-        
-        const dataToSend = {
-          maquinaId: parseInt(selectedMaquina),
-          tecnicoId: parseInt(formData.tecnicoId),
-          temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
-          tiempo_0_gradi: resultado.resultado.tiempo0Grados,
-          tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados,
-          humedad_ambiente: resultado.resultado.humedad || undefined,
-          regolazione_vite: formData.regolazione_vite || undefined,
-          quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
-          observazioni: formData.observazioni || undefined,
-          hora_test: fechaHoraTest,
-        };
-
-        await testsAPI.create(dataToSend);
-        
-        const testsActualizados = await testsAPI.getAll();
-        setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
-        
+      // Guardar SIEMPRE el test, incluso si no se alcanzaron todas las temperaturas objetivo
+      const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
+      
+      // Calcular tiempo transcurrido total del test
+      const tiempoTranscurridoTotal = resultado.resultado.tiempoTranscurrido || 0;
+      
+      // Formatear tiempos si están disponibles
+      let tiempo0Formato = null;
+      let tiempoMenos8Formato = null;
+      
+      if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempo0Grados !== undefined) {
         const minutos0 = Math.floor(resultado.resultado.tiempo0Grados / 60);
         const segundos0 = resultado.resultado.tiempo0Grados % 60;
-        const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
-        
+        tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+      }
+      
+      if (resultado.resultado.tiempoMenos8Grados !== null && resultado.resultado.tiempoMenos8Grados !== undefined) {
         const minutosMenos8 = Math.floor(resultado.resultado.tiempoMenos8Grados / 60);
         const segundosMenos8 = resultado.resultado.tiempoMenos8Grados % 60;
-        const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
-        
-        setFormData(prev => ({
-          ...prev,
-          temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
-          tiempo_0_manual: tiempo0Formato,
-          tiempo_meno8_manual: tiempoMenos8Formato,
-          humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
-        }));
-        
-        setShowESP32Modal(false);
-        setFechaHoraInicioTestESP32(null);
-        showNotification('Test completado y guardado automáticamente!', 'success');
+        tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+      }
+      
+      // Preparar datos para enviar - incluir todos los campos disponibles
+      const dataToSend = {
+        maquinaId: parseInt(selectedMaquina),
+        tecnicoId: parseInt(formData.tecnicoId),
+        temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
+        tiempo_0_gradi: resultado.resultado.tiempo0Grados || undefined,
+        tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados || undefined,
+        humedad_ambiente: resultado.resultado.humedad || undefined,
+        regolazione_vite: formData.regolazione_vite || undefined,
+        quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
+        observazioni: formData.observazioni || 
+          (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null
+            ? 'Test completado sin alcanzar todas las temperaturas objetivo. ' + (formData.observazioni || '')
+            : formData.observazioni) || undefined,
+        hora_test: fechaHoraTest,
+      };
+
+      await testsAPI.create(dataToSend);
+      
+      const testsActualizados = await testsAPI.getAll();
+      setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
+      
+      // Actualizar formulario con los datos disponibles
+      setFormData(prev => ({
+        ...prev,
+        temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
+        tiempo_0_manual: tiempo0Formato || prev.tiempo_0_manual,
+        tiempo_meno8_manual: tiempoMenos8Formato || prev.tiempo_meno8_manual,
+        humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
+      }));
+      
+      setShowESP32Modal(false);
+      setFechaHoraInicioTestESP32(null);
+      
+      // Mensaje según si se alcanzaron todas las temperaturas
+      if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempoMenos8Grados !== null) {
+        showNotification('✅ Test completado y guardado correctamente!', 'success');
       } else {
-        showNotification('Test finalizado, pero no se detectaron todas las temperaturas. El test no se ha guardado.', 'warning');
-        setTestESP32Activo(false);
-        setFechaHoraInicioTestESP32(null);
+        const temperaturasNoAlcanzadas = [];
+        if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
+        if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
+        showNotification(`✅ Test guardado. Temperaturas no alcanzadas: ${temperaturasNoAlcanzadas.join(', ')}`, 'info');
       }
     } catch (error) {
       const isDev = import.meta.env.DEV;
@@ -2145,7 +2283,8 @@ export default function Test() {
                 </div>
               )}
 
-              {(puertosDisponibles.length > 0 || conexionSerial.connected) && (
+              {/* Conexión por servidor - Solo mostrar si NO estamos usando WebSerial */}
+              {!webSerialConnected && (puertosDisponibles.length > 0 || conexionSerial.connected) && (
                 <div className={`p-3 rounded-lg ${
                   conexionSerial.connected 
                     ? 'bg-green-50 border border-green-200' 
@@ -2161,7 +2300,7 @@ export default function Test() {
                       }`}>
                         {conexionSerial.connected 
                           ? `✅ Conectado por servidor: ${conexionSerial.port || 'Puerto desconocido'}`
-                          : '⚠️ No conectado por servidor'}
+                          : '⚠️ Conexión por servidor (alternativa a WebSerial)'}
                       </p>
                     </div>
                     {!conexionSerial.connected && puertosDisponibles.length > 0 && (
@@ -2169,7 +2308,7 @@ export default function Test() {
                         onClick={() => setMostrarSelectorPuerto(!mostrarSelectorPuerto)}
                         className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold"
                       >
-                        {mostrarSelectorPuerto ? 'Ocultar' : 'Conectar'}
+                        {mostrarSelectorPuerto ? 'Ocultar' : 'Conectar Servidor'}
                       </button>
                     )}
                     {conexionSerial.connected && (
@@ -2270,13 +2409,21 @@ export default function Test() {
                   <div className="flex items-center gap-2">
                     <FiThermometer className="w-5 h-5 text-red-500" />
                     <span className="text-2xl font-bold text-gray-900">
-                      {(webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined)
+                      {(webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined && !isNaN(temperaturaWebSerial))
                         ? `${temperaturaWebSerial.toFixed(1)}°C`
-                        : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined)
+                        : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))
                         ? `${esp32Estado.temperatura.toFixed(1)}°C`
                         : '--'}
                     </span>
                   </div>
+                  {/* Debug info solo en desarrollo */}
+                  {import.meta.env.DEV && (
+                    <div className="text-xs text-gray-400 mt-1 font-mono">
+                      Debug: WS={webSerialConnected ? 'Y' : 'N'}, 
+                      TWS={temperaturaWebSerial !== null && temperaturaWebSerial !== undefined ? temperaturaWebSerial.toFixed(2) : 'null'}, 
+                      ES={esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? esp32Estado.temperatura.toFixed(2) : 'null'}
+                    </div>
+                  )}
                 </div>
                 <div>
                   {testESP32Activo ? (

@@ -9,39 +9,6 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
   errorFormat: 'pretty',
-  datasources: {
-    db: {
-      url: process.env.DATABASE_URL,
-    },
-  },
-});
-
-// Manejar errores de conexión y reconectar automáticamente
-prisma.$on('error' as never, async (e: any) => {
-  const isDev = process.env.NODE_ENV === 'development';
-  if (isDev) {
-    console.error('🔴 Prisma error event:', e);
-  }
-  
-  // Si es un error de conexión, intentar reconectar
-  if (e.message && (
-    e.message.includes('terminating connection') ||
-    e.message.includes('connection terminated') ||
-    e.code === 'E57P01'
-  )) {
-    if (isDev) {
-      console.log('🔄 Intentando reconectar después de error de conexión...');
-    }
-    setTimeout(async () => {
-      try {
-        await reconnectPrisma();
-      } catch (reconnectError) {
-        if (isDev) {
-          console.error('❌ Error al reconectar:', reconnectError);
-        }
-      }
-    }, 2000);
-  }
 });
 
 app.locals.prisma = prisma;

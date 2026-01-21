@@ -782,6 +782,7 @@ export default function Test() {
       }
       
       setTestESP32Activo(true);
+      testESP32ActivoRef.current = true;
       setFechaHoraInicioTestESP32(new Date().toISOString());
       
       // Inicializar referencias para detección local de temperaturas

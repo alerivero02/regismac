@@ -91,9 +91,30 @@ class WebSerialService {
           console.log('[WebSerial] 📋 Callback disponible ANTES de crear reader:', !!this.onDataCallback);
         }
         
-        // Esperar un momento para asegurar que el callback esté configurado
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // CRÍTICO: Verificar que el callback esté configurado antes de crear el reader
+        // Si no hay callback, esperar hasta que esté disponible (máximo 2 segundos)
+        let callbackReady = !!this.onDataCallback;
+        let waitAttempts = 0;
+        const maxWaitAttempts = 20; // 20 * 100ms = 2 segundos máximo
         
+        while (!callbackReady && waitAttempts < maxWaitAttempts) {
+          if (isDev) {
+            console.log(`[WebSerial] ⏳ Esperando callback... (intento ${waitAttempts + 1}/${maxWaitAttempts})`);
+          }
+          await new Promise(resolve => setTimeout(resolve, 100));
+          callbackReady = !!this.onDataCallback;
+          waitAttempts++;
+        }
+        
+        if (!callbackReady) {
+          console.warn('[WebSerial] ⚠️ Callback no disponible después de esperar, continuando de todas formas...');
+        } else {
+          if (isDev) {
+            console.log('[WebSerial] ✅ Callback confirmado antes de crear reader');
+          }
+        }
+        
+        // Crear decoder y reader
         const decoder = new TextDecoderStream();
         const readableStream = this.port.readable.pipeThrough(decoder);
         const reader = readableStream.getReader();
@@ -102,6 +123,14 @@ class WebSerialService {
         if (isDev) {
           console.log('[WebSerial] ✅ Reader configurado, iniciando lectura...');
           console.log('[WebSerial] 📋 Callback disponible DESPUÉS de crear reader:', !!this.onDataCallback);
+        }
+        
+        // Esperar un momento adicional para que el ESP32 termine de bootear
+        // Esto evita leer mensajes de boot que pueden interferir
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        if (isDev) {
+          console.log('[WebSerial] 🚀 Iniciando loop de lectura...');
         }
         
         // Iniciar lectura en segundo plano - esto debe continuar indefinidamente
@@ -184,13 +213,21 @@ class WebSerialService {
         }
         
         // Verificar que el callback esté disponible antes de leer
+        // Si no hay callback, esperar un poco pero no bloquear indefinidamente
         if (!this.onDataCallback) {
           const isDev = import.meta.env.DEV;
           if (isDev) {
             console.warn('[WebSerial] ⚠️ No hay callback configurado, esperando...');
           }
-          // Esperar un poco antes de continuar
+          // Esperar un poco antes de continuar (máximo 1 segundo)
           await new Promise(resolve => setTimeout(resolve, 100));
+          // Si después de esperar sigue sin haber callback, continuar de todas formas
+          // para no bloquear el loop, pero los datos se perderán
+          if (!this.onDataCallback) {
+            if (isDev) {
+              console.warn('[WebSerial] ⚠️ Callback aún no disponible después de esperar, continuando...');
+            }
+          }
           continue;
         }
         
@@ -511,14 +548,22 @@ class WebSerialService {
 
   setDataCallback(callback) {
     const isDev = import.meta.env.DEV;
+    // Guardar el callback de forma síncrona para asegurar que esté disponible inmediatamente
     this.onDataCallback = callback;
     if (isDev) {
       console.log('[WebSerial] ✅ Callback actualizado:', !!callback);
+      console.log('[WebSerial] 📋 Callback tipo:', typeof callback);
     }
     
-    // Si ya hay un reader activo, asegurarse de que el callback esté disponible
-    // El loop de lectura usa this.onDataCallback, así que debería funcionar
-    // Pero si el reader ya terminó, necesitamos recrearlo
+    // Si ya hay un reader activo, el callback se usará automáticamente en el próximo ciclo de lectura
+    // No necesitamos recrear el reader, solo asegurarnos de que el callback esté disponible
+    if (this.isConnected && this.port && this.port.readable && this.reader) {
+      if (isDev) {
+        console.log('[WebSerial] ℹ️ Reader ya activo, callback se usará en próxima lectura');
+      }
+    }
+    
+    // Si hay un reader pero está terminado, recrearlo
     if (this.isConnected && this.port && this.port.readable && (!this.reader || this.reader === null)) {
       if (isDev) {
         console.log('[WebSerial] 🔄 Recreando reader para usar nuevo callback...');

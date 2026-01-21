@@ -264,10 +264,17 @@ class WebSerialService {
           // Mantener la última línea incompleta en el buffer
           this.buffer = lines.pop() || '';
           
+          console.log('[WebSerial] 📋 Líneas encontradas:', lines.length, 'Buffer restante:', this.buffer.length);
+          
           // Procesar cada línea completa
           for (const line of lines) {
             const trimmedLine = line.trim();
-            if (!trimmedLine) continue;
+            if (!trimmedLine) {
+              console.log('[WebSerial] ⏭️ Línea vacía, saltando');
+              continue;
+            }
+            
+            console.log('[WebSerial] 📝 Procesando línea:', trimmedLine.substring(0, 100));
             
             // Ignorar líneas de boot del ESP32
             if (trimmedLine.includes('ets Jul') || 

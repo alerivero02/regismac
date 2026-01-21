@@ -2512,7 +2512,13 @@ export default function Test() {
                   <label className="text-xs text-gray-600 mb-1 block">Temperatura Attuale</label>
                   <div className="flex items-center gap-2">
                     <FiThermometer className="w-5 h-5 text-red-500" />
-                    <span className="text-2xl font-bold text-gray-900" key={`temp-${temperaturaUpdateKey}-${temperaturaWebSerial}-${esp32Estado?.temperatura}`}>
+                    <span 
+                      className="text-2xl font-bold text-gray-900 transition-all duration-200" 
+                      key={`temp-${temperaturaUpdateKey}-${temperaturaWebSerialRef.current || temperaturaWebSerial || 0}-${esp32Estado?.temperatura || 0}-${Date.now()}`}
+                      style={{ 
+                        animation: temperaturaWebSerial !== null ? 'pulse 0.3s ease-in-out' : 'none'
+                      }}
+                    >
                       {(webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined && !isNaN(temperaturaWebSerial))
                         ? `${temperaturaWebSerial.toFixed(1)}°C`
                         : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))

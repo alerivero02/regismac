@@ -129,6 +129,17 @@ class WebSerialService {
 
     try {
       while (this.isConnected && this.port && this.port.readable && this.reader) {
+        // Verificar que el callback esté disponible antes de leer
+        if (!this.onDataCallback) {
+          const isDev = import.meta.env.DEV;
+          if (isDev) {
+            console.warn('[WebSerial] ⚠️ No hay callback configurado, esperando...');
+          }
+          // Esperar un poco antes de continuar
+          await new Promise(resolve => setTimeout(resolve, 100));
+          continue;
+        }
+        
         const { value, done } = await this.reader.read();
         
         if (done) {

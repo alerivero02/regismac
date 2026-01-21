@@ -15,8 +15,8 @@ export const errorHandler = (err, req, res, next) => {
   if (isConnectionError) {
     // Detectar el tipo de base de datos desde DATABASE_URL
     const dbUrl = process.env.DATABASE_URL || '';
-    const dbType = dbUrl.includes('postgresql') ? 'PostgreSQL' 
-                  : dbUrl.includes('mysql') ? 'MySQL'
+    const dbType = dbUrl.includes('postgresql') || dbUrl.includes('postgres') ? 'PostgreSQL' 
+                  : dbUrl.includes('mysql') ? 'MySQL' // Solo para desarrollo local
                   : 'database';
     
     // En producción, dar más información útil

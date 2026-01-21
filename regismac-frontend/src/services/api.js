@@ -129,8 +129,8 @@ async function fetchAPI(endpoint, options = {}) {
         } else {
           errorMessage = 'Non autenticato. Effettua il login.';
         }
-      } else if (errorMessage.includes('conexión') || errorMessage.includes('connessione') || errorMessage.includes('database') || errorMessage.includes('MySQL')) {
-        errorMessage = 'Errore di connessione al database. Verifica che MySQL sia in esecuzione e che la configurazione in .env sia corretta.';
+      } else if (errorMessage.includes('conexión') || errorMessage.includes('connessione') || errorMessage.includes('database') || errorMessage.includes('PostgreSQL') || errorMessage.includes('postgresql')) {
+        errorMessage = 'Errore di connessione al database PostgreSQL. Verifica che il database sia disponibile e che la configurazione sia corretta.';
       } else if (errorMessage.includes('autenticado') || errorMessage.includes('autenticato')) {
         const isAuthError = errorMessage.toLowerCase().includes('autenticat') || 
                            errorMessage.toLowerCase().includes('sessione') ||

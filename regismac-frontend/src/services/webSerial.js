@@ -143,7 +143,30 @@ class WebSerialService {
     }
 
     try {
-      while (this.isConnected && this.port && this.port.readable && this.reader) {
+      // Loop continuo - debe seguir leyendo mientras esté conectado
+      while (this.isConnected && this.port && this.port.readable) {
+        // Si no hay reader, intentar recrearlo
+        if (!this.reader) {
+          const isDev = import.meta.env.DEV;
+          if (isDev) {
+            console.log('[WebSerial] 🔄 No hay reader, recreando...');
+          }
+          try {
+            const decoder = new TextDecoderStream();
+            const readableStream = this.port.readable.pipeThrough(decoder);
+            this.reader = readableStream.getReader();
+            if (isDev) {
+              console.log('[WebSerial] ✅ Reader recreado');
+            }
+          } catch (error) {
+            if (isDev) {
+              console.error('[WebSerial] ❌ Error recreando reader:', error);
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            continue;
+          }
+        }
+        
         // Verificar que el callback esté disponible antes de leer
         if (!this.onDataCallback) {
           const isDev = import.meta.env.DEV;
@@ -155,7 +178,8 @@ class WebSerialService {
           continue;
         }
         
-        const { value, done } = await this.reader.read();
+        try {
+          const { value, done } = await this.reader.read();
         
         if (done) {
           if (isDev) {
@@ -366,17 +390,63 @@ class WebSerialService {
             }
           }
         }
+        } catch (readError) {
+          // Si hay un error al leer, intentar recrear el reader
+          const isDev = import.meta.env.DEV;
+          if (isDev) {
+            console.warn('[WebSerial] ⚠️ Error leyendo datos:', readError);
+          }
+          
+          // Si el reader está terminado pero el puerto sigue siendo readable, recrear
+          if (this.isConnected && this.port && this.port.readable) {
+            try {
+              if (this.reader) {
+                try {
+                  await this.reader.cancel();
+                  await this.reader.releaseLock();
+                } catch (e) {
+                  // Ignorar errores
+                }
+              }
+              const decoder = new TextDecoderStream();
+              const readableStream = this.port.readable.pipeThrough(decoder);
+              this.reader = readableStream.getReader();
+              if (isDev) {
+                console.log('[WebSerial] ✅ Reader recreado después de error');
+              }
+              // Continuar el loop
+              continue;
+            } catch (recreateError) {
+              if (isDev) {
+                console.error('[WebSerial] ❌ Error recreando reader:', recreateError);
+              }
+              await new Promise(resolve => setTimeout(resolve, 1000));
+              continue;
+            }
+          } else {
+            // El puerto se cerró realmente
+            break;
+          }
+        }
       }
     } catch (error) {
+      const isDev = import.meta.env.DEV;
       if (this.isConnected && this.onDataCallback) {
         this.onDataCallback({ error: error.message });
       }
-      // Si hay error, desconectar
-      if (error.name !== 'NetworkError') {
-        const isDev = import.meta.env.DEV;
-      if (isDev) {
+      // Si hay error, intentar reconectar si el puerto sigue siendo readable
+      if (error.name !== 'NetworkError' && this.isConnected && this.port && this.port.readable) {
+        if (isDev) {
+          console.error('[WebSerial] ❌ Error en readData, intentando reconectar:', error);
+        }
+        // Intentar reconectar después de un delay
+        setTimeout(() => {
+          if (this.isConnected && this.port && this.port.readable) {
+            this.readData().catch(() => {});
+          }
+        }, 1000);
+      } else if (isDev) {
         console.error('[WebSerial] ❌ Error en readData:', error);
-      }
       }
     }
   }

@@ -181,7 +181,14 @@ export const updateMaquina = async (req, res, next) => {
       if (error instanceof ApiError) throw error;
       console.error('❌ Error al buscar máquina:', error.message);
       // Si hay un error al obtener la máquina, verificar si es un error de conexión
-      if (error.code === 'P1001' || error.code === 'P1002' || error.code === 'P1017') {
+      const isConnectionError = error.code === 'P1001' || 
+                               error.code === 'P1002' || 
+                               error.code === 'P1017' || 
+                               error.code === 'P1000' ||
+                               (error.cause && error.cause.code === 'E57P01') ||
+                               (error.message && error.message.includes('terminating connection'));
+      
+      if (isConnectionError) {
         console.error('❌ Error de conexión a la base de datos:', error.code);
         return next(error); // Dejar que el errorHandler lo maneje
       }
@@ -460,11 +467,19 @@ export const updateMaquina = async (req, res, next) => {
         } catch (updateError) {
           lastError = updateError;
           // Si es un error de conexión y quedan reintentos, intentar reconectar
-          if ((updateError.code === 'P1001' || updateError.code === 'P1002' || updateError.code === 'P1017') && retries > 1) {
+          const isConnectionError = updateError.code === 'P1001' || 
+                                   updateError.code === 'P1002' || 
+                                   updateError.code === 'P1017' || 
+                                   updateError.code === 'P1000' ||
+                                   (updateError.cause && updateError.cause.code === 'E57P01') ||
+                                   (updateError.message && updateError.message.includes('terminating connection'));
+          
+          if (isConnectionError && retries > 1) {
+            console.warn(`⚠️ Error de conexión a la base de datos al actualizar máquina. Reintentando... (${retries - 1} intentos restantes)`);
             try {
               await req.app.locals.prisma.$disconnect();
               await req.app.locals.prisma.$connect();
-              await new Promise(resolve => setTimeout(resolve, 500));
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Aumentar delay a 1 segundo
             } catch (reconnectError) {
               console.error('❌ Error al reconectar:', reconnectError.message);
             }
@@ -487,8 +502,19 @@ export const updateMaquina = async (req, res, next) => {
         name: updateError.name
       });
       // Si hay un error de conexión a la base de datos al actualizar
-      if (updateError.code === 'P1001' || updateError.code === 'P1002' || updateError.code === 'P1017') {
-        console.error('❌ Errore di connessione al database durante l\'aggiornamento:', updateError);
+      const isConnectionError = updateError.code === 'P1001' || 
+                                updateError.code === 'P1002' || 
+                                updateError.code === 'P1017' || 
+                                updateError.code === 'P1000' ||
+                                (updateError.cause && updateError.cause.code === 'E57P01') ||
+                                (updateError.message && updateError.message.includes('terminating connection'));
+      
+      if (isConnectionError) {
+        console.error('❌ Errore di connessione al database durante l\'aggiornamento:', {
+          code: updateError.code,
+          message: updateError.message,
+          cause: updateError.cause
+        });
         return next(updateError); // Dejar que el errorHandler lo maneje con 503
       }
       // Otros errores de Prisma

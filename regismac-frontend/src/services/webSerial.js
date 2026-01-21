@@ -152,8 +152,23 @@ class WebSerialService {
                 }
                 
                 if (data.temperatura !== undefined && data.temperatura !== null) {
+                  if (isDev) {
+                    console.log('[WebSerial] 🔔 Llamando callback con temperatura:', data.temperatura);
+                    console.log('[WebSerial] 📋 Callback disponible:', !!this.onDataCallback);
+                  }
                   if (this.onDataCallback) {
-                    this.onDataCallback(data);
+                    try {
+                      this.onDataCallback(data);
+                      if (isDev) {
+                        console.log('[WebSerial] ✅ Callback ejecutado correctamente');
+                      }
+                    } catch (error) {
+                      if (isDev) {
+                        console.error('[WebSerial] ❌ Error ejecutando callback:', error);
+                      }
+                    }
+                  } else if (isDev) {
+                    console.warn('[WebSerial] ⚠️ No hay callback configurado');
                   }
                 } else if (isDev) {
                   console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);
@@ -170,8 +185,22 @@ class WebSerialService {
                       console.log('[WebSerial] ✅ JSON extraído:', data);
                     }
                     if (data.temperatura !== undefined && data.temperatura !== null) {
+                      if (isDev) {
+                        console.log('[WebSerial] 🔔 Llamando callback con temperatura extraída:', data.temperatura);
+                      }
                       if (this.onDataCallback) {
-                        this.onDataCallback(data);
+                        try {
+                          this.onDataCallback(data);
+                          if (isDev) {
+                            console.log('[WebSerial] ✅ Callback ejecutado correctamente');
+                          }
+                        } catch (error) {
+                          if (isDev) {
+                            console.error('[WebSerial] ❌ Error ejecutando callback:', error);
+                          }
+                        }
+                      } else if (isDev) {
+                        console.warn('[WebSerial] ⚠️ No hay callback configurado');
                       }
                     }
                   } catch (e) {
@@ -197,8 +226,22 @@ class WebSerialService {
                       if (isDev) {
                         console.log('[WebSerial] ✅ Temperatura extraída:', temperatura);
                       }
+                      if (isDev) {
+                        console.log('[WebSerial] 🔔 Llamando callback con temperatura extraída:', temperatura);
+                      }
                       if (this.onDataCallback) {
-                        this.onDataCallback({ temperatura });
+                        try {
+                          this.onDataCallback({ temperatura });
+                          if (isDev) {
+                            console.log('[WebSerial] ✅ Callback ejecutado correctamente');
+                          }
+                        } catch (error) {
+                          if (isDev) {
+                            console.error('[WebSerial] ❌ Error ejecutando callback:', error);
+                          }
+                        }
+                      } else if (isDev) {
+                        console.warn('[WebSerial] ⚠️ No hay callback configurado');
                       }
                     }
                   }

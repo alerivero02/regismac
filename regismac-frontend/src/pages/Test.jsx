@@ -286,16 +286,19 @@ export default function Test() {
     
     getWebSerialService()
       .then(service => {
+        const isDev = import.meta.env.DEV;
         if (service) {
+          if (isDev) {
+            console.log('[Test] ✅ WebSerial service obtenido, configurando callback');
+          }
           service.setDataCallback(async (data) => {
             // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
-            const isDev = import.meta.env.DEV;
             if (isDev) {
-              console.log('[Test] Datos recibidos de WebSerial:', data);
+              console.log('[Test] 📥 Callback WebSerial llamado con datos:', data);
             }
             if (data.error) {
               if (isDev) {
-                console.error('[Test] Error en datos WebSerial:', data.error);
+                console.error('[Test] ❌ Error en datos WebSerial:', data.error);
               }
               return;
             }
@@ -303,11 +306,20 @@ export default function Test() {
               const temperatura = parseFloat(data.temperatura);
               // Logs solo en desarrollo
               if (isDev) {
-                console.log('[Test] Temperatura recibida:', temperatura);
+                console.log('[Test] 🌡️ Temperatura recibida y parseada:', temperatura);
+                console.log('[Test] 📊 Estado actual:', {
+                  webSerialConnected,
+                  temperaturaWebSerial,
+                  temperaturaNueva: temperatura
+                });
               }
               
               // Actualizar estado local inmediatamente para uso USB directo
               setTemperaturaWebSerial(temperatura);
+              
+              if (isDev) {
+                console.log('[Test] ✅ Estado temperaturaWebSerial actualizado a:', temperatura);
+              }
               
               // Si hay un test activo, detectar temperaturas objetivo localmente
               if (testESP32Activo && tiempoInicioTestRef.current) {
@@ -353,7 +365,10 @@ export default function Test() {
                 await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura });
               } catch (error) {
                 // Si falla el servidor, no importa - usamos datos locales
-                console.warn('No se pudo enviar al servidor, usando datos locales:', error.message);
+                const isDev = import.meta.env.DEV;
+                if (isDev) {
+                  console.warn('No se pudo enviar al servidor, usando datos locales:', error.message);
+                }
               }
             }
           });
@@ -2255,7 +2270,7 @@ export default function Test() {
                   <div className="flex items-center gap-2">
                     <FiThermometer className="w-5 h-5 text-red-500" />
                     <span className="text-2xl font-bold text-gray-900">
-                      {(webSerialConnected && temperaturaWebSerial !== null)
+                      {(webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined)
                         ? `${temperaturaWebSerial.toFixed(1)}°C`
                         : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined)
                         ? `${esp32Estado.temperatura.toFixed(1)}°C`
@@ -2302,7 +2317,7 @@ export default function Test() {
                     <span className="font-semibold text-gray-900">
                       {(esp32Estado?.temperaturaInicial !== null && esp32Estado?.temperaturaInicial !== undefined)
                         ? `${esp32Estado.temperaturaInicial.toFixed(1)}°C`
-                        : (temperaturaWebSerial !== null ? `${temperaturaWebSerial.toFixed(1)}°C` : '--')}
+                        : (temperaturaWebSerial !== null && temperaturaWebSerial !== undefined ? `${temperaturaWebSerial.toFixed(1)}°C` : '--')}
                     </span>
                   </div>
                   <div>
@@ -2358,8 +2373,8 @@ export default function Test() {
                   disabled={
                     isIniciandoTest ||
                     (
-                      (!webSerialConnected || (temperaturaWebSerial === null && temperaturaWebSerial !== 0)) && 
-                      (!esp32Estado || (esp32Estado.temperatura === null && esp32Estado.temperatura !== 0))
+                      (!webSerialConnected || (temperaturaWebSerial === null || temperaturaWebSerial === undefined)) && 
+                      (!esp32Estado || (esp32Estado.temperatura === null || esp32Estado.temperatura === undefined))
                     )
                   }
                   className={`flex-1 flex items-center justify-center gap-2 py-3 font-semibold transition-all ${

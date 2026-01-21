@@ -1,17 +1,26 @@
 export const errorHandler = (err, req, res, next) => {
   console.error("🔥 ERROR:", err);
+  console.error("🔥 ERROR Code:", err.code);
+  console.error("🔥 ERROR Message:", err.message);
 
   // Manejar errores de Prisma (conexión a base de datos)
-  if (err.code === 'P1001' || err.code === 'P1002' || err.code === 'P1017') {
+  if (err.code === 'P1001' || err.code === 'P1002' || err.code === 'P1017' || err.code === 'P1000') {
     // Detectar el tipo de base de datos desde DATABASE_URL
     const dbType = process.env.DATABASE_URL?.includes('postgresql') ? 'PostgreSQL' 
                   : process.env.DATABASE_URL?.includes('mysql') ? 'MySQL'
                   : 'database';
     
+    // En producción, dar más información útil
+    const isProduction = process.env.NODE_ENV === 'production';
+    const errorMessage = isProduction 
+      ? `Errore di connessione al database ${dbType}. Verifica che il servizio database sia disponibile su Render.com.`
+      : `Errore di connessione al database. Verifica che ${dbType} sia in esecuzione e che la configurazione in .env sia corretta.`;
+    
     return res.status(503).json({
-      error: `Errore di connessione al database. Verifica che ${dbType} sia in esecuzione e che la configurazione in .env sia corretta.`,
+      error: errorMessage,
       details: process.env.NODE_ENV === 'development' ? err.message : undefined,
-      code: err.code
+      code: err.code,
+      dbType: dbType
     });
   }
 

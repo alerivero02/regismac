@@ -292,55 +292,48 @@ class WebSerialService {
               continue;
             }
             
-            // Logs solo en desarrollo
-            const isDev = import.meta.env.DEV;
-            if (isDev) {
-              console.log('[WebSerial] 📥 Línea recibida:', trimmedLine);
-            }
+            // Logs siempre activos para diagnóstico
+            console.log('[WebSerial] 📥 Línea recibida:', trimmedLine);
+            console.log('[WebSerial] 🔍 Verificando si es JSON completo...', {
+              empiezaConLlave: trimmedLine.startsWith('{'),
+              terminaConLlave: trimmedLine.endsWith('}'),
+              longitud: trimmedLine.length
+            });
             
             try {
               // Intentar parsear como JSON completo
               if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
+                console.log('[WebSerial] ✅ Línea parece ser JSON completo, parseando...');
                 const data = JSON.parse(trimmedLine);
-                if (isDev) {
-                  console.log('[WebSerial] ✅ Datos JSON parseados:', data);
-                }
+                console.log('[WebSerial] ✅ Datos JSON parseados correctamente:', data);
                 
                 if (data.temperatura !== undefined && data.temperatura !== null) {
-                  if (isDev) {
-                    console.log('[WebSerial] 🔔 Llamando callback con temperatura:', data.temperatura);
-                    console.log('[WebSerial] 📋 Callback disponible:', !!this.onDataCallback);
-                    console.log('[WebSerial] 📋 Tipo de callback:', typeof this.onDataCallback);
-                  }
+                  console.log('[WebSerial] 🌡️ Temperatura encontrada en JSON:', data.temperatura);
+                  console.log('[WebSerial] 🔔 Llamando callback con temperatura:', data.temperatura);
+                  console.log('[WebSerial] 📋 Callback disponible:', !!this.onDataCallback);
+                  console.log('[WebSerial] 📋 Tipo de callback:', typeof this.onDataCallback);
+                  
                   if (this.onDataCallback) {
                     try {
-                      if (isDev) {
-                        console.log('[WebSerial] 🚀 Ejecutando callback...');
-                      }
+                      console.log('[WebSerial] 🚀 Ejecutando callback...');
                       // Ejecutar callback de forma asíncrona para no bloquear el loop de lectura
                       Promise.resolve(this.onDataCallback(data)).catch(callbackError => {
-                        if (isDev) {
-                          console.error('[WebSerial] ❌ Error en callback (async):', callbackError);
-                        }
+                        console.error('[WebSerial] ❌ Error en callback (async):', callbackError);
                       });
-                      if (isDev) {
-                        console.log('[WebSerial] ✅ Callback ejecutado correctamente');
-                      }
+                      console.log('[WebSerial] ✅ Callback ejecutado correctamente');
                     } catch (error) {
-                      if (isDev) {
-                        console.error('[WebSerial] ❌ Error ejecutando callback:', error);
-                        console.error('[WebSerial] Stack trace:', error.stack);
-                      }
+                      console.error('[WebSerial] ❌ Error ejecutando callback:', error);
+                      console.error('[WebSerial] Stack trace:', error.stack);
                     }
                   } else {
-                    if (isDev) {
-                      console.warn('[WebSerial] ⚠️ No hay callback configurado - los datos se perderán!');
-                      console.warn('[WebSerial] ⚠️ Esto puede pasar si el callback se configura después de que los datos lleguen');
-                    }
+                    console.warn('[WebSerial] ⚠️ No hay callback configurado - los datos se perderán!');
+                    console.warn('[WebSerial] ⚠️ Esto puede pasar si el callback se configura después de que los datos lleguen');
                   }
-                } else if (isDev) {
+                } else {
                   console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);
                 }
+              } else {
+                console.log('[WebSerial] ⚠️ Línea NO es JSON completo (no empieza/termina con llaves)');
               } 
               // Intentar extraer JSON de líneas con texto adicional o fragmentado
               else {

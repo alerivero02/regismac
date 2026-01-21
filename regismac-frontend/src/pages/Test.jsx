@@ -605,42 +605,18 @@ export default function Test() {
               diferencia: temperaturaWebSerial !== null ? Math.abs(temperaturaWebSerial - temperatura) : null
             });
             
-            // Actualizar ref y estado para forzar re-render inmediato
+            // Actualizar ref y estado inmediatamente
             const temperaturaAnterior = temperaturaWebSerialRef.current;
             temperaturaWebSerialRef.current = temperatura;
             console.log('[SENSOR] 🔄 Ref actualizado:', temperaturaAnterior, '->', temperatura);
             
-            // Forzar actualización del estado de múltiples formas para asegurar que React lo detecte
-            setTemperaturaWebSerial(prev => {
-              // Si el valor cambió significativamente (>0.1°C), forzar actualización
-              if (prev === null || prev === undefined || Math.abs(prev - temperatura) > 0.1) {
-                console.log('[SENSOR] 🔄 Actualizando temperatura (cambio significativo):', prev, '->', temperatura);
-                return temperatura;
-              }
-              // Si el valor es similar pero no igual, actualizar de todas formas para mantener sincronización
-              if (prev !== temperatura) {
-                console.log('[SENSOR] 🔄 Actualizando temperatura (cambio menor):', prev, '->', temperatura);
-              }
-              return temperatura;
-            });
+            // Actualizar estado siempre que haya un cambio (incluso pequeño)
+            // Esto asegura que la UI se actualice en tiempo real
+            setTemperaturaWebSerial(temperatura);
+            console.log('[SENSOR] 🔄 Estado actualizado:', temperaturaAnterior, '->', temperatura);
             
-            // Forzar re-render con key que incluye timestamp para asegurar actualización
-            setTemperaturaUpdateKey(prev => {
-              const newKey = prev + 1;
-              console.log('[SENSOR] 🔑 Nueva key de actualización:', prev, '->', newKey);
-              return newKey;
-            });
-            
-            // Usar requestAnimationFrame para asegurar que React procese el estado en el próximo frame
-            requestAnimationFrame(() => {
-              console.log('[SENSOR] ✅ Estado actualizado después de RAF, temperatura:', temperatura);
-              console.log('[SENSOR] 📊 Estado DESPUÉS de actualizar:', {
-                temperaturaWebSerialRef: temperaturaWebSerialRef.current,
-                temperaturaUpdateKey: temperaturaUpdateKey
-              });
-              // Forzar otro update si es necesario (para casos extremos)
-              setTemperaturaUpdateKey(prev => prev + 0.0001);
-            });
+            // Incrementar key para forzar re-render del componente de temperatura
+            setTemperaturaUpdateKey(prev => prev + 1);
             
             // Detección de temperaturas objetivo si hay test activo
             // Usar refs para acceder a valores actuales sin depender de closures
@@ -668,13 +644,14 @@ export default function Test() {
               }
             }
             
-            // Enviar al servidor si está disponible
+            // Enviar al servidor si está disponible (opcional, no crítico)
             try {
               console.log('[SENSOR] 📤 Enviando temperatura al servidor:', temperatura);
-              await sensorAPI.recibirDatosSensor({ temperatura: data.temperatura });
+              await sensorAPI.recibirDatos(temperatura, null);
               console.log('[SENSOR] ✅ Temperatura enviada al servidor correctamente');
             } catch (error) {
-              console.warn('[SENSOR] ⚠️ No se pudo enviar al servidor:', error.message);
+              // No es crítico si falla, solo loguear
+              console.warn('[SENSOR] ⚠️ No se pudo enviar al servidor (no crítico):', error.message);
             }
           } else {
             console.warn('[SENSOR] ⚠️ Temperatura no es un número válido:', data.temperatura);

@@ -52,12 +52,14 @@ export default function Test() {
   const [testESP32Activo, setTestESP32Activo] = useState(false);
   const [fechaHoraInicioTestESP32, setFechaHoraInicioTestESP32] = useState(null);
   const [temperaturaWebSerial, setTemperaturaWebSerial] = useState(null);
+  const [temperaturaUpdateKey, setTemperaturaUpdateKey] = useState(0); // Key para forzar re-render
   const [isIniciandoTest, setIsIniciandoTest] = useState(false);
   const [tiempoTranscurridoDisplay, setTiempoTranscurridoDisplay] = useState('0:00');
   const autoSaveRef = useRef(false);
   const tiempoInicioTestRef = useRef(null);
   const tiempo0GradosRef = useRef(null);
   const tiempoMenos8GradosRef = useRef(null);
+  const temperaturaWebSerialRef = useRef(null); // Ref para acceso directo al valor más reciente
   const [puertosDisponibles, setPuertosDisponibles] = useState([]);
   const [conexionSerial, setConexionSerial] = useState({ connected: false, port: null });
   const [mostrarSelectorPuerto, setMostrarSelectorPuerto] = useState(false);
@@ -337,17 +339,13 @@ export default function Test() {
               }
               
               // Actualizar estado local inmediatamente para uso USB directo
+              temperaturaWebSerialRef.current = temperatura;
               setTemperaturaWebSerial(temperatura);
+              setTemperaturaUpdateKey(prev => prev + 1); // Forzar re-render del componente
               
               if (isDev) {
                 console.log('[Test] ✅ setTemperaturaWebSerial llamado con:', temperatura);
-                // Verificar el estado después de un pequeño delay
-                setTimeout(() => {
-                  console.log('[Test] 🔍 Estado DESPUÉS de actualizar (verificación):', {
-                    webSerialConnected,
-                    // Nota: temperaturaWebSerial puede no estar actualizado aquí por el closure
-                  });
-                }, 100);
+                console.log('[Test] 🔄 Forzando re-render con key:', temperaturaUpdateKey + 1);
               }
               
               // Si hay un test activo, detectar temperaturas objetivo localmente
@@ -690,7 +688,10 @@ export default function Test() {
             if (isDev) {
               console.log('[Test] 🌡️ Temperatura recibida:', temperatura);
             }
+            // Actualizar ref y estado para forzar re-render
+            temperaturaWebSerialRef.current = temperatura;
             setTemperaturaWebSerial(temperatura);
+            setTemperaturaUpdateKey(prev => prev + 1); // Forzar re-render del componente
             
             // Detección de temperaturas objetivo si hay test activo
             if (testESP32Activo && tiempoInicioTestRef.current) {
@@ -2579,7 +2580,7 @@ export default function Test() {
                   <label className="text-xs text-gray-600 mb-1 block">Temperatura Attuale</label>
                   <div className="flex items-center gap-2">
                     <FiThermometer className="w-5 h-5 text-red-500" />
-                    <span className="text-2xl font-bold text-gray-900" key={`temp-${temperaturaWebSerial}-${esp32Estado?.temperatura}`}>
+                    <span className="text-2xl font-bold text-gray-900" key={`temp-${temperaturaUpdateKey}-${temperaturaWebSerial}-${esp32Estado?.temperatura}`}>
                       {(webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined && !isNaN(temperaturaWebSerial))
                         ? `${temperaturaWebSerial.toFixed(1)}°C`
                         : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))

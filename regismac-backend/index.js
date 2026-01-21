@@ -164,7 +164,14 @@ async function startServer() {
     const PORT = process.env.PORT || 3000;
     const HOST = process.env.HOST || '0.0.0.0';
     
-    app.listen(PORT, HOST, () => {
+    // Crear servidor HTTP para Socket.IO
+    const httpServer = http.createServer(app);
+    
+    // Inicializar Socket.IO
+    const { initializeSocketIO } = await import('./src/services/socket.service.js');
+    initializeSocketIO(httpServer);
+    
+    httpServer.listen(PORT, HOST, () => {
       if (!isProduction) {
         const localIP = getLocalIP();
         console.log(`Server running on http://localhost:${PORT}`);

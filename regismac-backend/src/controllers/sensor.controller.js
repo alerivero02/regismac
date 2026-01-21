@@ -1,5 +1,6 @@
 import { ApiError } from "../utils/apiError.js";
 import * as serialPortService from "../services/serialPort.service.js";
+import { emitSensorUpdate } from "../services/socket.service.js";
 
 // Almacenar el estado del sensor en memoria (en producción podría usar Redis)
 let sensorState = {
@@ -29,6 +30,13 @@ function updateSensorStateFromSerial(data) {
   sensorState.temperatura = parseFloat(temperatura);
   sensorState.humedad = data.humedad ? parseFloat(data.humedad) : null;
   sensorState.timestamp = new Date();
+  
+  // Emitir actualización vía WebSocket
+  emitSensorUpdate({
+    temperatura: sensorState.temperatura,
+    humedad: sensorState.humedad,
+    timestamp: sensorState.timestamp
+  });
   
   // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo
   if (sensorState.testActivo && sensorState.tiempoInicio) {
@@ -68,6 +76,13 @@ export const recibirDatosSensor = async (req, res, next) => {
     sensorState.temperatura = parseFloat(temperatura);
     sensorState.humedad = humedad ? parseFloat(humedad) : null;
     sensorState.timestamp = new Date();
+
+    // Emitir actualización vía WebSocket
+    emitSensorUpdate({
+      temperatura: sensorState.temperatura,
+      humedad: sensorState.humedad,
+      timestamp: sensorState.timestamp
+    });
 
     // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo
     if (sensorState.testActivo && sensorState.tiempoInicio) {

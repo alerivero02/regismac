@@ -295,64 +295,78 @@ class WebSerialService {
           this.buffer += value;
           console.log('[WebSerial] 📋 Buffer actualizado, longitud total:', this.buffer.length);
           
-          // Buscar líneas completas (terminadas en \n)
-          const lines = this.buffer.split('\n');
+          // Procesar JSON completos del buffer (pueden estar divididos entre múltiples chunks)
+          // Buscar todos los JSON completos en el buffer
+          let processed = false;
+          let bufferChanged = true;
           
-          // Mantener la última línea incompleta en el buffer
-          this.buffer = lines.pop() || '';
-          
-          console.log('[WebSerial] 📋 Líneas encontradas:', lines.length, 'Buffer restante:', this.buffer.length);
-          
-          // Procesar cada línea completa
-          for (const line of lines) {
-            const trimmedLine = line.trim();
-            if (!trimmedLine) {
-              console.log('[WebSerial] ⏭️ Línea vacía, saltando');
-              continue;
-            }
+          while (bufferChanged) {
+            bufferChanged = false;
+            const bufferLength = this.buffer.length;
             
-            console.log('[WebSerial] 📝 Procesando línea:', trimmedLine.substring(0, 100));
-            
-            // Ignorar líneas de boot del ESP32
-            if (trimmedLine.includes('ets Jul') || 
-                trimmedLine.includes('rst:') || 
-                trimmedLine.includes('boot:') ||
-                trimmedLine.includes('configsip:') ||
-                trimmedLine.includes('SPIWP:') ||
-                trimmedLine.includes('POWERON_RESET') ||
-                trimmedLine.includes('SPI_FAST_FLASH_BOOT')) {
-              // Ignorar líneas de boot, solo loguear en desarrollo
-              const isDev = import.meta.env.DEV;
-              if (isDev) {
-                console.log('[WebSerial] ⏭️ Ignorando línea de boot:', trimmedLine);
+            // Buscar el primer '{' en el buffer
+            const firstBrace = this.buffer.indexOf('{');
+            if (firstBrace === -1) {
+              // No hay JSON en el buffer, limpiar si es muy grande (más de 10KB)
+              if (this.buffer.length > 10000) {
+                console.warn('[WebSerial] ⚠️ Buffer muy grande sin JSON, limpiando...');
+                this.buffer = '';
               }
-              continue;
+              break;
             }
             
-            // Logs siempre activos para diagnóstico
-            console.log('[WebSerial] 📥 Línea recibida:', trimmedLine);
-            console.log('[WebSerial] 🔍 Verificando si es JSON completo...', {
-              empiezaConLlave: trimmedLine.startsWith('{'),
-              terminaConLlave: trimmedLine.endsWith('}'),
-              longitud: trimmedLine.length
-            });
+            // Buscar el '}' correspondiente, contando llaves anidadas
+            let braceCount = 0;
+            let jsonEnd = -1;
+            for (let i = firstBrace; i < this.buffer.length; i++) {
+              if (this.buffer[i] === '{') {
+                braceCount++;
+              } else if (this.buffer[i] === '}') {
+                braceCount--;
+                if (braceCount === 0) {
+                  jsonEnd = i;
+                  break;
+                }
+              }
+            }
             
-            try {
-              // Intentar parsear como JSON completo
-              if (trimmedLine.startsWith('{') && trimmedLine.endsWith('}')) {
-                console.log('[WebSerial] ✅ Línea parece ser JSON completo, parseando...');
-                const data = JSON.parse(trimmedLine);
+            if (jsonEnd !== -1) {
+              // Encontramos un JSON completo
+              const jsonStr = this.buffer.substring(firstBrace, jsonEnd + 1);
+              const trimmedJson = jsonStr.trim();
+              
+              // Remover el JSON procesado del buffer (incluyendo cualquier texto antes)
+              this.buffer = this.buffer.substring(jsonEnd + 1);
+              bufferChanged = true;
+              processed = true;
+              
+              console.log('[WebSerial] 📝 Procesando JSON encontrado:', trimmedJson.substring(0, 100));
+              
+              // Ignorar líneas de boot del ESP32
+              if (trimmedJson.includes('ets Jul') || 
+                  trimmedJson.includes('rst:') || 
+                  trimmedJson.includes('boot:') ||
+                  trimmedJson.includes('configsip:') ||
+                  trimmedJson.includes('SPIWP:') ||
+                  trimmedJson.includes('POWERON_RESET') ||
+                  trimmedJson.includes('SPI_FAST_FLASH_BOOT')) {
+                const isDev = import.meta.env.DEV;
+                if (isDev) {
+                  console.log('[WebSerial] ⏭️ Ignorando JSON de boot:', trimmedJson.substring(0, 50));
+                }
+                continue;
+              }
+              
+              try {
+                const data = JSON.parse(trimmedJson);
                 console.log('[WebSerial] ✅ Datos JSON parseados correctamente:', data);
                 
                 if (data.temperatura !== undefined && data.temperatura !== null) {
                   console.log('[WebSerial] 🌡️ Temperatura encontrada en JSON:', data.temperatura);
                   console.log('[WebSerial] 🔔 Llamando callback con temperatura:', data.temperatura);
-                  console.log('[WebSerial] 📋 Callback disponible:', !!this.onDataCallback);
-                  console.log('[WebSerial] 📋 Tipo de callback:', typeof this.onDataCallback);
                   
                   if (this.onDataCallback) {
                     try {
-                      console.log('[WebSerial] 🚀 Ejecutando callback...');
                       // Ejecutar callback de forma asíncrona para no bloquear el loop de lectura
                       Promise.resolve(this.onDataCallback(data)).catch(callbackError => {
                         console.error('[WebSerial] ❌ Error en callback (async):', callbackError);
@@ -364,54 +378,20 @@ class WebSerialService {
                     }
                   } else {
                     console.warn('[WebSerial] ⚠️ No hay callback configurado - los datos se perderán!');
-                    console.warn('[WebSerial] ⚠️ Esto puede pasar si el callback se configura después de que los datos lleguen');
                   }
                 } else {
                   console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);
                 }
-              } else {
-                // Intentar extraer JSON de líneas con texto adicional o fragmentado
-                console.log('[WebSerial] ⚠️ Línea NO es JSON completo (no empieza/termina con llaves)');
-                // Buscar JSON completo en la línea (puede tener texto antes/después)
-                const jsonMatch = trimmedLine.match(/\{[\s\S]*?\}/);
-                if (jsonMatch) {
-                  console.log('[WebSerial] 📋 JSON encontrado en la línea:', jsonMatch[0]);
-                  try {
-                    const data = JSON.parse(jsonMatch[0]);
-                    console.log('[WebSerial] ✅ JSON extraído y parseado:', data);
-                    if (data.temperatura !== undefined && data.temperatura !== null) {
-                      console.log('[WebSerial] 🔔 Llamando callback con temperatura extraída:', data.temperatura);
-                      if (this.onDataCallback) {
-                        try {
-                          this.onDataCallback(data);
-                          console.log('[WebSerial] ✅ Callback ejecutado correctamente');
-                        } catch (error) {
-                          console.error('[WebSerial] ❌ Error ejecutando callback:', error);
-                        }
-                      } else {
-                        console.warn('[WebSerial] ⚠️ No hay callback configurado');
-                      }
-                    } else {
-                      console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);
-                    }
-                  } catch (e) {
-                    console.warn('[WebSerial] ⚠️ Error parseando JSON extraído:', e.message, 'JSON:', jsonMatch[0]);
-                  }
-                }
+              } catch (parseError) {
+                console.warn('[WebSerial] ⚠️ Error parseando JSON:', parseError.message, 'JSON:', trimmedJson.substring(0, 100));
+                
                 // Intentar extraer temperatura directamente si aparece en el texto
-                else if (trimmedLine.includes('temperatura') || trimmedLine.includes('temp') || trimmedLine.includes('T=')) {
-                  console.log('[WebSerial] 📊 Línea con posible temperatura:', trimmedLine);
-                  
-                  // Buscar patrones como "temperatura":25.5 o T=25.5
-                  const tempMatch = trimmedLine.match(/"temperatura"\s*:\s*([\d.-]+)/) || 
-                                   trimmedLine.match(/T[=:]\s*([\d.-]+)/) ||
-                                   trimmedLine.match(/temp[=:]\s*([\d.-]+)/i);
-                  
+                if (trimmedJson.includes('temperatura') || trimmedJson.includes('temp')) {
+                  const tempMatch = trimmedJson.match(/"temperatura"\s*:\s*([\d.-]+)/);
                   if (tempMatch) {
                     const temperatura = parseFloat(tempMatch[1]);
                     if (!isNaN(temperatura)) {
                       console.log('[WebSerial] ✅ Temperatura extraída del patrón:', temperatura);
-                      console.log('[WebSerial] 🔔 Llamando callback con temperatura extraída:', temperatura);
                       if (this.onDataCallback) {
                         try {
                           this.onDataCallback({ temperatura });
@@ -419,25 +399,78 @@ class WebSerialService {
                         } catch (error) {
                           console.error('[WebSerial] ❌ Error ejecutando callback:', error);
                         }
-                      } else {
-                        console.warn('[WebSerial] ⚠️ No hay callback configurado');
                       }
-                    } else {
-                      console.warn('[WebSerial] ⚠️ Temperatura extraída no es un número válido:', tempMatch[1]);
                     }
-                  } else {
-                    console.log('[WebSerial] ⚠️ No se encontró patrón de temperatura en la línea');
                   }
-                } else {
-                  console.log('[WebSerial] ⚠️ Línea no contiene JSON ni patrones de temperatura reconocidos');
                 }
               }
-            } catch (error) {
-              if (isDev) {
-                console.warn('[WebSerial] ⚠️ Error procesando línea:', trimmedLine, error.message);
+            } else {
+              // No hay JSON completo aún, pero hay una llave de apertura
+              // Si el buffer es muy grande sin encontrar un cierre, puede haber un problema
+              if (this.buffer.length > 5000) {
+                console.warn('[WebSerial] ⚠️ Buffer grande sin JSON completo, buscando desde el siguiente {');
+                // Buscar el siguiente '{' y descartar lo anterior
+                const nextBrace = this.buffer.indexOf('{', firstBrace + 1);
+                if (nextBrace !== -1) {
+                  this.buffer = this.buffer.substring(nextBrace);
+                  bufferChanged = true;
+                } else {
+                  // No hay más llaves, limpiar buffer
+                  this.buffer = '';
+                  break;
+                }
+              } else {
+                // Esperar más datos
+                break;
               }
             }
           }
+          
+          // Procesar líneas que no son JSON (para logs de boot, etc.)
+          if (!processed && this.buffer.length > 0) {
+            // Dividir por líneas para procesar mensajes de boot
+            const lines = this.buffer.split(/\r?\n/);
+            // Mantener solo la última línea incompleta en el buffer
+            const lastLine = lines.pop() || '';
+            
+            // Si hay líneas completas que procesar
+            if (lines.length > 0) {
+              // Limpiar el buffer de líneas ya procesadas
+              this.buffer = lastLine;
+              
+              for (const line of lines) {
+                const trimmedLine = line.trim();
+                if (!trimmedLine) {
+                  continue;
+                }
+                
+                // Ignorar líneas de boot del ESP32
+                if (trimmedLine.includes('ets Jul') || 
+                    trimmedLine.includes('rst:') || 
+                    trimmedLine.includes('boot:') ||
+                    trimmedLine.includes('configsip:') ||
+                    trimmedLine.includes('SPIWP:') ||
+                    trimmedLine.includes('POWERON_RESET') ||
+                    trimmedLine.includes('SPI_FAST_FLASH_BOOT') ||
+                    trimmedLine.includes('load:0x') ||
+                    trimmedLine.includes('entry 0x') ||
+                    trimmedLine.includes('mode:DIO') ||
+                    trimmedLine.includes('clock div:')) {
+                  // Ignorar líneas de boot
+                  continue;
+                }
+                
+                // Si la línea contiene un JSON parcial, esperar más datos
+                if (trimmedLine.includes('{') && !trimmedLine.includes('}')) {
+                  // JSON incompleto, mantener en buffer
+                  this.buffer = trimmedLine + '\n' + this.buffer;
+                  break;
+                }
+              }
+            }
+          }
+          
+          console.log('[WebSerial] 📋 Buffer restante después de procesar:', this.buffer.length);
         }
         } catch (readError) {
           // Si hay un error al leer, intentar recrear el reader

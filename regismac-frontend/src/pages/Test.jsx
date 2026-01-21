@@ -16,6 +16,7 @@ import {
   FiRotateCw,
 } from 'react-icons/fi';
 import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from '../services/api';
+import { connectSocket, disconnectSocket, onSensorUpdate, offSensorUpdate } from '../services/socket.js';
 import Notification from '../components/Notification';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
@@ -222,6 +223,55 @@ export default function Test() {
     };
   }, [testESP32Activo]);
 
+  // Conectar WebSocket para recibir actualizaciones en tiempo real
+  useEffect(() => {
+    connectSocket();
+    
+    const handleSensorUpdate = (data) => {
+      if (data.temperatura !== undefined && data.temperatura !== null) {
+        const temperatura = parseFloat(data.temperatura);
+        if (!isNaN(temperatura)) {
+          console.log('[WebSocket] 🌡️ Temperatura recibida:', temperatura);
+          setTemperaturaWebSerial(temperatura);
+          temperaturaWebSerialRef.current = temperatura;
+          setTemperaturaUpdateKey(prev => prev + 1);
+          
+          // Detección de temperaturas objetivo si hay test activo
+          if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
+            const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
+            if (tiempo0GradosRef.current === null && temperatura >= -0.5 && temperatura <= 0.5) {
+              tiempo0GradosRef.current = tiempoTranscurrido;
+              const minutos0 = Math.floor(tiempoTranscurrido / 60);
+              const segundos0 = tiempoTranscurrido % 60;
+              setFormData(prev => ({
+                ...prev,
+                tiempo_0_manual: `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`,
+              }));
+              showNotification(`✅ Temperatura 0°C detectada`, 'success');
+            }
+            if (tiempoMenos8GradosRef.current === null && temperatura >= -8.5 && temperatura <= -7.5) {
+              tiempoMenos8GradosRef.current = tiempoTranscurrido;
+              const minutosMenos8 = Math.floor(tiempoTranscurrido / 60);
+              const segundosMenos8 = tiempoTranscurrido % 60;
+              setFormData(prev => ({
+                ...prev,
+                tiempo_meno8_manual: `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`,
+              }));
+              showNotification(`✅ Temperatura -8°C detectada`, 'success');
+            }
+          }
+        }
+      }
+    };
+    
+    onSensorUpdate(handleSensorUpdate);
+    
+    return () => {
+      offSensorUpdate(handleSensorUpdate);
+      disconnectSocket();
+    };
+  }, [showNotification]);
+
   // Cleanup al desmontar
   useEffect(() => {
     return () => {
@@ -231,6 +281,7 @@ export default function Test() {
       if (webSerialConnected && webSerialServiceRef.current) {
         webSerialServiceRef.current.disconnect().catch(() => {});
       }
+      disconnectSocket();
     };
   }, [esp32PollingInterval, webSerialConnected]);
 

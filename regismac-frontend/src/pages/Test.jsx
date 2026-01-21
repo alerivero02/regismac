@@ -587,7 +587,21 @@ export default function Test() {
             
             // Actualizar ref y estado para forzar re-render inmediato
             temperaturaWebSerialRef.current = temperatura;
-            setTemperaturaWebSerial(temperatura);
+            
+            // Forzar actualización del estado de múltiples formas para asegurar que React lo detecte
+            setTemperaturaWebSerial(prev => {
+              // Si el valor cambió significativamente (>0.1°C), forzar actualización
+              if (prev === null || prev === undefined || Math.abs(prev - temperatura) > 0.1) {
+                if (isDev) {
+                  console.log('[Test] 🔄 Actualizando temperatura:', prev, '->', temperatura);
+                }
+                return temperatura;
+              }
+              // Si el valor es similar pero no igual, actualizar de todas formas para mantener sincronización
+              return temperatura;
+            });
+            
+            // Forzar re-render con key que incluye timestamp para asegurar actualización
             setTemperaturaUpdateKey(prev => {
               const newKey = prev + 1;
               if (isDev) {
@@ -596,13 +610,15 @@ export default function Test() {
               return newKey;
             });
             
-            // Usar setTimeout para asegurar que React procese el estado
-            setTimeout(() => {
+            // Usar requestAnimationFrame para asegurar que React procese el estado en el próximo frame
+            requestAnimationFrame(() => {
               // Verificar que el estado se actualizó correctamente
               if (isDev) {
-                console.log('[Test] ✅ Estado actualizado, temperatura:', temperatura);
+                console.log('[Test] ✅ Estado actualizado después de RAF, temperatura:', temperatura);
               }
-            }, 0);
+              // Forzar otro update si es necesario (para casos extremos)
+              setTemperaturaUpdateKey(prev => prev + 0.0001);
+            });
             
             // Detección de temperaturas objetivo si hay test activo
             // Usar refs para acceder a valores actuales sin depender de closures

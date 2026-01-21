@@ -290,7 +290,12 @@ class WebSerialService {
                       if (isDev) {
                         console.log('[WebSerial] 🚀 Ejecutando callback...');
                       }
-                      this.onDataCallback(data);
+                      // Ejecutar callback de forma asíncrona para no bloquear el loop de lectura
+                      Promise.resolve(this.onDataCallback(data)).catch(callbackError => {
+                        if (isDev) {
+                          console.error('[WebSerial] ❌ Error en callback (async):', callbackError);
+                        }
+                      });
                       if (isDev) {
                         console.log('[WebSerial] ✅ Callback ejecutado correctamente');
                       }

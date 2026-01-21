@@ -62,6 +62,7 @@ export default function Test() {
   const tiempoMenos8GradosRef = useRef(null);
   const temperaturaWebSerialRef = useRef(null); // Ref para acceso directo al valor más reciente
   const testESP32ActivoRef = useRef(false); // Ref para acceso al estado del test
+  const ultimaActualizacionRef = useRef(null); // Ref para rastrear tiempo de última actualización
   const [puertosDisponibles, setPuertosDisponibles] = useState([]);
   const [conexionSerial, setConexionSerial] = useState({ connected: false, port: null });
   const [mostrarSelectorPuerto, setMostrarSelectorPuerto] = useState(false);
@@ -228,6 +229,15 @@ export default function Test() {
     connectSocket();
     
     const handleSensorUpdate = (data) => {
+      console.log('[WebSocket] 📨 EVENTO RECIBIDO COMPLETO:', {
+        dataCompleta: data,
+        temperatura: data.temperatura,
+        humedad: data.humedad,
+        timestamp: data.timestamp,
+        tipoTimestamp: typeof data.timestamp,
+        horaActual: new Date().toLocaleTimeString()
+      });
+      
       if (data.temperatura !== undefined && data.temperatura !== null) {
         const temperatura = parseFloat(data.temperatura);
         if (!isNaN(temperatura)) {
@@ -240,27 +250,48 @@ export default function Test() {
           
           // Actualizar esp32Estado con temperatura y timestamp
           const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-          console.log('[WebSocket] 📅 Actualizando timestamp:', {
+          console.log('[WebSocket] 📅 Preparando actualización de timestamp:', {
             timestampRecibido: data.timestamp,
             timestampParseado: timestamp,
             timestampISO: timestamp.toISOString(),
-            horaLocal: timestamp.toLocaleTimeString()
+            horaLocal: timestamp.toLocaleTimeString(),
+            esDateValido: timestamp instanceof Date,
+            timestampValue: timestamp.valueOf()
           });
+          
+          console.log('[WebSocket] 🔍 Estado ANTES de actualizar:', {
+            esp32EstadoActual: esp32Estado,
+            timestampActual: esp32Estado?.timestamp,
+            timestampActualISO: esp32Estado?.timestamp?.toISOString(),
+            timestampActualLocal: esp32Estado?.timestamp?.toLocaleTimeString()
+          });
+          
           setEsp32Estado(prev => {
+            const estadoAnterior = { ...prev };
             const nuevoEstado = {
               ...prev,
               temperatura: temperatura,
               humedad: data.humedad !== undefined && data.humedad !== null ? parseFloat(data.humedad) : (prev?.humedad || null),
               timestamp: timestamp
             };
-            console.log('[WebSocket] 📊 Estado actualizado:', {
-              temperatura: nuevoEstado.temperatura,
-              timestamp: nuevoEstado.timestamp,
-              timestampISO: nuevoEstado.timestamp?.toISOString(),
-              horaLocal: nuevoEstado.timestamp?.toLocaleTimeString()
+            console.log('[WebSocket] 📊 DENTRO DE setEsp32Estado:', {
+              estadoAnterior: estadoAnterior,
+              nuevoEstado: nuevoEstado,
+              timestampAnterior: estadoAnterior?.timestamp,
+              timestampNuevo: nuevoEstado.timestamp,
+              timestampNuevoISO: nuevoEstado.timestamp?.toISOString(),
+              timestampNuevoLocal: nuevoEstado.timestamp?.toLocaleTimeString(),
+              sonDiferentes: estadoAnterior?.timestamp?.valueOf() !== nuevoEstado.timestamp?.valueOf()
             });
             return nuevoEstado;
           });
+          
+          // Log después de un pequeño delay para verificar si el estado se actualizó
+          // Nota: Este log mostrará el estado anterior porque React aún no ha actualizado
+          // El useEffect monitoreará el cambio real
+          setTimeout(() => {
+            console.log('[WebSocket] ⏱️ Verificación después de setEsp32Estado (100ms) - Nota: puede mostrar estado anterior');
+          }, 100);
           
           // Detección de temperaturas objetivo si hay test activo
           if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
@@ -297,6 +328,22 @@ export default function Test() {
       disconnectSocket();
     };
   }, [showNotification]);
+
+  // Monitorear cambios en esp32Estado para debugging
+  useEffect(() => {
+    console.log('[Test] 🔄 esp32Estado CAMBIÓ:', {
+      esp32Estado: esp32Estado,
+      temperatura: esp32Estado?.temperatura,
+      humedad: esp32Estado?.humedad,
+      timestamp: esp32Estado?.timestamp,
+      timestampTipo: typeof esp32Estado?.timestamp,
+      timestampEsDate: esp32Estado?.timestamp instanceof Date,
+      timestampISO: esp32Estado?.timestamp?.toISOString(),
+      timestampLocal: esp32Estado?.timestamp?.toLocaleTimeString(),
+      horaActual: new Date().toLocaleTimeString(),
+      stackTrace: new Error().stack
+    });
+  }, [esp32Estado]);
 
   // Cleanup al desmontar
   useEffect(() => {
@@ -656,15 +703,18 @@ export default function Test() {
       
       // Reconfigurar el callback para asegurar que esté activo cuando se conecte
       // Usar función wrapper que siempre accede a los valores más recientes
-      service.setDataCallback(async (data) => {
-        console.log('[SENSOR] 📥 Callback WebSerial llamado con datos:', data);
+      service.setDataCallback((data) => {
+        const tiempoRecepcion = Date.now();
+        const horaRecepcion = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
+        
+        console.log(`[SENSOR] 📥 Callback WebSerial llamado [${horaRecepcion}]:`, data);
         console.log('[SENSOR] 📋 Tipo de datos recibidos:', {
           tieneTemperatura: data?.temperatura !== undefined && data?.temperatura !== null,
           temperatura: data?.temperatura,
           tipoTemperatura: typeof data?.temperatura,
           tieneError: !!data?.error,
           error: data?.error,
-          timestamp: new Date().toISOString()
+          timestamp: tiempoRecepcion
         });
         
         if (data?.error) {
@@ -674,26 +724,33 @@ export default function Test() {
         if (data?.temperatura !== undefined && data?.temperatura !== null) {
           const temperatura = parseFloat(data.temperatura);
           if (!isNaN(temperatura)) {
-            console.log('[SENSOR] 🌡️ Temperatura recibida y parseada:', temperatura);
-            console.log('[SENSOR] 📊 Estado ANTES de actualizar:', {
-              temperaturaWebSerialActual: temperaturaWebSerial,
-              temperaturaWebSerialRef: temperaturaWebSerialRef.current,
-              temperaturaNueva: temperatura,
-              diferencia: temperaturaWebSerial !== null ? Math.abs(temperaturaWebSerial - temperatura) : null
-            });
+            const tiempoProcesamiento = Date.now();
+            const tiempoDesdeUltimaActualizacion = tiempoProcesamiento - (ultimaActualizacionRef.current || tiempoProcesamiento);
+            ultimaActualizacionRef.current = tiempoProcesamiento;
             
-            // Actualizar ref y estado inmediatamente
+            console.log(`[SENSOR] 🌡️ Temperatura recibida [${horaRecepcion}]:`, temperatura, `| Tiempo desde última: ${tiempoDesdeUltimaActualizacion}ms`);
+            
+            // Actualizar ref y estado inmediatamente (SIN BLOQUEAR)
             const temperaturaAnterior = temperaturaWebSerialRef.current;
             temperaturaWebSerialRef.current = temperatura;
-            console.log('[SENSOR] 🔄 Ref actualizado:', temperaturaAnterior, '->', temperatura);
             
             // Actualizar estado siempre que haya un cambio (incluso pequeño)
             // Esto asegura que la UI se actualice en tiempo real
             setTemperaturaWebSerial(temperatura);
-            console.log('[SENSOR] 🔄 Estado actualizado:', temperaturaAnterior, '->', temperatura);
             
             // Incrementar key para forzar re-render del componente de temperatura
             setTemperaturaUpdateKey(prev => prev + 1);
+            
+            // Actualizar esp32Estado con timestamp inmediatamente
+            const timestamp = new Date();
+            setEsp32Estado(prev => ({
+              ...prev,
+              temperatura: temperatura,
+              humedad: data.humedad !== undefined && data.humedad !== null ? parseFloat(data.humedad) : (prev?.humedad || null),
+              timestamp: timestamp
+            }));
+            
+            console.log(`[SENSOR] ✅ Estado actualizado [${timestamp.toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}]:`, temperaturaAnterior, '->', temperatura);
             
             // Detección de temperaturas objetivo si hay test activo
             // Usar refs para acceder a valores actuales sin depender de closures
@@ -721,15 +778,16 @@ export default function Test() {
               }
             }
             
-            // Enviar al servidor si está disponible (opcional, no crítico)
-            try {
-              console.log('[SENSOR] 📤 Enviando temperatura al servidor:', temperatura);
-              await sensorAPI.recibirDatos(temperatura, null);
-              console.log('[SENSOR] ✅ Temperatura enviada al servidor correctamente');
-            } catch (error) {
+            // Enviar al servidor de forma NO BLOQUEANTE (fire-and-forget)
+            // Esto permite que las actualizaciones continúen sin esperar la respuesta del servidor
+            sensorAPI.recibirDatos(temperatura, null).then(() => {
+              const tiempoRespuesta = Date.now();
+              const tiempoTotal = tiempoRespuesta - tiempoRecepcion;
+              console.log(`[SENSOR] ✅ Temperatura enviada al servidor [${tiempoTotal}ms]`);
+            }).catch((error) => {
               // No es crítico si falla, solo loguear
               console.warn('[SENSOR] ⚠️ No se pudo enviar al servidor (no crítico):', error.message);
-            }
+            });
           } else {
             console.warn('[SENSOR] ⚠️ Temperatura no es un número válido:', data.temperatura);
           }
@@ -2638,15 +2696,30 @@ export default function Test() {
                 </div>
               </div>
               
-              {(esp32Estado?.timestamp || temperaturaWebSerial !== null) && (
-                <div className="mt-3 text-xs text-gray-500">
-                  Última actualización: {esp32Estado?.timestamp 
-                    ? (esp32Estado.timestamp instanceof Date 
-                        ? esp32Estado.timestamp.toLocaleTimeString() 
-                        : new Date(esp32Estado.timestamp).toLocaleTimeString())
-                    : new Date().toLocaleTimeString()}
-                </div>
-              )}
+              {(esp32Estado?.timestamp || temperaturaWebSerial !== null) && (() => {
+                const timestampDisplay = esp32Estado?.timestamp 
+                  ? (esp32Estado.timestamp instanceof Date 
+                      ? esp32Estado.timestamp.toLocaleTimeString() 
+                      : new Date(esp32Estado.timestamp).toLocaleTimeString())
+                  : new Date().toLocaleTimeString();
+                
+                console.log('[UI] 🎨 RENDERIZANDO TIMESTAMP:', {
+                  esp32Estado: esp32Estado,
+                  tieneTimestamp: !!esp32Estado?.timestamp,
+                  timestamp: esp32Estado?.timestamp,
+                  timestampTipo: typeof esp32Estado?.timestamp,
+                  timestampEsDate: esp32Estado?.timestamp instanceof Date,
+                  timestampDisplay: timestampDisplay,
+                  temperaturaWebSerial: temperaturaWebSerial,
+                  horaActual: new Date().toLocaleTimeString()
+                });
+                
+                return (
+                  <div className="mt-3 text-xs text-gray-500">
+                    Última actualización: {timestampDisplay}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Estado del test */}

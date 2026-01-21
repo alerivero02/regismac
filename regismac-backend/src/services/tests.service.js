@@ -76,7 +76,6 @@ export class TestsService {
       const prismaData = {
         id_maquina: data.maquinaId,
         temperatura_iniziale: data.temperatura_iniziale,
-        temperatura_final: data.temperatura_final,
         regolazione_vite: data.regolazione_vite,
         tempo_0_gradi: data.tiempo_0_gradi,
         tempo_meno8_gradi: data.tiempo_meno8_gradi,
@@ -85,6 +84,11 @@ export class TestsService {
         observazioni: data.observazioni,
         id_tecnico: data.tecnicoId,
       };
+      
+      // Agregar temperatura_final solo si está definido (para compatibilidad con bases de datos sin esta columna)
+      if (data.temperatura_final !== undefined && data.temperatura_final !== null) {
+        prismaData.temperatura_final = data.temperatura_final;
+      }
       
       // Si se proporciona hora_test, convertirla a DateTime
       if (data.hora_test) {

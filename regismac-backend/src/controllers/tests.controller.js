@@ -54,6 +54,23 @@ export const createTest = async (req, res, next) => {
         break;
       } catch (createError) {
         lastError = createError;
+        
+        // Si es un error de columna faltante (P2022), intentar crear sin temperatura_final
+        if (createError.code === 'P2022' && createError.meta?.column === 'temperatura_final') {
+          console.warn('⚠️ Columna temperatura_final no existe, intentando crear sin ella...');
+          try {
+            // Crear una copia del body sin temperatura_final
+            const bodySinTemperaturaFinal = { ...req.body };
+            delete bodySinTemperaturaFinal.temperatura_final;
+            nuevo = await service.create(bodySinTemperaturaFinal);
+            console.log('✅ Test creado sin temperatura_final');
+            break;
+          } catch (retryError) {
+            console.error('❌ Error al crear sin temperatura_final:', retryError.message);
+            // Continuar con el error original
+          }
+        }
+        
         // Si es un error de conexión y quedan reintentos, intentar reconectar
         if ((createError.code === 'P1001' || createError.code === 'P1002' || createError.code === 'P1017' || createError.code === 'P1000') && retries > 1) {
           try {

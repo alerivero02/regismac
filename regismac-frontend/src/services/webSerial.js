@@ -63,6 +63,7 @@ class WebSerialService {
         if (this.reader) {
           try {
             await this.reader.cancel();
+            await this.reader.releaseLock();
           } catch (e) {
             // Ignorar errores al cancelar
           }
@@ -71,7 +72,12 @@ class WebSerialService {
         
         if (isDev) {
           console.log('[WebSerial] 🔧 Configurando reader...');
+          console.log('[WebSerial] 📋 Callback disponible ANTES de crear reader:', !!this.onDataCallback);
         }
+        
+        // Esperar un momento para asegurar que el callback esté configurado
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
         const decoder = new TextDecoderStream();
         const readableStream = this.port.readable.pipeThrough(decoder);
         const reader = readableStream.getReader();
@@ -79,13 +85,22 @@ class WebSerialService {
         
         if (isDev) {
           console.log('[WebSerial] ✅ Reader configurado, iniciando lectura...');
-          console.log('[WebSerial] 📋 Callback disponible:', !!this.onDataCallback);
+          console.log('[WebSerial] 📋 Callback disponible DESPUÉS de crear reader:', !!this.onDataCallback);
         }
         
-        // Iniciar lectura en segundo plano
+        // Iniciar lectura en segundo plano - esto debe continuar indefinidamente
         this.readData().catch(err => {
           if (isDev) {
             console.error('[WebSerial] ❌ Error en readData:', err);
+          }
+          // Si hay un error, intentar reconectar si aún está conectado
+          if (this.isConnected && this.port && this.port.readable) {
+            if (isDev) {
+              console.log('[WebSerial] 🔄 Intentando reconectar después de error...');
+            }
+            setTimeout(() => {
+              this.readData().catch(() => {});
+            }, 1000);
           }
         });
       }

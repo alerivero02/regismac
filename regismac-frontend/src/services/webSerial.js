@@ -14,39 +14,55 @@ class WebSerialService {
   }
 
   async requestPort() {
+    console.log('[WebSerial] 🔍 Solicitando puerto serial...');
     if (!await this.isSupported()) {
+      console.error('[WebSerial] ❌ WebSerial no disponible en este navegador');
       throw new Error('WebSerial API no está disponible en este navegador. Usa Chrome, Edge o Opera.');
     }
 
     try {
+      console.log('[WebSerial] ⏳ Esperando selección de puerto por el usuario...');
       this.port = await navigator.serial.requestPort();
+      console.log('[WebSerial] ✅ Puerto seleccionado:', {
+        readable: !!this.port.readable,
+        writable: !!this.port.writable,
+        info: this.port.getInfo ? this.port.getInfo() : 'N/A'
+      });
       return this.port;
     } catch (error) {
       if (error.name === 'NotFoundError') {
+        console.warn('[WebSerial] ⚠️ Usuario canceló la selección de puerto');
         throw new Error('No se seleccionó ningún puerto');
       }
+      console.error('[WebSerial] ❌ Error al solicitar puerto:', error);
       throw error;
     }
   }
 
   async connect(baudRate = 115200) {
+    console.log('[WebSerial] 🔌 Iniciando conexión con baudrate:', baudRate);
     if (!this.port) {
+      console.error('[WebSerial] ❌ No hay puerto seleccionado');
       throw new Error('No hay puerto seleccionado. Selecciona un puerto primero.');
     }
 
     // Si ya está conectado, desconectar primero
     if (this.isConnected) {
+      console.log('[WebSerial] ⚠️ Ya hay una conexión activa, desconectando primero...');
       await this.disconnect();
     }
 
     try {
       // Verificar si el puerto ya está abierto
       if (this.port.readable && this.port.writable) {
+        console.log('[WebSerial] ⚠️ El puerto ya está abierto, reutilizando...');
         // El puerto ya está abierto, solo configurar el reader/writer
         this.isConnected = true;
       } else {
         // Abrir el puerto
+        console.log('[WebSerial] 🔓 Abriendo puerto...');
         await this.port.open({ baudRate });
+        console.log('[WebSerial] ✅ Puerto abierto con baudrate:', baudRate);
         this.isConnected = true;
       }
 

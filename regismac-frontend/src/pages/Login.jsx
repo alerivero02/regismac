@@ -293,8 +293,22 @@ export default function Login() {
 
       {/* Modal de Reset Password */}
       {showResetPassword && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl shadow-xl p-6 sm:p-8 max-w-md w-full">
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-50 p-4"
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.02)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            animation: 'backdropFadeIn 0.2s ease-out'
+          }}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl p-6 sm:p-8 max-w-md w-full"
+            style={{ 
+              animation: 'modalAppear 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+              willChange: 'transform, opacity'
+            }}
+          >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-2xl font-bold text-gray-900">Reimposta Password</h2>
               <button

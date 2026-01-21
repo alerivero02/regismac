@@ -59,6 +59,7 @@ model Test {
   id_tecnico           Int?
   tecnico              Tecnico?  @relation(fields: [id_tecnico], references: [id_tecnico])
   temperatura_iniziale Float? // Temperatura inicial al iniciar el test
+  temperatura_final    Float? // Temperatura al momento de finalizar el test (si no se alcanzaron las temperaturas objetivo)
   regolazione_vite     String? // Regolazione vite del compressore
   tempo_0_gradi        Int?
   tempo_meno8_gradi    Int?

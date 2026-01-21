@@ -47,6 +47,7 @@ export default function Registros() {
   const [editingGas, setEditingGas] = useState(null);
   const [gasEditValue, setGasEditValue] = useState('');
   const [user, setUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [editingField, setEditingField] = useState(null); // { maquinaId, field, value }
   const [selectedMaquinas, setSelectedMaquinas] = useState([]); // IDs de máquinas seleccionadas
   const [showBatchConsegnaModal, setShowBatchConsegnaModal] = useState(false);
@@ -237,6 +238,19 @@ export default function Registros() {
     return testsOrdenados[0];
   };
 
+  // Establecer técnico por defecto cuando se abre el formulario
+  useEffect(() => {
+    if (showForm && currentUser && tecnicos.length > 0) {
+      const tecnicoAsociado = tecnicos.find(t => t.usuario?.id_usuario === currentUser.id_usuario);
+      if (tecnicoAsociado && formData.tecnicoId !== tecnicoAsociado.id_tecnico.toString()) {
+        setFormData(prev => ({
+          ...prev,
+          tecnicoId: tecnicoAsociado.id_tecnico.toString()
+        }));
+      }
+    }
+  }, [showForm, currentUser, tecnicos.length]);
+
   // Calcular el siguiente número de telaio cuando se abre el formulario o cambian las máquinas
   useEffect(() => {
     if (showForm && maquinas.length > 0) {
@@ -267,6 +281,25 @@ export default function Registros() {
   const showNotification = (message, type = 'success') => {
     setNotification({ show: true, message, type });
     setTimeout(() => setNotification({ ...notification, show: false }), 5000);
+  };
+
+  const loadCurrentUser = async () => {
+    try {
+      const user = await authAPI.getCurrentUser();
+      setCurrentUser(user);
+      // Establecer técnico por defecto si el usuario tiene uno asociado
+      if (user && tecnicos.length > 0) {
+        const tecnicoAsociado = tecnicos.find(t => t.usuario?.id_usuario === user.id_usuario);
+        if (tecnicoAsociado) {
+          setFormData(prev => ({ 
+            ...prev, 
+            tecnicoId: tecnicoAsociado.id_tecnico.toString() 
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error al cargar usuario actual:', error);
+    }
   };
 
   const loadData = async () => {
@@ -303,6 +336,18 @@ export default function Registros() {
       setLoading(false);
     }
   };
+
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Cargar usuario actual después de que los técnicos estén disponibles
+  useEffect(() => {
+    if (tecnicos.length > 0 && !currentUser) {
+      loadCurrentUser();
+    }
+  }, [tecnicos.length, currentUser]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -344,6 +389,11 @@ export default function Registros() {
       await maquinasAPI.create(dataToSend, files);
       showNotification('Macchina registrata con successo!', 'success');
       setShowForm(false);
+      // Mantener el técnico por defecto al resetear el formulario
+      const tecnicoPorDefecto = currentUser && tecnicos.length > 0
+        ? tecnicos.find(t => t.usuario?.id_usuario === currentUser.id_usuario)?.id_tecnico.toString() || ''
+        : '';
+      
       setFormData({
         numero_telaio: '',
         seriale_compressore: '',
@@ -352,7 +402,7 @@ export default function Registros() {
         tipo_valvola: '',
         annotazioni: '',
         stato: '',
-        tecnicoId: '',
+        tecnicoId: tecnicoPorDefecto,
         data_consegna: '',
       });
       setFoto1(null);

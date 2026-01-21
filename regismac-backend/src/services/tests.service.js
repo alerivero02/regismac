@@ -76,6 +76,7 @@ export class TestsService {
       const prismaData = {
         id_maquina: data.maquinaId,
         temperatura_iniziale: data.temperatura_iniziale,
+        temperatura_final: data.temperatura_final,
         regolazione_vite: data.regolazione_vite,
         tempo_0_gradi: data.tiempo_0_gradi,
         tempo_meno8_gradi: data.tiempo_meno8_gradi,

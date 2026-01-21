@@ -6,15 +6,34 @@ export const errorHandler = (err, req, res, next) => {
   // Manejar errores de Prisma (conexión a base de datos)
   if (err.code === 'P1001' || err.code === 'P1002' || err.code === 'P1017' || err.code === 'P1000') {
     // Detectar el tipo de base de datos desde DATABASE_URL
-    const dbType = process.env.DATABASE_URL?.includes('postgresql') ? 'PostgreSQL' 
-                  : process.env.DATABASE_URL?.includes('mysql') ? 'MySQL'
+    const dbUrl = process.env.DATABASE_URL || '';
+    const dbType = dbUrl.includes('postgresql') ? 'PostgreSQL' 
+                  : dbUrl.includes('mysql') ? 'MySQL'
                   : 'database';
     
     // En producción, dar más información útil
     const isProduction = process.env.NODE_ENV === 'production';
-    const errorMessage = isProduction 
-      ? `Errore di connessione al database ${dbType}. Verifica che il servizio database sia disponibile su Render.com.`
-      : `Errore di connessione al database. Verifica che ${dbType} sia in esecuzione e che la configurazione in .env sia corretta.`;
+    let errorMessage;
+    
+    if (isProduction) {
+      // Mensaje específico para producción
+      if (dbType === 'PostgreSQL') {
+        errorMessage = 'Errore di connessione al database PostgreSQL su Render.com. Il database potrebbe essere inattivo. Verifica il dashboard di Render.';
+      } else {
+        errorMessage = `Errore di connessione al database ${dbType}. Verifica che il servizio database sia disponibile.`;
+      }
+    } else {
+      errorMessage = `Errore di connessione al database. Verifica che ${dbType} sia in esecuzione e che la configurazione in .env sia corretta.`;
+    }
+    
+    // Log detallado para diagnóstico
+    console.error('🔍 Database Connection Error Details:', {
+      code: err.code,
+      dbType: dbType,
+      hasDatabaseUrl: !!dbUrl,
+      databaseUrlPrefix: dbUrl.substring(0, 20) + '...',
+      isProduction: isProduction
+    });
     
     return res.status(503).json({
       error: errorMessage,

@@ -35,7 +35,7 @@ function updateSensorStateFromSerial(data) {
   emitSensorUpdate({
     temperatura: sensorState.temperatura,
     humedad: sensorState.humedad,
-    timestamp: sensorState.timestamp
+    timestamp: sensorState.timestamp.toISOString() // Convertir a ISO string para serialización correcta
   });
   
   // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo
@@ -81,7 +81,7 @@ export const recibirDatosSensor = async (req, res, next) => {
     emitSensorUpdate({
       temperatura: sensorState.temperatura,
       humedad: sensorState.humedad,
-      timestamp: sensorState.timestamp
+      timestamp: sensorState.timestamp.toISOString() // Convertir a ISO string para serialización correcta
     });
 
     // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo

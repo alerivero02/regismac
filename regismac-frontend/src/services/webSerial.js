@@ -368,12 +368,23 @@ class WebSerialService {
                   if (this.onDataCallback) {
                     try {
                       // Ejecutar callback de forma asíncrona para no bloquear el loop de lectura
-                      Promise.resolve(this.onDataCallback(data)).catch(callbackError => {
-                        console.error('[WebSerial] ❌ Error en callback (async):', callbackError);
-                      });
-                      console.log('[WebSerial] ✅ Callback ejecutado correctamente');
+                      // Usar setTimeout para evitar problemas con extensiones del navegador
+                      setTimeout(() => {
+                        try {
+                          const result = this.onDataCallback(data);
+                          // Si el callback retorna una promesa, manejarla
+                          if (result && typeof result.then === 'function') {
+                            result.catch(callbackError => {
+                              console.error('[WebSerial] ❌ Error en callback (async):', callbackError);
+                            });
+                          }
+                        } catch (syncError) {
+                          console.error('[WebSerial] ❌ Error ejecutando callback (sync):', syncError);
+                        }
+                      }, 0);
+                      console.log('[WebSerial] ✅ Callback programado para ejecución');
                     } catch (error) {
-                      console.error('[WebSerial] ❌ Error ejecutando callback:', error);
+                      console.error('[WebSerial] ❌ Error programando callback:', error);
                       console.error('[WebSerial] Stack trace:', error.stack);
                     }
                   } else {
@@ -394,10 +405,23 @@ class WebSerialService {
                       console.log('[WebSerial] ✅ Temperatura extraída del patrón:', temperatura);
                       if (this.onDataCallback) {
                         try {
-                          this.onDataCallback({ temperatura });
-                          console.log('[WebSerial] ✅ Callback ejecutado correctamente');
+                          // Usar setTimeout para evitar problemas con extensiones del navegador
+                          setTimeout(() => {
+                            try {
+                              const result = this.onDataCallback({ temperatura });
+                              // Si el callback retorna una promesa, manejarla
+                              if (result && typeof result.then === 'function') {
+                                result.catch(callbackError => {
+                                  console.error('[WebSerial] ❌ Error en callback (async):', callbackError);
+                                });
+                              }
+                            } catch (syncError) {
+                              console.error('[WebSerial] ❌ Error ejecutando callback (sync):', syncError);
+                            }
+                          }, 0);
+                          console.log('[WebSerial] ✅ Callback programado para ejecución');
                         } catch (error) {
-                          console.error('[WebSerial] ❌ Error ejecutando callback:', error);
+                          console.error('[WebSerial] ❌ Error programando callback:', error);
                         }
                       }
                     }

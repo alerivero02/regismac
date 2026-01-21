@@ -232,9 +232,35 @@ export default function Test() {
         const temperatura = parseFloat(data.temperatura);
         if (!isNaN(temperatura)) {
           console.log('[WebSocket] 🌡️ Temperatura recibida:', temperatura);
+          
+          // Actualizar temperatura WebSerial
           setTemperaturaWebSerial(temperatura);
           temperaturaWebSerialRef.current = temperatura;
           setTemperaturaUpdateKey(prev => prev + 1);
+          
+          // Actualizar esp32Estado con temperatura y timestamp
+          const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+          console.log('[WebSocket] 📅 Actualizando timestamp:', {
+            timestampRecibido: data.timestamp,
+            timestampParseado: timestamp,
+            timestampISO: timestamp.toISOString(),
+            horaLocal: timestamp.toLocaleTimeString()
+          });
+          setEsp32Estado(prev => {
+            const nuevoEstado = {
+              ...prev,
+              temperatura: temperatura,
+              humedad: data.humedad !== undefined && data.humedad !== null ? parseFloat(data.humedad) : (prev?.humedad || null),
+              timestamp: timestamp
+            };
+            console.log('[WebSocket] 📊 Estado actualizado:', {
+              temperatura: nuevoEstado.temperatura,
+              timestamp: nuevoEstado.timestamp,
+              timestampISO: nuevoEstado.timestamp?.toISOString(),
+              horaLocal: nuevoEstado.timestamp?.toLocaleTimeString()
+            });
+            return nuevoEstado;
+          });
           
           // Detección de temperaturas objetivo si hay test activo
           if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
@@ -2612,9 +2638,13 @@ export default function Test() {
                 </div>
               </div>
               
-              {esp32Estado?.timestamp && (
+              {(esp32Estado?.timestamp || temperaturaWebSerial !== null) && (
                 <div className="mt-3 text-xs text-gray-500">
-                  Última actualización: {new Date(esp32Estado.timestamp).toLocaleTimeString()}
+                  Última actualización: {esp32Estado?.timestamp 
+                    ? (esp32Estado.timestamp instanceof Date 
+                        ? esp32Estado.timestamp.toLocaleTimeString() 
+                        : new Date(esp32Estado.timestamp).toLocaleTimeString())
+                    : new Date().toLocaleTimeString()}
                 </div>
               )}
             </div>

@@ -60,6 +60,7 @@ export default function Test() {
   const tiempo0GradosRef = useRef(null);
   const tiempoMenos8GradosRef = useRef(null);
   const temperaturaWebSerialRef = useRef(null); // Ref para acceso directo al valor más reciente
+  const testESP32ActivoRef = useRef(false); // Ref para acceso al estado del test
   const [puertosDisponibles, setPuertosDisponibles] = useState([]);
   const [conexionSerial, setConexionSerial] = useState({ connected: false, port: null });
   const [mostrarSelectorPuerto, setMostrarSelectorPuerto] = useState(false);
@@ -470,6 +471,7 @@ export default function Test() {
               }));
               
               setTestESP32Activo(false);
+      testESP32ActivoRef.current = false;
               setFechaHoraInicioTestESP32(null);
               setShowESP32Modal(false);
               autoSaveRef.current = false;
@@ -604,8 +606,7 @@ export default function Test() {
             
             // Detección de temperaturas objetivo si hay test activo
             // Usar refs para acceder a valores actuales sin depender de closures
-            const testActivo = testESP32Activo; // Capturar valor actual
-            if (testActivo && tiempoInicioTestRef.current) {
+            if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
               const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
               if (tiempo0GradosRef.current === null && temperatura >= -0.5 && temperatura <= 0.5) {
                 tiempo0GradosRef.current = tiempoTranscurrido;
@@ -824,6 +825,7 @@ export default function Test() {
 
       const resultado = await sensorAPI.finalizarTest();
       setTestESP32Activo(false);
+      testESP32ActivoRef.current = false;
       
       // Guardar SIEMPRE el test, incluso si no se alcanzaron todas las temperaturas objetivo
       const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
@@ -925,6 +927,7 @@ export default function Test() {
       }
       showNotification(error.message || 'Error al finalizar el test', 'error');
       setTestESP32Activo(false);
+      testESP32ActivoRef.current = false;
       setFechaHoraInicioTestESP32(null);
     } finally {
       setIsSubmitting(false);
@@ -945,6 +948,7 @@ export default function Test() {
       }
       
       setTestESP32Activo(false);
+      testESP32ActivoRef.current = false;
       setFechaHoraInicioTestESP32(null);
       autoSaveRef.current = false;
       

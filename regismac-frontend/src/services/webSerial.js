@@ -55,9 +55,20 @@ class WebSerialService {
         this.writer = this.port.writable.getWriter();
       }
       
-      // Configurar reader
-      if (this.port.readable && !this.reader) {
+      // Configurar reader - SIEMPRE recrear el reader para asegurar que el callback esté activo
+      if (this.port.readable) {
         const isDev = import.meta.env.DEV;
+        
+        // Si ya hay un reader, cancelarlo primero
+        if (this.reader) {
+          try {
+            await this.reader.cancel();
+          } catch (e) {
+            // Ignorar errores al cancelar
+          }
+          this.reader = null;
+        }
+        
         if (isDev) {
           console.log('[WebSerial] 🔧 Configurando reader...');
         }
@@ -68,6 +79,7 @@ class WebSerialService {
         
         if (isDev) {
           console.log('[WebSerial] ✅ Reader configurado, iniciando lectura...');
+          console.log('[WebSerial] 📋 Callback disponible:', !!this.onDataCallback);
         }
         
         // Iniciar lectura en segundo plano
@@ -390,7 +402,29 @@ class WebSerialService {
   }
 
   setDataCallback(callback) {
+    const isDev = import.meta.env.DEV;
     this.onDataCallback = callback;
+    if (isDev) {
+      console.log('[WebSerial] ✅ Callback actualizado:', !!callback);
+    }
+    
+    // Si ya hay un reader activo, asegurarse de que el callback esté disponible
+    // El loop de lectura usa this.onDataCallback, así que debería funcionar
+    // Pero si el reader ya terminó, necesitamos recrearlo
+    if (this.isConnected && this.port && this.port.readable && (!this.reader || this.reader === null)) {
+      if (isDev) {
+        console.log('[WebSerial] 🔄 Recreando reader para usar nuevo callback...');
+      }
+      // Recrear el reader para asegurar que use el nuevo callback
+      const decoder = new TextDecoderStream();
+      const readableStream = this.port.readable.pipeThrough(decoder);
+      this.reader = readableStream.getReader();
+      this.readData().catch(err => {
+        if (isDev) {
+          console.error('[WebSerial] ❌ Error en readData después de recrear reader:', err);
+        }
+      });
+    }
   }
 
   getConnectionStatus() {

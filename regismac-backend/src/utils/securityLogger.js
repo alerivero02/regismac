@@ -111,8 +111,11 @@ export const logUnauthorizedAccess = (req, reason) => {
   const publicPaths = ['/api/sensor/estado', '/api/health'];
   const isPublicPath = publicPaths.some(path => req.path.includes(path));
   
+  // No loguear acceso a la ruta raíz "/" - es normal cuando alguien carga la página sin estar autenticado
+  const isRootPath = req.path === '/' && req.method === 'GET';
+  
   // Solo loguear si es una ruta protegida importante o si hay actividad sospechosa
-  if (isPublicPath && reason === 'Usuario no autenticado') {
+  if ((isPublicPath && reason === 'Usuario no autenticado') || isRootPath) {
     // No loguear - es un comportamiento esperado
     return;
   }

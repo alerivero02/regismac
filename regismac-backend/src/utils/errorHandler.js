@@ -4,7 +4,15 @@ export const errorHandler = (err, req, res, next) => {
   console.error("🔥 ERROR Message:", err.message);
 
   // Manejar errores de Prisma (conexión a base de datos)
-  if (err.code === 'P1001' || err.code === 'P1002' || err.code === 'P1017' || err.code === 'P1000') {
+  // E57P01 = "terminating connection due to administrator command" (base de datos reiniciada o dormida)
+  const isConnectionError = err.code === 'P1001' || 
+                           err.code === 'P1002' || 
+                           err.code === 'P1017' || 
+                           err.code === 'P1000' ||
+                           (err.cause && err.cause.code === 'E57P01') ||
+                           (err.message && err.message.includes('terminating connection'));
+  
+  if (isConnectionError) {
     // Detectar el tipo de base de datos desde DATABASE_URL
     const dbUrl = process.env.DATABASE_URL || '';
     const dbType = dbUrl.includes('postgresql') ? 'PostgreSQL' 

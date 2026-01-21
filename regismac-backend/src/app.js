@@ -307,12 +307,33 @@ app.use((req, res, next) => {
 
 // Endpoint de health check para mantener la app activa en Render
 // Este endpoint debe ser llamado periódicamente (cada 5-10 minutos) para evitar que Render duerma el servicio
-app.get("/api/health", (req, res) => {
+app.get("/api/health", async (req, res) => {
+  // Verificar conexión a la base de datos
+  let dbStatus = 'unknown';
+  try {
+    await req.app.locals.prisma.$queryRaw`SELECT 1`;
+    dbStatus = 'connected';
+  } catch (error) {
+    dbStatus = 'disconnected';
+    // Intentar reconectar si hay error
+    if (error.code === 'P1001' || error.code === 'P1002' || error.code === 'P1017' || 
+        (error.message && error.message.includes('terminating connection'))) {
+      try {
+        await req.app.locals.prisma.$disconnect();
+        await req.app.locals.prisma.$connect();
+        dbStatus = 'reconnected';
+      } catch (reconnectError) {
+        // Ignorar errores de reconexión en health check
+      }
+    }
+  }
+  
   res.json({ 
     status: "ok", 
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    service: "regismac"
+    service: "regismac",
+    database: dbStatus
   });
 });
 

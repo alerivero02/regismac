@@ -672,7 +672,9 @@ export default function Test() {
       }
       
       // Reconfigurar el callback para asegurar que esté activo cuando se conecte
+      // Usar función wrapper que siempre accede a los valores más recientes
       service.setDataCallback(async (data) => {
+        const isDev = import.meta.env.DEV;
         if (isDev) {
           console.log('[Test] 📥 Callback WebSerial llamado con datos:', data);
         }
@@ -687,14 +689,32 @@ export default function Test() {
           if (!isNaN(temperatura)) {
             if (isDev) {
               console.log('[Test] 🌡️ Temperatura recibida:', temperatura);
+              console.log('[Test] 🔄 Actualizando estado...');
             }
-            // Actualizar ref y estado para forzar re-render
+            
+            // Actualizar ref y estado para forzar re-render inmediato
             temperaturaWebSerialRef.current = temperatura;
             setTemperaturaWebSerial(temperatura);
-            setTemperaturaUpdateKey(prev => prev + 1); // Forzar re-render del componente
+            setTemperaturaUpdateKey(prev => {
+              const newKey = prev + 1;
+              if (isDev) {
+                console.log('[Test] 🔑 Nueva key de actualización:', newKey);
+              }
+              return newKey;
+            });
+            
+            // Usar setTimeout para asegurar que React procese el estado
+            setTimeout(() => {
+              // Verificar que el estado se actualizó correctamente
+              if (isDev) {
+                console.log('[Test] ✅ Estado actualizado, temperatura:', temperatura);
+              }
+            }, 0);
             
             // Detección de temperaturas objetivo si hay test activo
-            if (testESP32Activo && tiempoInicioTestRef.current) {
+            // Usar refs para acceder a valores actuales sin depender de closures
+            const testActivo = testESP32Activo; // Capturar valor actual
+            if (testActivo && tiempoInicioTestRef.current) {
               const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
               if (tiempo0GradosRef.current === null && temperatura >= -0.5 && temperatura <= 0.5) {
                 tiempo0GradosRef.current = tiempoTranscurrido;

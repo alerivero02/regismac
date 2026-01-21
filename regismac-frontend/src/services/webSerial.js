@@ -333,48 +333,37 @@ class WebSerialService {
                   console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);
                 }
               } else {
+                // Intentar extraer JSON de líneas con texto adicional o fragmentado
                 console.log('[WebSerial] ⚠️ Línea NO es JSON completo (no empieza/termina con llaves)');
-              } 
-              // Intentar extraer JSON de líneas con texto adicional o fragmentado
-              else {
                 // Buscar JSON completo en la línea (puede tener texto antes/después)
                 const jsonMatch = trimmedLine.match(/\{[\s\S]*?\}/);
                 if (jsonMatch) {
+                  console.log('[WebSerial] 📋 JSON encontrado en la línea:', jsonMatch[0]);
                   try {
                     const data = JSON.parse(jsonMatch[0]);
-                    if (isDev) {
-                      console.log('[WebSerial] ✅ JSON extraído:', data);
-                    }
+                    console.log('[WebSerial] ✅ JSON extraído y parseado:', data);
                     if (data.temperatura !== undefined && data.temperatura !== null) {
-                      if (isDev) {
-                        console.log('[WebSerial] 🔔 Llamando callback con temperatura extraída:', data.temperatura);
-                      }
+                      console.log('[WebSerial] 🔔 Llamando callback con temperatura extraída:', data.temperatura);
                       if (this.onDataCallback) {
                         try {
                           this.onDataCallback(data);
-                          if (isDev) {
-                            console.log('[WebSerial] ✅ Callback ejecutado correctamente');
-                          }
+                          console.log('[WebSerial] ✅ Callback ejecutado correctamente');
                         } catch (error) {
-                          if (isDev) {
-                            console.error('[WebSerial] ❌ Error ejecutando callback:', error);
-                          }
+                          console.error('[WebSerial] ❌ Error ejecutando callback:', error);
                         }
-                      } else if (isDev) {
+                      } else {
                         console.warn('[WebSerial] ⚠️ No hay callback configurado');
                       }
+                    } else {
+                      console.warn('[WebSerial] ⚠️ JSON sin campo temperatura:', data);
                     }
                   } catch (e) {
-                    if (isDev) {
-                      console.warn('[WebSerial] ⚠️ Error parseando JSON extraído:', e.message);
-                    }
+                    console.warn('[WebSerial] ⚠️ Error parseando JSON extraído:', e.message, 'JSON:', jsonMatch[0]);
                   }
                 }
                 // Intentar extraer temperatura directamente si aparece en el texto
                 else if (trimmedLine.includes('temperatura') || trimmedLine.includes('temp') || trimmedLine.includes('T=')) {
-                  if (isDev) {
-                    console.log('[WebSerial] 📊 Línea con posible temperatura:', trimmedLine);
-                  }
+                  console.log('[WebSerial] 📊 Línea con posible temperatura:', trimmedLine);
                   
                   // Buscar patrones como "temperatura":25.5 o T=25.5
                   const tempMatch = trimmedLine.match(/"temperatura"\s*:\s*([\d.-]+)/) || 
@@ -384,28 +373,26 @@ class WebSerialService {
                   if (tempMatch) {
                     const temperatura = parseFloat(tempMatch[1]);
                     if (!isNaN(temperatura)) {
-                      if (isDev) {
-                        console.log('[WebSerial] ✅ Temperatura extraída:', temperatura);
-                      }
-                      if (isDev) {
-                        console.log('[WebSerial] 🔔 Llamando callback con temperatura extraída:', temperatura);
-                      }
+                      console.log('[WebSerial] ✅ Temperatura extraída del patrón:', temperatura);
+                      console.log('[WebSerial] 🔔 Llamando callback con temperatura extraída:', temperatura);
                       if (this.onDataCallback) {
                         try {
                           this.onDataCallback({ temperatura });
-                          if (isDev) {
-                            console.log('[WebSerial] ✅ Callback ejecutado correctamente');
-                          }
+                          console.log('[WebSerial] ✅ Callback ejecutado correctamente');
                         } catch (error) {
-                          if (isDev) {
-                            console.error('[WebSerial] ❌ Error ejecutando callback:', error);
-                          }
+                          console.error('[WebSerial] ❌ Error ejecutando callback:', error);
                         }
-                      } else if (isDev) {
+                      } else {
                         console.warn('[WebSerial] ⚠️ No hay callback configurado');
                       }
+                    } else {
+                      console.warn('[WebSerial] ⚠️ Temperatura extraída no es un número válido:', tempMatch[1]);
                     }
+                  } else {
+                    console.log('[WebSerial] ⚠️ No se encontró patrón de temperatura en la línea');
                   }
+                } else {
+                  console.log('[WebSerial] ⚠️ Línea no contiene JSON ni patrones de temperatura reconocidos');
                 }
               }
             } catch (error) {

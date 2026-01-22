@@ -264,8 +264,8 @@ export default function Test() {
           console.log('[WebSocket] 🔍 Estado ANTES de actualizar:', {
             esp32EstadoActual: esp32Estado,
             timestampActual: esp32Estado?.timestamp,
-            timestampActualISO: esp32Estado?.timestamp?.toISOString(),
-            timestampActualLocal: esp32Estado?.timestamp?.toLocaleTimeString()
+            timestampActualISO: esp32Estado?.timestamp instanceof Date ? esp32Estado.timestamp.toISOString() : (esp32Estado?.timestamp ? new Date(esp32Estado.timestamp).toISOString() : 'N/A'),
+            timestampActualLocal: esp32Estado?.timestamp instanceof Date ? esp32Estado.timestamp.toLocaleTimeString() : (esp32Estado?.timestamp ? new Date(esp32Estado.timestamp).toLocaleTimeString() : 'N/A')
           });
           
           setEsp32Estado(prev => {
@@ -281,8 +281,8 @@ export default function Test() {
               nuevoEstado: nuevoEstado,
               timestampAnterior: estadoAnterior?.timestamp,
               timestampNuevo: nuevoEstado.timestamp,
-              timestampNuevoISO: nuevoEstado.timestamp?.toISOString(),
-              timestampNuevoLocal: nuevoEstado.timestamp?.toLocaleTimeString(),
+              timestampNuevoISO: nuevoEstado.timestamp instanceof Date ? nuevoEstado.timestamp.toISOString() : (nuevoEstado.timestamp ? new Date(nuevoEstado.timestamp).toISOString() : 'N/A'),
+              timestampNuevoLocal: nuevoEstado.timestamp instanceof Date ? nuevoEstado.timestamp.toLocaleTimeString() : (nuevoEstado.timestamp ? new Date(nuevoEstado.timestamp).toLocaleTimeString() : 'N/A'),
               sonDiferentes: estadoAnterior?.timestamp?.valueOf() !== nuevoEstado.timestamp?.valueOf()
             });
             return nuevoEstado;
@@ -340,8 +340,8 @@ export default function Test() {
       timestamp: esp32Estado?.timestamp,
       timestampTipo: typeof esp32Estado?.timestamp,
       timestampEsDate: esp32Estado?.timestamp instanceof Date,
-      timestampISO: esp32Estado?.timestamp?.toISOString(),
-      timestampLocal: esp32Estado?.timestamp?.toLocaleTimeString(),
+      timestampISO: esp32Estado?.timestamp instanceof Date ? esp32Estado.timestamp.toISOString() : (esp32Estado?.timestamp ? new Date(esp32Estado.timestamp).toISOString() : 'N/A'),
+      timestampLocal: esp32Estado?.timestamp instanceof Date ? esp32Estado.timestamp.toLocaleTimeString() : (esp32Estado?.timestamp ? new Date(esp32Estado.timestamp).toLocaleTimeString() : 'N/A'),
       horaActual: new Date().toLocaleTimeString(),
       stackTrace: new Error().stack
     });

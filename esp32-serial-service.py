@@ -11,6 +11,8 @@ import serial.tools.list_ports
 import json
 import threading
 import time
+import os
+import requests
 from datetime import datetime
 
 app = Flask(__name__)
@@ -28,6 +30,56 @@ sensor_state = {
 
 # Lock para acceso thread-safe
 state_lock = threading.Lock()
+
+# URL del backend en producción (Render)
+# Se puede configurar con variable de entorno BACKEND_URL
+# O editar directamente aquí:
+BACKEND_URL = os.getenv('BACKEND_URL', 'https://regismac.onrender.com')
+SEND_TO_BACKEND = os.getenv('SEND_TO_BACKEND', 'true').lower() == 'true'
+
+# Cargar variables de entorno desde archivo .env si existe
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+    # Recargar después de cargar .env
+    BACKEND_URL = os.getenv('BACKEND_URL', BACKEND_URL)
+    SEND_TO_BACKEND = os.getenv('SEND_TO_BACKEND', 'true').lower() == 'true'
+except ImportError:
+    # python-dotenv no está instalado, usar variables de entorno del sistema
+    pass
+
+def enviar_a_backend(temperatura, humedad=None):
+    """Enviar datos del sensor al backend en producción"""
+    if not SEND_TO_BACKEND:
+        return
+    
+    try:
+        url = f'{BACKEND_URL}/api/sensor/datos'
+        payload = {
+            'temperatura': temperatura,
+            'humedad': humedad
+        }
+        
+        # Enviar de forma no bloqueante (fire-and-forget)
+        response = requests.post(
+            url,
+            json=payload,
+            timeout=2,
+            headers={'Content-Type': 'application/json'}
+        )
+        
+        if response.status_code == 200:
+            timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+            print(f"[{timestamp}] ✅ Datos enviados al backend: {temperatura}°C")
+        else:
+            print(f"⚠️  Backend respondió con código {response.status_code}")
+            
+    except requests.exceptions.Timeout:
+        print(f"⚠️  Timeout enviando al backend (no crítico)")
+    except requests.exceptions.ConnectionError:
+        print(f"⚠️  No se pudo conectar al backend (no crítico)")
+    except Exception as e:
+        print(f"⚠️  Error enviando al backend: {e} (no crítico)")
 
 def leer_esp32(puerto, baudrate=115200):
     """Lee datos del ESP32 en un hilo separado"""
@@ -100,14 +152,22 @@ def leer_esp32(puerto, baudrate=115200):
                                         datos = json.loads(json_str)
                                         
                                         # Actualizar estado
+                                        temperatura = datos.get('temperatura')
+                                        humedad = datos.get('humedad')
+                                        
                                         with state_lock:
-                                            sensor_state['temperatura'] = datos.get('temperatura')
+                                            sensor_state['temperatura'] = temperatura
                                             sensor_state['timestamp'] = datos.get('timestamp')
                                             sensor_state['sensor'] = datos.get('sensor', 'DS18B20')
                                             sensor_state['last_update'] = datetime.now().isoformat()
                                             sensor_state['error'] = None
                                         
-                                        print(f"📊 Temperatura: {datos.get('temperatura')}°C")
+                                        timestamp = datetime.now().strftime('%H:%M:%S.%f')[:-3]
+                                        print(f"[{timestamp}] 📊 Temperatura recibida: {temperatura}°C")
+                                        
+                                        # Enviar al backend en producción (no bloqueante)
+                                        if temperatura is not None:
+                                            enviar_a_backend(temperatura, humedad)
                                 except json.JSONDecodeError:
                                     print(f"⚠️  Error parseando JSON: {linea}")
                     else:
@@ -206,12 +266,38 @@ if __name__ == '__main__':
     print("=" * 60)
     print("ESP32 Serial Service - API REST")
     print("=" * 60)
+    print(f"\n📡 Backend URL: {BACKEND_URL}")
+    print(f"📤 Enviar a backend: {SEND_TO_BACKEND}")
     print("\nEndpoints disponibles:")
     print("  GET  /api/sensor/estado     - Estado del sensor")
     print("  POST /api/sensor/conectar   - Conectar al ESP32")
     print("  POST /api/sensor/desconectar - Desconectar")
     print("  GET  /api/sensor/puertos    - Listar puertos")
     print("  GET  /health                - Health check")
-    print("\n🚀 Iniciando servidor en http://localhost:5000\n")
+    print("\n🚀 Iniciando servidor en http://localhost:5000")
+    print("💡 Los datos se enviarán automáticamente al backend en producción")
     
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Intentar conectar automáticamente si hay un puerto configurado
+    auto_port = os.getenv('SERIAL_PORT')
+    auto_baud = int(os.getenv('SERIAL_BAUD', '115200'))
+    
+    if auto_port:
+        print(f"\n🔌 Intentando conectar automáticamente a {auto_port}...")
+        with state_lock:
+            sensor_state['connected'] = True
+            sensor_state['error'] = None
+        
+        thread = threading.Thread(
+            target=leer_esp32,
+            args=(auto_port, auto_baud),
+            daemon=True
+        )
+        thread.start()
+        print(f"✅ Conexión automática iniciada a {auto_port}")
+    else:
+        print("\n💡 Para conexión automática, configura SERIAL_PORT en variables de entorno")
+        print("   Ejemplo: SERIAL_PORT=COM4")
+    
+    print("")
+    
+    app.run(host='0.0.0.0', port=5000, debug=False)

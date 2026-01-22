@@ -375,8 +375,6 @@ export default function Test() {
     }
     
     const cargarEstadoInicial = async () => {
-    
-    const cargarEstadoInicial = async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();
         setEsp32Estado(estado);
@@ -643,7 +641,7 @@ export default function Test() {
       clearInterval(interval);
       setEsp32PollingInterval(null);
     };
-  }, [showESP32Modal, webSerialConnected, pythonServiceConnected, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, testESP32Activo, showNotification, pythonServicePollingInterval]);
+  }, [showESP32Modal, webSerialConnected, pythonServiceConnected, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, testESP32Activo, showNotification]);
   
   // Efecto para conexión automática cuando se abre el modal
   useEffect(() => {

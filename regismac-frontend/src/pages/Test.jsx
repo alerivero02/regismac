@@ -69,6 +69,8 @@ export default function Test() {
   const [webSerialSupported, setWebSerialSupported] = useState(false);
   const [webSerialConnected, setWebSerialConnected] = useState(false);
   const [isMobileDevice, setIsMobileDevice] = useState(false);
+  const [pythonServiceConnected, setPythonServiceConnected] = useState(false);
+  const [pythonServicePollingInterval, setPythonServicePollingInterval] = useState(null);
   
   const [showCronometroModal, setShowCronometroModal] = useState(false);
 
@@ -364,8 +366,15 @@ export default function Test() {
         clearInterval(esp32PollingInterval);
         setEsp32PollingInterval(null);
       }
+      // Limpiar polling del servicio Python cuando se cierra el modal
+      if (pythonServicePollingInterval) {
+        clearInterval(pythonServicePollingInterval);
+        setPythonServicePollingInterval(null);
+      }
       return;
     }
+    
+    const cargarEstadoInicial = async () => {
     
     const cargarEstadoInicial = async () => {
       try {
@@ -634,7 +643,45 @@ export default function Test() {
       clearInterval(interval);
       setEsp32PollingInterval(null);
     };
-  }, [showESP32Modal, webSerialConnected, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, testESP32Activo, showNotification]);
+  }, [showESP32Modal, webSerialConnected, pythonServiceConnected, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, testESP32Activo, showNotification, pythonServicePollingInterval]);
+  
+  // Efecto para conexión automática cuando se abre el modal
+  useEffect(() => {
+    if (!showESP32Modal) return;
+    if (webSerialConnected || pythonServiceConnected) return; // Ya hay conexión
+    
+    // Esperar un momento para que el modal se renderice
+    const timeout = setTimeout(async () => {
+      console.log('[SENSOR] 🚀 Modal abierto, intentando conexión automática...');
+      
+      // Primero intentar WebSerial si está disponible
+      if (webSerialSupported) {
+        try {
+          const service = await getWebSerialService();
+          if (service) {
+            console.log('[SENSOR] 🔌 Intentando WebSerial primero...');
+            try {
+              await conectarWebSerial();
+              return; // Si WebSerial funciona, no intentar Python
+            } catch (wsError) {
+              console.log('[SENSOR] ⚠️ WebSerial falló, intentando servicio Python...', wsError.message);
+            }
+          }
+        } catch (error) {
+          console.log('[SENSOR] ⚠️ Error obteniendo servicio WebSerial:', error.message);
+        }
+      }
+      
+      // Si WebSerial no está disponible o falló, intentar servicio Python
+      try {
+        await intentarConectarServicioPython();
+      } catch (error) {
+        console.error('[SENSOR] ❌ Error en conexión automática:', error);
+      }
+    }, 500);
+    
+    return () => clearTimeout(timeout);
+  }, [showESP32Modal, webSerialSupported, webSerialConnected, pythonServiceConnected, getWebSerialService]);
 
   const desconectarWebSerial = useCallback(async () => {
     try {
@@ -837,8 +884,128 @@ export default function Test() {
       setWebSerialConnected(false);
       setConexionSerial({ connected: false, port: null });
       console.log('[SENSOR] ✅ Estado actualizado: webSerialConnected=false');
+      
+      // Si WebSerial falla, intentar automáticamente el servicio Python local
+      console.log('[SENSOR] 🔄 WebSerial falló, intentando servicio Python local...');
+      intentarConectarServicioPython();
     }
   }, [showNotification, getWebSerialService, webSerialConnected]);
+  
+  // Función para conectar vía servicio Python local
+  const intentarConectarServicioPython = useCallback(async () => {
+    try {
+      console.log('[SENSOR] 🔍 Verificando disponibilidad del servicio Python...');
+      
+      // Verificar si el servicio está disponible
+      const disponible = await sensorAPI.pythonService.verificarDisponibilidad();
+      if (!disponible) {
+        console.warn('[SENSOR] ⚠️ Servicio Python no disponible');
+        showNotification('💡 El servicio Python no está ejecutándose. Ejecuta start-sensor-service.bat para iniciarlo.', 'info');
+        return;
+      }
+      
+      console.log('[SENSOR] ✅ Servicio Python disponible');
+      
+      // Listar puertos disponibles
+      const puertos = await sensorAPI.pythonService.listarPuertos();
+      console.log('[SENSOR] 📋 Puertos disponibles:', puertos);
+      
+      if (puertos.length === 0) {
+        showNotification('⚠️ No se encontraron puertos USB. Conecta el ESP32 y recarga la página.', 'warning');
+        return;
+      }
+      
+      // Intentar conectar automáticamente (usar el primer puerto o null para auto-detección)
+      console.log('[SENSOR] 🔌 Intentando conectar al ESP32 vía servicio Python...');
+      showNotification('🔄 Conectando vía servicio Python local...', 'info');
+      
+      const resultado = await sensorAPI.pythonService.conectar(null, 115200);
+      console.log('[SENSOR] ✅ Resultado de conexión:', resultado);
+      
+      setPythonServiceConnected(true);
+      setConexionSerial({ connected: true, port: 'Python Service' });
+      showNotification('✅ Conectado vía servicio Python local', 'success');
+      
+      // Iniciar polling para obtener datos del servicio Python
+      iniciarPollingServicioPython();
+      
+    } catch (error) {
+      console.error('[SENSOR] ❌ Error conectando al servicio Python:', error);
+      showNotification(`⚠️ Error: ${error.message}`, 'error');
+      setPythonServiceConnected(false);
+    }
+  }, [showNotification]);
+  
+  // Función para hacer polling del servicio Python y obtener datos
+  const iniciarPollingServicioPython = useCallback(() => {
+    // Limpiar intervalo anterior si existe
+    if (pythonServicePollingInterval) {
+      clearInterval(pythonServicePollingInterval);
+    }
+    
+    // Polling cada 500ms (mismo que la frecuencia del ESP32)
+    const interval = setInterval(async () => {
+      try {
+        const estado = await sensorAPI.pythonService.obtenerEstado();
+        if (estado && estado.temperatura !== null && estado.temperatura !== undefined) {
+          const temperatura = parseFloat(estado.temperatura);
+          if (!isNaN(temperatura)) {
+            // Actualizar estado igual que con WebSerial
+            temperaturaWebSerialRef.current = temperatura;
+            setTemperaturaWebSerial(temperatura);
+            setTemperaturaUpdateKey(prev => prev + 1);
+            
+            const timestamp = new Date();
+            setEsp32Estado(prev => ({
+              ...prev,
+              temperatura: temperatura,
+              humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
+              timestamp: timestamp
+            }));
+            
+            // Enviar al servidor (no bloqueante)
+            sensorAPI.recibirDatos(temperatura, estado.humedad || null).then(() => {
+              console.log(`[SENSOR] ✅ Temperatura enviada al servidor desde servicio Python: ${temperatura}°C`);
+            }).catch((error) => {
+              console.warn('[SENSOR] ⚠️ No se pudo enviar al servidor (no crítico):', error.message);
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('[SENSOR] ⚠️ Error obteniendo estado del servicio Python:', error);
+        // Si el servicio se desconecta, limpiar el intervalo
+        if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
+          clearInterval(interval);
+          setPythonServicePollingInterval(null);
+          setPythonServiceConnected(false);
+          setConexionSerial({ connected: false, port: null });
+          showNotification('⚠️ Servicio Python desconectado', 'warning');
+        }
+      }
+    }, 500); // Polling cada 500ms
+    
+    setPythonServicePollingInterval(interval);
+  }, [pythonServicePollingInterval, showNotification]);
+  
+  // Función para desconectar del servicio Python
+  const desconectarServicioPython = useCallback(async () => {
+    try {
+      await sensorAPI.pythonService.desconectar();
+      setPythonServiceConnected(false);
+      setConexionSerial({ connected: false, port: null });
+      
+      // Limpiar polling
+      if (pythonServicePollingInterval) {
+        clearInterval(pythonServicePollingInterval);
+        setPythonServicePollingInterval(null);
+      }
+      
+      showNotification('Desconectado del servicio Python', 'info');
+    } catch (error) {
+      console.error('[SENSOR] Error desconectando servicio Python:', error);
+      showNotification('Error al desconectar', 'error');
+    }
+  }, [pythonServicePollingInterval, showNotification]);
 
 
   const iniciarTestESP32 = useCallback(async () => {

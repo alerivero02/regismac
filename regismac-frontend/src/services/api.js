@@ -372,4 +372,95 @@ export const sensorAPI = {
     method: 'POST'
   }),
   obtenerEstadoConexion: () => fetchAPI('/api/sensor/conexion'),
+  
+  // Funciones para servicio Python local (http://localhost:5000)
+  pythonService: {
+    // Verificar si el servicio Python está disponible
+    verificarDisponibilidad: async () => {
+      try {
+        const response = await fetch('http://localhost:5000/health', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(2000) // Timeout de 2 segundos
+        });
+        return response.ok;
+      } catch (error) {
+        return false;
+      }
+    },
+    
+    // Listar puertos disponibles en el servicio Python
+    listarPuertos: async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/sensor/puertos', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(3000)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data.puertos || [];
+        }
+        return [];
+      } catch (error) {
+        console.warn('[Python Service] Error listando puertos:', error);
+        return [];
+      }
+    },
+    
+    // Conectar al ESP32 vía servicio Python
+    conectar: async (portPath = null, baudRate = 115200) => {
+      try {
+        const response = await fetch('http://localhost:5000/api/sensor/conectar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ portPath, baudRate }),
+          signal: AbortSignal.timeout(5000)
+        });
+        if (response.ok) {
+          const data = await response.json();
+          return data;
+        }
+        throw new Error(`Error al conectar: ${response.status}`);
+      } catch (error) {
+        if (error.name === 'AbortError') {
+          throw new Error('Timeout: El servicio Python no responde. Verifica que esté ejecutándose.');
+        }
+        throw error;
+      }
+    },
+    
+    // Desconectar del ESP32
+    desconectar: async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/sensor/desconectar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(3000)
+        });
+        return response.ok;
+      } catch (error) {
+        console.warn('[Python Service] Error desconectando:', error);
+        return false;
+      }
+    },
+    
+    // Obtener estado del sensor desde el servicio Python
+    obtenerEstado: async () => {
+      try {
+        const response = await fetch('http://localhost:5000/api/sensor/estado', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: AbortSignal.timeout(2000)
+        });
+        if (response.ok) {
+          return await response.json();
+        }
+        return null;
+      } catch (error) {
+        console.warn('[Python Service] Error obteniendo estado:', error);
+        return null;
+      }
+    }
+  }
 };

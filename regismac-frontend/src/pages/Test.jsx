@@ -346,11 +346,6 @@ export default function Test() {
         clearInterval(esp32PollingInterval);
         setEsp32PollingInterval(null);
       }
-      // Limpiar polling del servicio Python cuando se cierra el modal
-      if (pythonServicePollingInterval) {
-        clearInterval(pythonServicePollingInterval);
-        setPythonServicePollingInterval(null);
-      }
       return;
     }
     
@@ -358,10 +353,6 @@ export default function Test() {
       try {
         const estado = await sensorAPI.obtenerEstado();
         setEsp32Estado(estado);
-        setConexionSerial({
-          connected: estado.serialConnected || false,
-          port: estado.serialPort || null,
-        });
       } catch (error) {
         // Solo loguear errores críticos, no 401/403 esperados
         const isDev = import.meta.env.DEV;
@@ -442,10 +433,6 @@ export default function Test() {
           console.log('[Test] Estado del sensor obtenido:', estado);
         }
         setEsp32Estado(estado);
-        setConexionSerial({
-          connected: estado.serialConnected || false,
-          port: estado.serialPort || null,
-        });
         
         // Actualizar temperatura del servidor si está disponible
         // Prioridad: WebSocket > WebSerial > Polling (HTTP)

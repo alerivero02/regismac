@@ -2249,13 +2249,13 @@ export default function Test() {
                 </div>
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">Test Automatico ESP32</h2>
-                  <p className="text-sm text-gray-600">Monitoreo de temperatura con sensor DHT11</p>
+                  <p className="text-sm text-gray-600">Monitoraggio temperatura con sensore DS18B20</p>
                 </div>
               </div>
               <button
                 onClick={() => {
                   if (testESP32Activo) {
-                    if (window.confirm('¿Estás seguro de que quieres cerrar? El test activo se cancelará.')) {
+                    if (window.confirm('Sei sicuro di voler chiudere? Il test attivo verrà annullato.')) {
                       cancelarTestESP32();
                       setShowESP32Modal(false);
                     }
@@ -2293,7 +2293,7 @@ export default function Test() {
               {esp32Estado?.temperatura === null && (
                 <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
                   <p className="text-sm text-blue-800">
-                    ℹ️ Conecta el ESP32 por WiFi/HTTP o usa un navegador compatible (Chrome/Edge) para WebSerial USB.
+                    ℹ️ Connetti l'ESP32 via WiFi/HTTP. Il sensore invierà i dati automaticamente al server.
                   </p>
                 </div>
               )}
@@ -2405,7 +2405,7 @@ export default function Test() {
                 
                 return (
                   <div className="mt-3 text-xs text-gray-500">
-                    Última actualización: {timestampDisplay}
+                    Ultimo aggiornamento: {timestampDisplay}
                   </div>
                 );
               })()}
@@ -2493,7 +2493,7 @@ export default function Test() {
                   {isIniciandoTest ? (
                     <>
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Iniciando...</span>
+                      <span>Avviando...</span>
                     </>
                   ) : (
                     <>

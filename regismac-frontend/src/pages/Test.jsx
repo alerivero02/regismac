@@ -391,7 +391,8 @@ export default function Test() {
       if (webSerialConnected && webSerialServiceRef.current) {
         webSerialServiceRef.current.disconnect().catch(() => {});
       }
-      disconnectSocket();
+      // NO desconectar el socket aquí - debe permanecer conectado
+      // El socket se desconectará solo cuando la página se cierre
     };
   }, [esp32PollingInterval, webSerialConnected]);
 
@@ -461,12 +462,37 @@ export default function Test() {
     // NO configurar callback aquí - se configurará en conectarWebSerial cuando se conecte
     // Esto evita problemas con closures y valores antiguos
     
-    // Polling adaptativo: 1 segundo durante test, 5 segundos cuando no hay test activo
-    const pollingInterval = testESP32Activo ? 1000 : 5000;
+    // Polling adaptativo: 1 segundo durante test, 2 segundos cuando no hay test activo
+    // Este polling es un fallback si el WebSocket no funciona
+    const pollingInterval = testESP32Activo ? 1000 : 2000;
     
     const interval = setInterval(async () => {
       try {
         const estado = await sensorAPI.obtenerEstado();
+        
+        // Solo actualizar si el WebSocket no está funcionando
+        // Verificar si el socket está conectado
+        const { getSocketStatus } = await import('../services/socket.js');
+        const socketStatus = getSocketStatus();
+        
+        // Si el socket NO está conectado, usar polling como fallback
+        if (!socketStatus.connected && estado && estado.temperatura !== null && estado.temperatura !== undefined) {
+          console.log('[Polling] 🔄 Usando polling como fallback (WebSocket desconectado):', estado.temperatura);
+          const temperatura = parseFloat(estado.temperatura);
+          if (!isNaN(temperatura)) {
+            setTemperaturaWebSerial(temperatura);
+            temperaturaWebSerialRef.current = temperatura;
+            setTemperaturaUpdateKey(prev => prev + 1);
+            
+            const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
+            setEsp32Estado(prev => ({
+              ...prev,
+              temperatura: temperatura,
+              humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
+              timestamp: timestamp
+            }));
+          }
+        }
         // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
         const isDev = import.meta.env.DEV;
         if (isDev) {
@@ -479,10 +505,32 @@ export default function Test() {
         });
         
         // Actualizar temperatura del servidor si está disponible
-        // Si WebSerial está conectado, priorizar su temperatura, pero también mantener la del servidor actualizada
+        // Prioridad: WebSocket > WebSerial > Polling (HTTP)
         if (estado.temperatura !== null && estado.temperatura !== undefined) {
-          // Si NO estamos usando WebSerial, usar la temperatura del servidor
-          if (!webSerialConnected) {
+          // Verificar si el WebSocket está conectado
+          const { getSocketStatus } = await import('../services/socket.js');
+          const socketStatus = getSocketStatus();
+          
+          // Si WebSocket NO está conectado, usar polling como fuente principal
+          if (!socketStatus.connected) {
+            const temperatura = parseFloat(estado.temperatura);
+            if (!isNaN(temperatura)) {
+              console.log('[Polling] 🔄 Actualizando temperatura vía HTTP polling (WebSocket desconectado):', temperatura);
+              setTemperaturaWebSerial(temperatura);
+              temperaturaWebSerialRef.current = temperatura;
+              setTemperaturaUpdateKey(prev => prev + 1);
+              
+              const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
+              setEsp32Estado(prev => ({
+                ...prev,
+                temperatura: temperatura,
+                humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
+                timestamp: timestamp
+              }));
+            }
+          }
+          // Si WebSocket está conectado pero NO estamos usando WebSerial, usar la temperatura del servidor como fallback
+          else if (!webSerialConnected) {
             // Actualizar solo si no tenemos temperatura de WebSerial o si la del servidor es más reciente
             if (temperaturaWebSerial === null || (estado.timestamp && estado.timestamp > (esp32Estado?.timestamp || 0))) {
               if (isDev) {

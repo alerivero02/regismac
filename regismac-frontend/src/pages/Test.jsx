@@ -379,21 +379,6 @@ export default function Test() {
     
     cargarEstadoInicial();
     
-    const cargarPuertos = async () => {
-      try {
-        const response = await sensorAPI.listarPuertos();
-        if (response.success !== false) {
-          setPuertosDisponibles(response.ports || []);
-        } else {
-          setPuertosDisponibles([]);
-        }
-      } catch (error) {
-        setPuertosDisponibles([]);
-      }
-    };
-    
-    cargarPuertos();
-    
     // Polling HTTP como fallback si WebSocket no está conectado
     
     // Polling adaptativo: 1 segundo durante test, 2 segundos cuando no hay test activo

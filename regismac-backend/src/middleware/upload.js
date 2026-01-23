@@ -48,21 +48,35 @@ const upload = multer({
 
 // Middleware adicional para validar magic numbers
 export const validateImageFile = (req, res, next) => {
-  if (!req.files) {
-    return next();
-  }
-  
-  const files = Object.values(req.files).flat();
-  
-  for (const file of files) {
-    if (file.buffer && !isValidImage(file.buffer)) {
-      return res.status(400).json({ 
-        error: 'Il file caricato non è un\'immagine valida. Solo JPEG, PNG, GIF e WebP sono consentiti.' 
-      });
+  try {
+    console.log('🔵 validateImageFile - Files:', req.files ? Object.keys(req.files) : 'ninguno');
+    
+    if (!req.files) {
+      console.log('✅ validateImageFile - No hay archivos, continuando...');
+      return next();
     }
+    
+    const files = Object.values(req.files).flat();
+    console.log('🔵 validateImageFile - Archivos a validar:', files.length);
+    
+    for (const file of files) {
+      if (file.buffer && !isValidImage(file.buffer)) {
+        console.error('❌ validateImageFile - Archivo no válido:', file.originalname);
+        return res.status(400).json({ 
+          error: 'Il file caricato non è un\'immagine valida. Solo JPEG, PNG, GIF e WebP sono consentiti.' 
+        });
+      }
+    }
+    
+    console.log('✅ validateImageFile - Validación exitosa');
+    next();
+  } catch (error) {
+    console.error('❌ Error en validateImageFile:', error);
+    return res.status(500).json({ 
+      error: 'Errore nella validazione del file',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
-  
-  next();
 };
 
 export default upload;

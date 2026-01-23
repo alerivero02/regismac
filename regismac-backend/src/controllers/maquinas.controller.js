@@ -166,6 +166,10 @@ export const createMaquina = async (req, res, next) => {
 };
 
 export const updateMaquina = async (req, res, next) => {
+  console.log('🔵 updateMaquina llamado - ID:', req.params.id);
+  console.log('🔵 Body recibido:', JSON.stringify(req.body, null, 2));
+  console.log('🔵 Files recibidos:', req.files ? Object.keys(req.files) : 'ninguno');
+  
   try {
     // Verificar que prisma esté disponible
     if (!req.app || !req.app.locals || !req.app.locals.prisma) {
@@ -173,8 +177,10 @@ export const updateMaquina = async (req, res, next) => {
       throw new ApiError("Errore di connessione al database. Il servizio non è disponibile.", 503);
     }
     
+    console.log('✅ Prisma disponible, creando servicio...');
     const service = new MaquinasService(req.app.locals.prisma);
     const id = Number(req.params.id);
+    console.log('✅ ID convertido a número:', id);
     
     // Obtener la máquina actual para eliminar fotos antiguas de Drive si es necesario
     let maquinaActual = null;

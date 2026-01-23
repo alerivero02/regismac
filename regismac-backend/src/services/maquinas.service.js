@@ -306,16 +306,25 @@ export class MaquinasService {
       prismaData.stato = 'consegnata';
     }
     
-    // Convertir IDs a números
-    const numericIds = ids.map(id => Number(id));
-    
-    return this.prisma.maquina.updateMany({
-      where: {
-        id_maquina: {
-          in: numericIds
-        }
-      },
-      data: prismaData,
-    });
+      // Convertir IDs a números
+      const numericIds = ids.map(id => Number(id));
+      
+      return await this.prisma.maquina.updateMany({
+        where: {
+          id_maquina: {
+            in: numericIds
+          }
+        },
+        data: prismaData,
+      });
+    } catch (error) {
+      console.error('❌ Error en updateBatch de MaquinasService:', {
+        message: error.message,
+        code: error.code,
+        name: error.name,
+        ids: ids
+      });
+      throw error;
+    }
   }
 }

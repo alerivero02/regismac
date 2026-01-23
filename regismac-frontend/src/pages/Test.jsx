@@ -671,10 +671,22 @@ export default function Test() {
       }
       
       // Si WebSerial no está disponible o falló, intentar servicio Python
-      try {
-        await intentarConectarServicioPython();
-      } catch (error) {
-        console.error('[SENSOR] ❌ Error en conexión automática:', error);
+      // Solo en desarrollo local, no en producción
+      const isProduction = window.location.hostname.includes('onrender.com') || 
+                          window.location.hostname.includes('vercel.app') || 
+                          window.location.hostname.includes('netlify.app') ||
+                          (window.location.hostname !== 'localhost' && 
+                           window.location.hostname !== '127.0.0.1' && 
+                           !window.location.hostname.match(/^192\.168\./));
+      
+      if (!isProduction) {
+        try {
+          await intentarConectarServicioPython();
+        } catch (error) {
+          console.error('[SENSOR] ❌ Error en conexión automática:', error);
+        }
+      } else {
+        console.log('[SENSOR] ℹ️ En producción, el servicio Python debe ejecutarse localmente y enviar datos al backend automáticamente');
       }
     }, 500);
     
@@ -891,6 +903,20 @@ export default function Test() {
   
   // Función para conectar vía servicio Python local
   const intentarConectarServicioPython = useCallback(async () => {
+    // Verificar si estamos en producción
+    const isProduction = window.location.hostname.includes('onrender.com') || 
+                         window.location.hostname.includes('vercel.app') || 
+                         window.location.hostname.includes('netlify.app') ||
+                         (window.location.hostname !== 'localhost' && 
+                          window.location.hostname !== '127.0.0.1' && 
+                          !window.location.hostname.match(/^192\.168\./));
+    
+    if (isProduction) {
+      console.log('[SENSOR] ℹ️ En producción, el servicio Python debe ejecutarse localmente y enviar datos al backend automáticamente');
+      showNotification('💡 En producción, el servicio Python debe ejecutarse en tu PC local. Los datos se recibirán automáticamente vía WebSocket.', 'info');
+      return;
+    }
+    
     try {
       console.log('[SENSOR] 🔍 Verificando disponibilidad del servicio Python...');
       

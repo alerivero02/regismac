@@ -374,9 +374,27 @@ export const sensorAPI = {
   obtenerEstadoConexion: () => fetchAPI('/api/sensor/conexion'),
   
   // Funciones para servicio Python local (http://localhost:5000)
+  // NOTA: Solo funciona en desarrollo local, no en producción
   pythonService: {
+    // Verificar si estamos en producción
+    isProduction: () => {
+      if (typeof window === 'undefined') return false;
+      const hostname = window.location.hostname;
+      return hostname.includes('onrender.com') || 
+             hostname.includes('vercel.app') || 
+             hostname.includes('netlify.app') ||
+             (hostname !== 'localhost' && hostname !== '127.0.0.1' && !hostname.match(/^192\.168\./));
+    },
+    
     // Verificar si el servicio Python está disponible
     verificarDisponibilidad: async () => {
+      // En producción, el servicio Python no está accesible desde el frontend
+      // El servicio Python envía datos directamente al backend
+      if (sensorAPI.pythonService.isProduction()) {
+        console.log('[Python Service] ⚠️ En producción, el servicio Python no es accesible desde el frontend');
+        return false;
+      }
+      
       try {
         const response = await fetch('http://localhost:5000/health', {
           method: 'GET',
@@ -391,6 +409,11 @@ export const sensorAPI = {
     
     // Listar puertos disponibles en el servicio Python
     listarPuertos: async () => {
+      if (sensorAPI.pythonService.isProduction()) {
+        console.log('[Python Service] ⚠️ En producción, no se pueden listar puertos desde el frontend');
+        return [];
+      }
+      
       try {
         const response = await fetch('http://localhost:5000/api/sensor/puertos', {
           method: 'GET',
@@ -410,6 +433,10 @@ export const sensorAPI = {
     
     // Conectar al ESP32 vía servicio Python
     conectar: async (portPath = null, baudRate = 115200) => {
+      if (sensorAPI.pythonService.isProduction()) {
+        throw new Error('En producción, el servicio Python debe ejecutarse localmente y enviar datos al backend automáticamente.');
+      }
+      
       try {
         const response = await fetch('http://localhost:5000/api/sensor/conectar', {
           method: 'POST',

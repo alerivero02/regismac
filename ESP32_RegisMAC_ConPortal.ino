@@ -34,6 +34,15 @@ const unsigned long INTERVALO_ENVIO = 1000; // 1 segundo
 const char* AP_SSID = "RegisMAC-Config";
 const char* AP_PASSWORD = "config12345"; // Contraseña simple para el portal
 
+// Declaraciones adelantadas de las funciones de manejo
+void handleRoot();
+void handleConfig();
+void handleStatus();
+void handleReset();
+void conectarWiFi();
+void iniciarPortalConfiguracion();
+void enviarDatos();
+
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -151,216 +160,7 @@ void iniciarPortalConfiguracion() {
 }
 
 void handleRoot() {
-  String html = R"(
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Configuración ESP32 - RegisMAC</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container {
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
-            padding: 40px;
-            max-width: 500px;
-            width: 100%;
-        }
-        h1 {
-            color: #333;
-            margin-bottom: 10px;
-            font-size: 28px;
-        }
-        .subtitle {
-            color: #666;
-            margin-bottom: 30px;
-            font-size: 14px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            color: #333;
-            margin-bottom: 8px;
-            font-weight: 600;
-            font-size: 14px;
-        }
-        input {
-            width: 100%;
-            padding: 12px 15px;
-            border: 2px solid #e0e0e0;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-        input:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-        button {
-            width: 100%;
-            padding: 14px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-            margin-top: 10px;
-        }
-        button:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
-        }
-        button:active {
-            transform: translateY(0);
-        }
-        .info {
-            background: #f0f4ff;
-            border-left: 4px solid #667eea;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            font-size: 13px;
-            color: #555;
-        }
-        .status {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-            font-weight: 600;
-            display: none;
-        }
-        .status.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .status.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-        .reset-btn {
-            background: #dc3545;
-            margin-top: 20px;
-        }
-        .reset-btn:hover {
-            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🔧 Configuración ESP32</h1>
-        <p class="subtitle">RegisMAC - Sensor de Temperatura</p>
-        
-        <div class="info">
-            <strong>📡 Instrucciones:</strong><br>
-            1. Ingresa los datos de tu red WiFi<br>
-            2. El ESP32 se conectará automáticamente<br>
-            3. Se reiniciará y comenzará a enviar datos
-        </div>
-        
-        <form id="configForm">
-            <div class="form-group">
-                <label for="ssid">📶 Nombre de Red WiFi (SSID)</label>
-                <input type="text" id="ssid" name="ssid" required placeholder="Ej: MiWiFi">
-            </div>
-            
-            <div class="form-group">
-                <label for="password">🔒 Contraseña WiFi</label>
-                <input type="password" id="password" name="password" required placeholder="Contraseña de tu WiFi">
-            </div>
-            
-            <div class="form-group">
-                <label for="server">🌐 URL del Servidor</label>
-                <input type="text" id="server" name="server" value="https://regismac.onrender.com/api/sensor/datos" placeholder="URL del servidor">
-            </div>
-            
-            <button type="submit">✅ Guardar y Conectar</button>
-        </form>
-        
-        <button class="reset-btn" onclick="resetConfig()">Resetear Configuración</button>
-        
-        <div id="status" class="status"></div>
-    </div>
-    
-    <script>
-        document.getElementById('configForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const ssid = document.getElementById('ssid').value;
-            const password = document.getElementById('password').value;
-            const server = document.getElementById('server').value;
-            
-            const statusDiv = document.getElementById('status');
-            statusDiv.style.display = 'none';
-            
-            try {
-                const ssidEncoded = encodeURIComponent(ssid);
-                const passwordEncoded = encodeURIComponent(password);
-                const serverEncoded = encodeURIComponent(server);
-                const bodyData = 'ssid=' + ssidEncoded + '&password=' + passwordEncoded + '&server=' + serverEncoded;
-                const response = await fetch('/config', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: bodyData
-                });
-                
-                if (response.ok) {
-                    statusDiv.className = 'status success';
-                    statusDiv.textContent = '✅ Configuración guardada! El ESP32 se reiniciará en 3 segundos...';
-                    statusDiv.style.display = 'block';
-                    
-                    setTimeout(() => {
-                        statusDiv.textContent = '🔄 Reiniciando... Por favor espera.';
-                    }, 3000);
-                } else {
-                    throw new Error('Error al guardar');
-                }
-            } catch (error) {
-                statusDiv.className = 'status error';
-                statusDiv.textContent = '❌ Error al guardar configuración. Intenta de nuevo.';
-                statusDiv.style.display = 'block';
-            }
-        });
-        
-        async function resetConfig() {
-            if (!confirm('¿Estás seguro de resetear la configuración?')) return;
-            
-            try {
-                const response = await fetch('/reset', { method: 'POST' });
-                if (response.ok) {
-                    document.getElementById('status').className = 'status success';
-                    document.getElementById('status').textContent = '✅ Configuración reseteada. Reiniciando...';
-                    document.getElementById('status').style.display = 'block';
-                }
-            } catch (error) {
-                document.getElementById('status').className = 'status error';
-                document.getElementById('status').textContent = '❌ Error al resetear.';
-                document.getElementById('status').style.display = 'block';
-            }
-        }
-    </script>
-</body>
-</html>
-)";
+  String html = "<!DOCTYPE html><html lang=\"es\"><head><meta charset=\"UTF-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\"><title>Configuracion ESP32 - RegisMAC</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Oxygen,Ubuntu,Cantarell,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}.container{background:white;border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,0.3);padding:40px;max-width:500px;width:100%}h1{color:#333;margin-bottom:10px;font-size:28px}.subtitle{color:#666;margin-bottom:30px;font-size:14px}.form-group{margin-bottom:20px}label{display:block;color:#333;margin-bottom:8px;font-weight:600;font-size:14px}input{width:100%;padding:12px 15px;border:2px solid #e0e0e0;border-radius:10px;font-size:16px;transition:border-color 0.3s}input:focus{outline:none;border-color:#667eea}button{width:100%;padding:14px;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:white;border:none;border-radius:10px;font-size:16px;font-weight:600;cursor:pointer;transition:transform 0.2s,box-shadow 0.2s;margin-top:10px}button:hover{transform:translateY(-2px);box-shadow:0 5px 15px rgba(102,126,234,0.4)}button:active{transform:translateY(0)}.info{background:#f0f4ff;border-left:4px solid #667eea;padding:15px;border-radius:8px;margin-bottom:20px;font-size:13px;color:#555}.status{margin-top:20px;padding:15px;border-radius:10px;text-align:center;font-weight:600;display:none}.status.success{background:#d4edda;color:#155724;border:1px solid #c3e6cb}.status.error{background:#f8d7da;color:#721c24;border:1px solid #f5c6cb}.reset-btn{background:#dc3545;margin-top:20px}.reset-btn:hover{box-shadow:0 5px 15px rgba(220,53,69,0.4)}</style></head><body><div class=\"container\"><h1>Configuracion ESP32</h1><p class=\"subtitle\">RegisMAC - Sensor de Temperatura</p><div class=\"info\"><strong>Instrucciones:</strong><br>1. Ingresa los datos de tu red WiFi<br>2. El ESP32 se conectara automaticamente<br>3. Se reiniciara y comenzara a enviar datos</div><form id=\"configForm\"><div class=\"form-group\"><label for=\"ssid\">Nombre de Red WiFi (SSID)</label><input type=\"text\" id=\"ssid\" name=\"ssid\" required placeholder=\"Ej: MiWiFi\"></div><div class=\"form-group\"><label for=\"password\">Contrasena WiFi</label><input type=\"password\" id=\"password\" name=\"password\" required placeholder=\"Contrasena de tu WiFi\"></div><div class=\"form-group\"><label for=\"server\">URL del Servidor</label><input type=\"text\" id=\"server\" name=\"server\" value=\"https://regismac.onrender.com/api/sensor/datos\" placeholder=\"URL del servidor\"></div><button type=\"submit\">Guardar y Conectar</button></form><button class=\"reset-btn\" onclick=\"resetConfig()\">Resetear Configuracion</button><div id=\"status\" class=\"status\"></div></div><script>document.getElementById('configForm').addEventListener('submit',function(e){e.preventDefault();var ssid=document.getElementById('ssid').value;var password=document.getElementById('password').value;var server=document.getElementById('server').value;var statusDiv=document.getElementById('status');statusDiv.style.display='none';var ssidEncoded=encodeURIComponent(ssid);var passwordEncoded=encodeURIComponent(password);var serverEncoded=encodeURIComponent(server);var bodyData='ssid='+ssidEncoded+'&password='+passwordEncoded+'&server='+serverEncoded;fetch('/config',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:bodyData}).then(function(response){if(response.ok){statusDiv.className='status success';statusDiv.textContent='Configuracion guardada! El ESP32 se reiniciara en 3 segundos...';statusDiv.style.display='block';setTimeout(function(){statusDiv.textContent='Reiniciando... Por favor espera.';},3000)}else{throw new Error('Error al guardar')}}).catch(function(error){statusDiv.className='status error';statusDiv.textContent='Error al guardar configuracion. Intenta de nuevo.';statusDiv.style.display='block'})});function resetConfig(){if(!confirm('Estas seguro de resetear la configuracion?'))return;fetch('/reset',{method:'POST'}).then(function(response){if(response.ok){document.getElementById('status').className='status success';document.getElementById('status').textContent='Configuracion reseteada. Reiniciando...';document.getElementById('status').style.display='block'}}).catch(function(error){document.getElementById('status').className='status error';document.getElementById('status').textContent='Error al resetear.';document.getElementById('status').style.display='block'})}</script></body></html>";
   server.send(200, "text/html", html);
 }
 

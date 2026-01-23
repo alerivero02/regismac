@@ -22,7 +22,6 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import Timer from '../components/Timer';
 
 export default function Test() {
-  const webSerialServiceRef = useRef(null);
   const [maquinas, setMaquinas] = useState([]);
   const [tests, setTests] = useState([]);
   const [tecnicos, setTecnicos] = useState([]);
@@ -52,7 +51,7 @@ export default function Test() {
   const [esp32PollingInterval, setEsp32PollingInterval] = useState(null);
   const [testESP32Activo, setTestESP32Activo] = useState(false);
   const [fechaHoraInicioTestESP32, setFechaHoraInicioTestESP32] = useState(null);
-  const [temperaturaWebSerial, setTemperaturaWebSerial] = useState(null);
+  const [temperaturaActual, setTemperaturaActual] = useState(null);
   const [temperaturaUpdateKey, setTemperaturaUpdateKey] = useState(0); // Key para forzar re-render
   const [isIniciandoTest, setIsIniciandoTest] = useState(false);
   const [tiempoTranscurridoDisplay, setTiempoTranscurridoDisplay] = useState('0:00');
@@ -60,45 +59,11 @@ export default function Test() {
   const tiempoInicioTestRef = useRef(null);
   const tiempo0GradosRef = useRef(null);
   const tiempoMenos8GradosRef = useRef(null);
-  const temperaturaWebSerialRef = useRef(null); // Ref para acceso directo al valor más reciente
+  const temperaturaActualRef = useRef(null); // Ref para acceso directo al valor más reciente
   const testESP32ActivoRef = useRef(false); // Ref para acceso al estado del test
   const ultimaActualizacionRef = useRef(null); // Ref para rastrear tiempo de última actualización
-  const [puertosDisponibles, setPuertosDisponibles] = useState([]);
-  const [conexionSerial, setConexionSerial] = useState({ connected: false, port: null });
-  const [mostrarSelectorPuerto, setMostrarSelectorPuerto] = useState(false);
-  const [webSerialSupported, setWebSerialSupported] = useState(false);
-  const [webSerialConnected, setWebSerialConnected] = useState(false);
-  const [isMobileDevice, setIsMobileDevice] = useState(false);
-  const [pythonServiceConnected, setPythonServiceConnected] = useState(false);
-  const [pythonServicePollingInterval, setPythonServicePollingInterval] = useState(null);
   
   const [showCronometroModal, setShowCronometroModal] = useState(false);
-
-  const getWebSerialService = useCallback(async () => {
-    try {
-      if (typeof window === 'undefined' || !('serial' in navigator)) {
-        return null;
-      }
-      
-      if (!webSerialServiceRef.current) {
-        const module = await import('../services/webSerial').catch(() => null);
-        if (module) {
-          const factory = module.getWebSerialInstance || module.default;
-          if (typeof factory === 'function') {
-            webSerialServiceRef.current = factory();
-          }
-        }
-      }
-      
-      return webSerialServiceRef.current;
-    } catch (error) {
-      const isDev = import.meta.env.DEV;
-      if (isDev) {
-        console.error('[Test] Error al obtener webSerial:', error);
-      }
-      return null;
-    }
-  }, []);
 
   const [formData, setFormData] = useState({
     temperatura_iniziale: '',
@@ -191,17 +156,6 @@ export default function Test() {
     const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     setIsMobileDevice(mobile);
     
-    if (typeof window !== 'undefined' && 'serial' in navigator) {
-      getWebSerialService()
-        .then(service => {
-          if (service) {
-            service.isSupported()
-              .then(setWebSerialSupported)
-              .catch(() => setWebSerialSupported(false));
-          }
-        })
-        .catch(() => setWebSerialSupported(false));
-    }
   }, []); // Solo una vez al montar
 
   // Actualizar cronómetro cada segundo cuando el test está activo
@@ -276,9 +230,9 @@ export default function Test() {
         if (!isNaN(temperatura)) {
           console.log('[WebSocket] 🌡️ Temperatura recibida:', temperatura);
           
-          // Actualizar temperatura WebSerial
-          setTemperaturaWebSerial(temperatura);
-          temperaturaWebSerialRef.current = temperatura;
+          // Actualizar temperatura
+          setTemperaturaActual(temperatura);
+          temperaturaActualRef.current = temperatura;
           setTemperaturaUpdateKey(prev => prev + 1);
           
           // Actualizar esp32Estado con temperatura y timestamp
@@ -388,13 +342,10 @@ export default function Test() {
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
       }
-      if (webSerialConnected && webSerialServiceRef.current) {
-        webSerialServiceRef.current.disconnect().catch(() => {});
-      }
       // NO desconectar el socket aquí - debe permanecer conectado
       // El socket se desconectará solo cuando la página se cierre
     };
-  }, [esp32PollingInterval, webSerialConnected]);
+  }, [esp32PollingInterval]);
 
   useEffect(() => {
     if (!showESP32Modal) {
@@ -415,8 +366,8 @@ export default function Test() {
         const estado = await sensorAPI.obtenerEstado();
         setEsp32Estado(estado);
         setConexionSerial({
-          connected: estado.serialConnected || webSerialConnected || false,
-          port: estado.serialPort || (webSerialConnected ? 'WebSerial' : null),
+          connected: estado.serialConnected || false,
+          port: estado.serialPort || null,
         });
       } catch (error) {
         // Solo loguear errores críticos, no 401/403 esperados
@@ -459,8 +410,7 @@ export default function Test() {
     
     cargarPuertos();
     
-    // NO configurar callback aquí - se configurará en conectarWebSerial cuando se conecte
-    // Esto evita problemas con closures y valores antiguos
+    // Polling HTTP como fallback si WebSocket no está conectado
     
     // Polling adaptativo: 1 segundo durante test, 2 segundos cuando no hay test activo
     // Este polling es un fallback si el WebSocket no funciona
@@ -480,8 +430,8 @@ export default function Test() {
           console.log('[Polling] 🔄 Usando polling como fallback (WebSocket desconectado):', estado.temperatura);
           const temperatura = parseFloat(estado.temperatura);
           if (!isNaN(temperatura)) {
-            setTemperaturaWebSerial(temperatura);
-            temperaturaWebSerialRef.current = temperatura;
+            setTemperaturaActual(temperatura);
+            temperaturaActualRef.current = temperatura;
             setTemperaturaUpdateKey(prev => prev + 1);
             
             const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
@@ -500,8 +450,8 @@ export default function Test() {
         }
         setEsp32Estado(estado);
         setConexionSerial({
-          connected: estado.serialConnected || webSerialConnected,
-          port: estado.serialPort || (webSerialConnected ? 'WebSerial' : null),
+          connected: estado.serialConnected || false,
+          port: estado.serialPort || null,
         });
         
         // Actualizar temperatura del servidor si está disponible
@@ -517,7 +467,7 @@ export default function Test() {
             if (!isNaN(temperatura)) {
               console.log('[Polling] 🔄 Actualizando temperatura vía HTTP polling (WebSocket desconectado):', temperatura);
               setTemperaturaWebSerial(temperatura);
-              temperaturaWebSerialRef.current = temperatura;
+              temperaturaActualRef.current = temperatura;
               setTemperaturaUpdateKey(prev => prev + 1);
               
               const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
@@ -529,22 +479,15 @@ export default function Test() {
               }));
             }
           }
-          // Si WebSocket está conectado pero NO estamos usando WebSerial, usar la temperatura del servidor como fallback
-          else if (!webSerialConnected) {
-            // Actualizar solo si no tenemos temperatura de WebSerial o si la del servidor es más reciente
-            if (temperaturaWebSerial === null || (estado.timestamp && estado.timestamp > (esp32Estado?.timestamp || 0))) {
+          // Si WebSocket está conectado, usar la temperatura del servidor como fallback
+          else {
+            // Actualizar solo si no tenemos temperatura o si la del servidor es más reciente
+            if (temperaturaActual === null || (estado.timestamp && estado.timestamp > (esp32Estado?.timestamp || 0))) {
               if (isDev) {
-                console.log('[Test] Usando temperatura del servidor (WebSerial no conectado):', estado.temperatura);
+                console.log('[Test] Usando temperatura del servidor:', estado.temperatura);
               }
-              setTemperaturaWebSerial(estado.temperatura);
+              setTemperaturaActual(estado.temperatura);
             }
-          }
-          // Si WebSerial está conectado pero no tenemos temperatura de WebSerial aún, usar la del servidor como fallback
-          else if (webSerialConnected && (temperaturaWebSerial === null || temperaturaWebSerial === undefined)) {
-            if (isDev) {
-              console.log('[Test] Usando temperatura del servidor como fallback (WebSerial conectado pero sin datos):', estado.temperatura);
-            }
-            setTemperaturaWebSerial(estado.temperatura);
           }
         }
         
@@ -631,8 +574,8 @@ export default function Test() {
               let temperaturaFinal = null;
               if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
                 // Intentar obtener temperatura actual del sensor
-                if (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined) {
-                  temperaturaFinal = temperaturaWebSerial;
+                if (temperaturaActual !== null && temperaturaActual !== undefined) {
+                  temperaturaFinal = temperaturaActual;
                 } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
                   temperaturaFinal = esp32Estado.temperatura;
                 } else if (resultado.resultado.temperaturaInicial !== null && resultado.resultado.temperaturaInicial !== undefined) {
@@ -724,395 +667,9 @@ export default function Test() {
       clearInterval(interval);
       setEsp32PollingInterval(null);
     };
-  }, [showESP32Modal, webSerialConnected, pythonServiceConnected, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, testESP32Activo, showNotification]);
+  }, [showESP32Modal, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, testESP32Activo, showNotification]);
   
-  // Efecto para conexión automática cuando se abre el modal
-  useEffect(() => {
-    if (!showESP32Modal) return;
-    if (webSerialConnected || pythonServiceConnected) return; // Ya hay conexión
-    
-    // Esperar un momento para que el modal se renderice
-    const timeout = setTimeout(async () => {
-      console.log('[SENSOR] 🚀 Modal abierto, intentando conexión automática...');
-      
-      // Primero intentar WebSerial si está disponible
-      if (webSerialSupported) {
-        try {
-          const service = await getWebSerialService();
-          if (service) {
-            console.log('[SENSOR] 🔌 Intentando WebSerial primero...');
-            try {
-              await conectarWebSerial();
-              return; // Si WebSerial funciona, no intentar Python
-            } catch (wsError) {
-              console.log('[SENSOR] ⚠️ WebSerial falló, intentando servicio Python...', wsError.message);
-            }
-          }
-        } catch (error) {
-          console.log('[SENSOR] ⚠️ Error obteniendo servicio WebSerial:', error.message);
-        }
-      }
-      
-      // Si WebSerial no está disponible o falló, intentar servicio Python
-      // Solo en desarrollo local, no en producción
-      const isProduction = window.location.hostname.includes('onrender.com') || 
-                          window.location.hostname.includes('vercel.app') || 
-                          window.location.hostname.includes('netlify.app') ||
-                          (window.location.hostname !== 'localhost' && 
-                           window.location.hostname !== '127.0.0.1' && 
-                           !window.location.hostname.match(/^192\.168\./));
-      
-      if (!isProduction) {
-        try {
-          await intentarConectarServicioPython();
-        } catch (error) {
-          console.error('[SENSOR] ❌ Error en conexión automática:', error);
-        }
-      } else {
-        console.log('[SENSOR] ℹ️ En producción, el servicio Python debe ejecutarse localmente y enviar datos al backend automáticamente');
-      }
-    }, 500);
-    
-    return () => clearTimeout(timeout);
-  }, [showESP32Modal, webSerialSupported, webSerialConnected, pythonServiceConnected, getWebSerialService]);
-
-  const desconectarWebSerial = useCallback(async () => {
-    try {
-      const service = await getWebSerialService();
-      if (service) {
-        await service.disconnect();
-      }
-      setWebSerialConnected(false);
-      setConexionSerial({ connected: false, port: null });
-      showNotification('Desconectado de WebSerial', 'info');
-    } catch (error) {
-      const isDev = import.meta.env.DEV;
-      if (isDev) {
-        console.error('Error al desconectar WebSerial:', error);
-      }
-      showNotification('Error al desconectar', 'error');
-      // Forzar desconexión incluso si hay error
-      setWebSerialConnected(false);
-      setConexionSerial({ connected: false, port: null });
-    }
-  }, [showNotification, getWebSerialService]);
-
-  const conectarWebSerial = useCallback(async () => {
-    console.log('[SENSOR] 🔌 Iniciando conexión WebSerial...');
-    console.log('[SENSOR] 📊 Estado inicial:', {
-      webSerialConnected,
-      temperaturaWebSerial,
-      esp32Estado: esp32Estado?.temperatura,
-      conexionSerial
-    });
-    
-    try {
-      const service = await getWebSerialService();
-      if (!service) {
-        console.error('[SENSOR] ❌ WebSerial no disponible en este navegador');
-        showNotification('WebSerial non disponibile in questo browser. Usa Chrome, Edge o Opera.', 'error');
-        return;
-      }
-      
-      console.log('[SENSOR] ✅ Servicio WebSerial obtenido');
-      
-      // Si ya está conectado, desconectar primero
-      if (webSerialConnected) {
-        console.log('[SENSOR] ⚠️ Ya hay una conexión activa, desconectando primero...');
-        try {
-          const status = service.getConnectionStatus();
-          console.log('[SENSOR] 📊 Estado de conexión actual:', status);
-          if (status.connected) {
-            await service.disconnect();
-            console.log('[SENSOR] ✅ Desconectado correctamente');
-            await new Promise(resolve => setTimeout(resolve, 500)); // Esperar un poco
-          }
-        } catch (err) {
-          console.warn('[SENSOR] ⚠️ Error al desconectar (continuando):', err.message);
-        }
-      }
-      
-      // Solicitar puerto (esto abrirá el selector de puertos del navegador)
-      console.log('[SENSOR] 🔍 Solicitando selección de puerto...');
-      await service.requestPort();
-      console.log('[SENSOR] ✅ Puerto seleccionado por el usuario');
-      
-      // Asegurar que el callback esté configurado ANTES de conectar
-      console.log('[SENSOR] 🔌 Conectando al puerto WebSerial...');
-      console.log('[SENSOR] 🔍 Configurando callback antes de conectar...');
-      
-      // Reconfigurar el callback para asegurar que esté activo cuando se conecte
-      // Usar función wrapper que siempre accede a los valores más recientes
-      service.setDataCallback((data) => {
-        const tiempoRecepcion = Date.now();
-        const horaRecepcion = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
-        
-        console.log(`[SENSOR] 📥 Callback WebSerial llamado [${horaRecepcion}]:`, data);
-        console.log('[SENSOR] 📋 Tipo de datos recibidos:', {
-          tieneTemperatura: data?.temperatura !== undefined && data?.temperatura !== null,
-          temperatura: data?.temperatura,
-          tipoTemperatura: typeof data?.temperatura,
-          tieneError: !!data?.error,
-          error: data?.error,
-          timestamp: tiempoRecepcion
-        });
-        
-        if (data?.error) {
-          console.error('[SENSOR] ❌ Error en datos WebSerial:', data.error);
-          return;
-        }
-        if (data?.temperatura !== undefined && data?.temperatura !== null) {
-          const temperatura = parseFloat(data.temperatura);
-          if (!isNaN(temperatura)) {
-            const tiempoProcesamiento = Date.now();
-            const tiempoDesdeUltimaActualizacion = tiempoProcesamiento - (ultimaActualizacionRef.current || tiempoProcesamiento);
-            ultimaActualizacionRef.current = tiempoProcesamiento;
-            
-            console.log(`[SENSOR] 🌡️ Temperatura recibida [${horaRecepcion}]:`, temperatura, `| Tiempo desde última: ${tiempoDesdeUltimaActualizacion}ms`);
-            
-            // Actualizar ref y estado inmediatamente (SIN BLOQUEAR)
-            const temperaturaAnterior = temperaturaWebSerialRef.current;
-            temperaturaWebSerialRef.current = temperatura;
-            
-            // Actualizar estado siempre que haya un cambio (incluso pequeño)
-            // Esto asegura que la UI se actualice en tiempo real
-            setTemperaturaWebSerial(temperatura);
-            
-            // Incrementar key para forzar re-render del componente de temperatura
-            setTemperaturaUpdateKey(prev => prev + 1);
-            
-            // Actualizar esp32Estado con timestamp inmediatamente
-            const timestamp = new Date();
-            setEsp32Estado(prev => ({
-              ...prev,
-              temperatura: temperatura,
-              humedad: data.humedad !== undefined && data.humedad !== null ? parseFloat(data.humedad) : (prev?.humedad || null),
-              timestamp: timestamp
-            }));
-            
-            console.log(`[SENSOR] ✅ Estado actualizado [${timestamp.toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 })}]:`, temperaturaAnterior, '->', temperatura);
-            
-            // Detección de temperaturas objetivo si hay test activo
-            // Usar refs para acceder a valores actuales sin depender de closures
-            if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
-              const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
-              if (tiempo0GradosRef.current === null && temperatura >= -0.5 && temperatura <= 0.5) {
-                tiempo0GradosRef.current = tiempoTranscurrido;
-                const minutos0 = Math.floor(tiempoTranscurrido / 60);
-                const segundos0 = tiempoTranscurrido % 60;
-                setFormData(prev => ({
-                  ...prev,
-                  tiempo_0_manual: `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`,
-                }));
-                showNotification(`✅ Temperatura 0°C detectada`, 'success');
-              }
-              if (tiempoMenos8GradosRef.current === null && temperatura >= -8.5 && temperatura <= -7.5) {
-                tiempoMenos8GradosRef.current = tiempoTranscurrido;
-                const minutosMenos8 = Math.floor(tiempoTranscurrido / 60);
-                const segundosMenos8 = tiempoTranscurrido % 60;
-                setFormData(prev => ({
-                  ...prev,
-                  tiempo_meno8_manual: `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`,
-                }));
-                showNotification(`✅ Temperatura -8°C detectada`, 'success');
-              }
-            }
-            
-            // Enviar al servidor de forma NO BLOQUEANTE (fire-and-forget)
-            // Esto permite que las actualizaciones continúen sin esperar la respuesta del servidor
-            sensorAPI.recibirDatos(temperatura, null).then(() => {
-              const tiempoRespuesta = Date.now();
-              const tiempoTotal = tiempoRespuesta - tiempoRecepcion;
-              console.log(`[SENSOR] ✅ Temperatura enviada al servidor [${tiempoTotal}ms]`);
-            }).catch((error) => {
-              // No es crítico si falla, solo loguear
-              console.warn('[SENSOR] ⚠️ No se pudo enviar al servidor (no crítico):', error.message);
-            });
-          } else {
-            console.warn('[SENSOR] ⚠️ Temperatura no es un número válido:', data.temperatura);
-          }
-        } else {
-          console.warn('[SENSOR] ⚠️ Datos recibidos sin campo temperatura:', data);
-        }
-      });
-      
-      console.log('[SENSOR] ✅ Callback configurado correctamente');
-      
-      console.log('[SENSOR] 🔌 Conectando al puerto con baudrate 115200...');
-      await service.connect(115200);
-      
-      console.log('[SENSOR] ✅ Conectado exitosamente');
-      const status = service.getConnectionStatus();
-      console.log('[SENSOR] 📊 Estado de conexión después de conectar:', status);
-      
-      setWebSerialConnected(true);
-      setConexionSerial({ connected: true, port: 'WebSerial' });
-      console.log('[SENSOR] ✅ Estado actualizado: webSerialConnected=true');
-      showNotification('✅ Connesso tramite WebSerial USB', 'success');
-    } catch (error) {
-      console.error('[SENSOR] ❌ Error al conectar WebSerial:', error);
-      console.error('[SENSOR] 📋 Detalles del error:', {
-        message: error.message,
-        stack: error.stack,
-        name: error.name
-      });
-      
-      // Mensajes de error más específicos en italiano
-      let errorMsg = error.message || 'Errore nella connessione';
-      if (error.message?.includes('No se seleccionó') || error.message?.includes('No se seleccion')) {
-        errorMsg = 'Nessun porta selezionata. Riprova.';
-        console.warn('[SENSOR] ⚠️ Usuario canceló la selección de puerto');
-      } else if (error.message?.includes('en uso') || error.message?.includes('en uso')) {
-        errorMsg = 'La porta è in uso. Chiudi Arduino IDE o altre applicazioni che usano la porta.';
-        console.warn('[SENSOR] ⚠️ Puerto en uso por otra aplicación');
-      } else if (error.message?.includes('Access denied') || error.message?.includes('denegado')) {
-        errorMsg = 'Accesso negato. Verifica i permessi del browser per accedere alle porte USB.';
-        console.warn('[SENSOR] ⚠️ Acceso denegado al puerto');
-      } else if (error.message?.includes('no está disponible') || error.message?.includes('non disponibile')) {
-        errorMsg = 'WebSerial non disponibile in questo browser. Usa Chrome, Edge o Opera.';
-        console.warn('[SENSOR] ⚠️ WebSerial no disponible en este navegador');
-      }
-      
-      showNotification(errorMsg, 'error');
-      setWebSerialConnected(false);
-      setConexionSerial({ connected: false, port: null });
-      console.log('[SENSOR] ✅ Estado actualizado: webSerialConnected=false');
-      
-      // Si WebSerial falla, intentar automáticamente el servicio Python local
-      console.log('[SENSOR] 🔄 WebSerial falló, intentando servicio Python local...');
-      intentarConectarServicioPython();
-    }
-  }, [showNotification, getWebSerialService, webSerialConnected]);
   
-  // Función para conectar vía servicio Python local
-  const intentarConectarServicioPython = useCallback(async () => {
-    // Verificar si estamos en producción
-    const isProduction = window.location.hostname.includes('onrender.com') || 
-                         window.location.hostname.includes('vercel.app') || 
-                         window.location.hostname.includes('netlify.app') ||
-                         (window.location.hostname !== 'localhost' && 
-                          window.location.hostname !== '127.0.0.1' && 
-                          !window.location.hostname.match(/^192\.168\./));
-    
-    if (isProduction) {
-      console.log('[SENSOR] ℹ️ En producción, el servicio Python debe ejecutarse localmente y enviar datos al backend automáticamente');
-      showNotification('💡 En producción, el servicio Python debe ejecutarse en tu PC local. Los datos se recibirán automáticamente vía WebSocket.', 'info');
-      return;
-    }
-    
-    try {
-      console.log('[SENSOR] 🔍 Verificando disponibilidad del servicio Python...');
-      
-      // Verificar si el servicio está disponible
-      const disponible = await sensorAPI.pythonService.verificarDisponibilidad();
-      if (!disponible) {
-        console.warn('[SENSOR] ⚠️ Servicio Python no disponible');
-        showNotification('💡 El servicio Python no está ejecutándose. Ejecuta start-sensor-service.bat para iniciarlo.', 'info');
-        return;
-      }
-      
-      console.log('[SENSOR] ✅ Servicio Python disponible');
-      
-      // Listar puertos disponibles
-      const puertos = await sensorAPI.pythonService.listarPuertos();
-      console.log('[SENSOR] 📋 Puertos disponibles:', puertos);
-      
-      if (puertos.length === 0) {
-        showNotification('⚠️ No se encontraron puertos USB. Conecta el ESP32 y recarga la página.', 'warning');
-        return;
-      }
-      
-      // Intentar conectar automáticamente (usar el primer puerto o null para auto-detección)
-      console.log('[SENSOR] 🔌 Intentando conectar al ESP32 vía servicio Python...');
-      showNotification('🔄 Conectando vía servicio Python local...', 'info');
-      
-      const resultado = await sensorAPI.pythonService.conectar(null, 115200);
-      console.log('[SENSOR] ✅ Resultado de conexión:', resultado);
-      
-      setPythonServiceConnected(true);
-      setConexionSerial({ connected: true, port: 'Python Service' });
-      showNotification('✅ Conectado vía servicio Python local', 'success');
-      
-      // Iniciar polling para obtener datos del servicio Python
-      iniciarPollingServicioPython();
-      
-    } catch (error) {
-      console.error('[SENSOR] ❌ Error conectando al servicio Python:', error);
-      showNotification(`⚠️ Error: ${error.message}`, 'error');
-      setPythonServiceConnected(false);
-    }
-  }, [showNotification]);
-  
-  // Función para hacer polling del servicio Python y obtener datos
-  const iniciarPollingServicioPython = useCallback(() => {
-    // Limpiar intervalo anterior si existe
-    if (pythonServicePollingInterval) {
-      clearInterval(pythonServicePollingInterval);
-    }
-    
-    // Polling cada 500ms (mismo que la frecuencia del ESP32)
-    const interval = setInterval(async () => {
-      try {
-        const estado = await sensorAPI.pythonService.obtenerEstado();
-        if (estado && estado.temperatura !== null && estado.temperatura !== undefined) {
-          const temperatura = parseFloat(estado.temperatura);
-          if (!isNaN(temperatura)) {
-            // Actualizar estado igual que con WebSerial
-            temperaturaWebSerialRef.current = temperatura;
-            setTemperaturaWebSerial(temperatura);
-            setTemperaturaUpdateKey(prev => prev + 1);
-            
-            const timestamp = new Date();
-            setEsp32Estado(prev => ({
-              ...prev,
-              temperatura: temperatura,
-              humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
-              timestamp: timestamp
-            }));
-            
-            // Enviar al servidor (no bloqueante)
-            sensorAPI.recibirDatos(temperatura, estado.humedad || null).then(() => {
-              console.log(`[SENSOR] ✅ Temperatura enviada al servidor desde servicio Python: ${temperatura}°C`);
-            }).catch((error) => {
-              console.warn('[SENSOR] ⚠️ No se pudo enviar al servidor (no crítico):', error.message);
-            });
-          }
-        }
-      } catch (error) {
-        console.warn('[SENSOR] ⚠️ Error obteniendo estado del servicio Python:', error);
-        // Si el servicio se desconecta, limpiar el intervalo
-        if (error.message?.includes('Failed to fetch') || error.message?.includes('NetworkError')) {
-          clearInterval(interval);
-          setPythonServicePollingInterval(null);
-          setPythonServiceConnected(false);
-          setConexionSerial({ connected: false, port: null });
-          showNotification('⚠️ Servicio Python desconectado', 'warning');
-        }
-      }
-    }, 500); // Polling cada 500ms
-    
-    setPythonServicePollingInterval(interval);
-  }, [pythonServicePollingInterval, showNotification]);
-  
-  // Función para desconectar del servicio Python
-  const desconectarServicioPython = useCallback(async () => {
-    try {
-      await sensorAPI.pythonService.desconectar();
-      setPythonServiceConnected(false);
-      setConexionSerial({ connected: false, port: null });
-      
-      // Limpiar polling
-      if (pythonServicePollingInterval) {
-        clearInterval(pythonServicePollingInterval);
-        setPythonServicePollingInterval(null);
-      }
-      
-      showNotification('Desconectado del servicio Python', 'info');
-    } catch (error) {
-      console.error('[SENSOR] Error desconectando servicio Python:', error);
-      showNotification('Error al desconectar', 'error');
-    }
-  }, [pythonServicePollingInterval, showNotification]);
 
 
   const iniciarTestESP32 = useCallback(async () => {
@@ -1136,25 +693,23 @@ export default function Test() {
         return;
       }
 
-      // Obtener temperatura: primero de WebSerial (USB directo), luego del servidor
+      // Obtener temperatura del estado actual
       let temperaturaInicial = null;
       
       // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
       const isDev = import.meta.env.DEV;
       if (isDev) {
         console.log('[Test] Intentando iniciar test. Estado:', {
-          webSerialConnected,
-          temperaturaWebSerial,
+          temperaturaActual,
           esp32Estado: esp32Estado?.temperatura,
           conexionSerial
         });
       }
       
-      if (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined) {
-        // Usar temperatura directamente de WebSerial (USB)
-        temperaturaInicial = temperaturaWebSerial;
+      if (temperaturaActual !== null && temperaturaActual !== undefined) {
+        temperaturaInicial = temperaturaActual;
         if (isDev) {
-          console.log('[Test] Usando temperatura de WebSerial:', temperaturaInicial);
+          console.log('[Test] Usando temperatura actual:', temperaturaInicial);
         }
       } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
         // Usar temperatura del servidor
@@ -1200,7 +755,8 @@ export default function Test() {
         await sensorAPI.iniciarTest(temperaturaInicial);
       } catch (error) {
         // Si el servidor no está disponible pero tenemos USB, continuar solo con USB
-        if (webSerialConnected) {
+        // Verificar si hay datos disponibles
+        if (temperaturaActual !== null || esp32Estado?.temperatura !== null) {
           console.warn('Servidor no disponible, continuando solo con USB:', error.message);
         } else {
           throw error;
@@ -1230,7 +786,7 @@ export default function Test() {
       showNotification(error.message || 'Error al iniciar el test', 'error');
       setIsIniciandoTest(false);
     }
-  }, [selectedMaquina, formData.tecnicoId, esp32Estado, temperaturaWebSerial, webSerialConnected, conexionSerial, showNotification, isIniciandoTest, testESP32Activo]);
+  }, [selectedMaquina, formData.tecnicoId, esp32Estado, temperaturaActual, showNotification, isIniciandoTest, testESP32Activo]);
 
   const finalizarTestESP32 = useCallback(async () => {
     if (isSubmitting) return;
@@ -1280,8 +836,8 @@ export default function Test() {
       let temperaturaFinal = null;
       if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
         // Intentar obtener temperatura actual del sensor
-        if (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined) {
-          temperaturaFinal = temperaturaWebSerial;
+        if (temperaturaActual !== null && temperaturaActual !== undefined) {
+          temperaturaFinal = temperaturaActual;
         } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
           temperaturaFinal = esp32Estado.temperatura;
         } else if (resultado.resultado.temperaturaInicial !== null && resultado.resultado.temperaturaInicial !== undefined) {
@@ -1638,8 +1194,8 @@ export default function Test() {
           let temperaturaActual = null;
           
           // Intentar obtener temperatura del sensor ESP32 si está disponible
-          if (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined) {
-            temperaturaActual = temperaturaWebSerial;
+          if (temperaturaActual !== null && temperaturaActual !== undefined) {
+            // Ya está en temperaturaActual
           } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
             temperaturaActual = esp32Estado.temperatura;
           } else if (formData.temperatura_iniziale) {
@@ -1677,8 +1233,8 @@ export default function Test() {
           let temperaturaActual = null;
           
           // Intentar obtener temperatura del sensor ESP32 si está disponible
-          if (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined) {
-            temperaturaActual = temperaturaWebSerial;
+          if (temperaturaActual !== null && temperaturaActual !== undefined) {
+            // Ya está en temperaturaActual
           } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
             temperaturaActual = esp32Estado.temperatura;
           } else if (formData.temperatura_iniziale) {
@@ -1701,8 +1257,8 @@ export default function Test() {
       let temperaturaFinal = null;
       if ((!tiempo0 || !tiempoMenos8) && modoManual) {
         // Obtener temperatura actual del sensor o del formulario
-        if (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined) {
-          temperaturaFinal = temperaturaWebSerial;
+        if (temperaturaActual !== null && temperaturaActual !== undefined) {
+          temperaturaFinal = temperaturaActual;
         } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
           temperaturaFinal = esp32Estado.temperatura;
         } else if (formData.temperatura_iniziale) {
@@ -2750,136 +2306,27 @@ export default function Test() {
             </div>
 
             <div className="mb-4 space-y-3">
-              {webSerialSupported && (
-                <div className={`p-3 rounded-lg ${
-                  webSerialConnected 
-                    ? 'bg-green-50 border border-green-200' 
-                    : 'bg-gray-50 border border-gray-200'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${
-                        webSerialConnected ? 'bg-green-500' : 'bg-gray-400'
-                      }`}></div>
-                      <p className={`text-sm font-semibold ${
-                        webSerialConnected ? 'text-green-800' : 'text-gray-800'
-                      }`}>
-                        {webSerialConnected 
-                          ? '✅ Conectado por WebSerial USB (funciona en producción)'
-                          : isMobileDevice 
-                          ? '📱 WebSerial USB (Android Chrome con USB OTG)'
-                          : '📡 WebSerial USB disponible'}
-                      </p>
-                    </div>
-                    {!webSerialConnected ? (
-                      <>
-                        {isMobileDevice && (
-                          <p className="text-xs text-gray-600 mb-2">
-                            ⚠️ Requiere Chrome/Edge en Android y cable USB OTG
-                          </p>
-                        )}
-                        <button
-                          onClick={conectarWebSerial}
-                          className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold"
-                        >
-                          Conectar USB
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={desconectarWebSerial}
-                        className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-semibold"
-                      >
-                        Desconectar
-                      </button>
-                    )}
-                  </div>
+              {/* Estado de conexión WiFi */}
+              <div className={`p-3 rounded-lg ${
+                esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined
+                  ? 'bg-green-50 border border-green-200' 
+                  : 'bg-yellow-50 border border-yellow-200'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <div className={`w-3 h-3 rounded-full ${
+                    esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? 'bg-green-500' : 'bg-yellow-500'
+                  }`}></div>
+                  <p className={`text-sm font-semibold ${
+                    esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? 'text-green-800' : 'text-yellow-800'
+                  }`}>
+                    {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined
+                      ? '✅ Conectado vía WiFi - Recibiendo datos'
+                      : '⚠️ Esperando datos del ESP32 vía WiFi'}
+                  </p>
                 </div>
-              )}
+              </div>
 
-              {/* Conexión por servidor - Solo mostrar si NO estamos usando WebSerial */}
-              {!webSerialConnected && (puertosDisponibles.length > 0 || conexionSerial.connected) && (
-                <div className={`p-3 rounded-lg ${
-                  conexionSerial.connected 
-                    ? 'bg-green-50 border border-green-200' 
-                    : 'bg-yellow-50 border border-yellow-200'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${
-                        conexionSerial.connected ? 'bg-green-500' : 'bg-yellow-500'
-                      }`}></div>
-                      <p className={`text-sm font-semibold ${
-                        conexionSerial.connected ? 'text-green-800' : 'text-yellow-800'
-                      }`}>
-                        {conexionSerial.connected 
-                          ? `✅ Conectado por servidor: ${conexionSerial.port || 'Puerto desconocido'}`
-                          : '⚠️ Conexión por servidor (alternativa a WebSerial)'}
-                      </p>
-                    </div>
-                    {!conexionSerial.connected && puertosDisponibles.length > 0 && (
-                      <button
-                        onClick={() => setMostrarSelectorPuerto(!mostrarSelectorPuerto)}
-                        className="px-3 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-xs font-semibold"
-                      >
-                        {mostrarSelectorPuerto ? 'Ocultar' : 'Conectar Servidor'}
-                      </button>
-                    )}
-                    {conexionSerial.connected && (
-                      <button
-                        onClick={async () => {
-                          try {
-                            await sensorAPI.desconectarESP32();
-                            setConexionSerial({ connected: false, port: null });
-                            showNotification('Desconectado del ESP32', 'info');
-                          } catch (error) {
-                            showNotification('Error al desconectar', 'error');
-                          }
-                        }}
-                        className="px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors text-xs font-semibold"
-                      >
-                        Desconectar
-                      </button>
-                    )}
-                  </div>
-                  
-                  {mostrarSelectorPuerto && !conexionSerial.connected && puertosDisponibles.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      <select
-                        id="puerto-select"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                        defaultValue=""
-                      >
-                        <option value="">Seleccionar puerto automáticamente</option>
-                        {puertosDisponibles.map((puerto, index) => (
-                          <option key={index} value={puerto.path}>
-                            {puerto.path} - {puerto.manufacturer}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={async () => {
-                          try {
-                            const select = document.getElementById('puerto-select');
-                            const portPath = select.value;
-                            await sensorAPI.conectarESP32(portPath || null);
-                            setConexionSerial({ connected: true, port: portPath || 'Auto' });
-                            setMostrarSelectorPuerto(false);
-                            showNotification('Conectado al ESP32', 'success');
-                          } catch (error) {
-                            showNotification(error.message || 'Error al conectar', 'error');
-                          }
-                        }}
-                        className="w-full px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm font-semibold"
-                      >
-                        Conectar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {!webSerialSupported && puertosDisponibles.length === 0 && !conexionSerial.connected && (
+              {esp32Estado?.temperatura === null && (
                 <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
                   <p className="text-sm text-blue-800">
                     ℹ️ Conecta el ESP32 por WiFi/HTTP o usa un navegador compatible (Chrome/Edge) para WebSerial USB.
@@ -2930,7 +2377,7 @@ export default function Test() {
                       }}
                     >
                       {(() => {
-                        // Prioridad: temperaturaWebSerial si está disponible, sino esp32Estado
+                        // Prioridad: temperaturaActual si está disponible, sino esp32Estado
                         const temp = (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined && !isNaN(temperaturaWebSerial))
                           ? temperaturaWebSerial
                           : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))
@@ -2944,8 +2391,7 @@ export default function Test() {
                   {/* Debug info solo en desarrollo */}
                   {import.meta.env.DEV && (
                     <div className="text-xs text-gray-400 mt-1 font-mono">
-                      Debug: WS={webSerialConnected ? 'Y' : 'N'}, 
-                      TWS={temperaturaWebSerial !== null && temperaturaWebSerial !== undefined ? temperaturaWebSerial.toFixed(2) : 'null'}, 
+                      Debug: TA={temperaturaActual !== null && temperaturaActual !== undefined ? temperaturaActual.toFixed(2) : 'null'}, 
                       ES={esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? esp32Estado.temperatura.toFixed(2) : 'null'}
                     </div>
                   )}
@@ -2989,7 +2435,7 @@ export default function Test() {
                   timestampTipo: typeof esp32Estado?.timestamp,
                   timestampEsDate: esp32Estado?.timestamp instanceof Date,
                   timestampDisplay: timestampDisplay,
-                  temperaturaWebSerial: temperaturaWebSerial,
+                  temperaturaActual: temperaturaActual,
                   horaActual: new Date().toLocaleTimeString()
                 });
                 
@@ -3070,7 +2516,7 @@ export default function Test() {
                   disabled={
                     isIniciandoTest ||
                     (
-                      (!webSerialConnected || (temperaturaWebSerial === null || temperaturaWebSerial === undefined)) && 
+                      (temperaturaActual === null || temperaturaActual === undefined) && 
                       (!esp32Estado || (esp32Estado.temperatura === null || esp32Estado.temperatura === undefined))
                     )
                   }

@@ -62,40 +62,34 @@ void setup() {
   serverURL = preferences.getString("server", "https://regismac.onrender.com/api/sensor/datos");
   preferences.end();
   
-  // OPCIÓN 1: Siempre iniciar portal primero (útil para pruebas)
-  // Descomenta las siguientes 2 líneas para forzar el portal siempre:
-  // Serial.println("🌐 Forzando portal de configuración...");
-  // iniciarPortalConfiguracion();
-  // return; // Salir del setup para no continuar con la conexión WiFi
+  // SIEMPRE iniciar el portal primero para que esté disponible inmediatamente
+  Serial.println("🌐 Iniciando portal de configuración...");
+  iniciarPortalConfiguracion();
   
-  // OPCIÓN 2: Esperar 10 segundos antes de conectar (permite entrar al portal)
-  Serial.println("⏳ Esperando 10 segundos...");
-  Serial.println("   Si quieres entrar al portal, presiona RESET ahora");
-  Serial.println("   O espera y se conectará automáticamente al WiFi guardado\n");
-  
-  unsigned long tiempoInicio = millis();
-  while (millis() - tiempoInicio < 10000) {
-    delay(100);
-    // Verificar si hay petición al servidor (alguien accedió al portal)
-    server.handleClient();
-  }
-  
-  // Verificar si hay configuración guardada
+  // Si hay configuración guardada, esperar 30 segundos antes de conectar
+  // Esto da tiempo para acceder al portal si es necesario
   if (wifiSSID.length() > 0) {
-    Serial.println("📡 Configuración WiFi encontrada:");
+    Serial.println("\n📡 Configuración WiFi encontrada:");
     Serial.print("   SSID: ");
     Serial.println(wifiSSID);
     Serial.print("   Server: ");
     Serial.println(serverURL);
-    Serial.println("\n   Intentando conectar en 2 segundos...\n");
-    delay(2000);
+    Serial.println("\n⏳ El portal está activo. Esperando 30 segundos...");
+    Serial.println("   Si quieres cambiar la configuración, accede al portal ahora");
+    Serial.println("   Si no haces nada, se conectará automáticamente al WiFi guardado\n");
     
-    // Intentar conectar a WiFi
+    unsigned long tiempoInicio = millis();
+    while (millis() - tiempoInicio < 30000) {
+      delay(100);
+      server.handleClient(); // Atender peticiones del portal
+    }
+    
+    Serial.println("\n🔌 Intentando conectar al WiFi guardado...\n");
     conectarWiFi();
   } else {
-    Serial.println("⚠️ No hay configuración WiFi guardada");
-    Serial.println("🌐 Iniciando portal de configuración...");
-    iniciarPortalConfiguracion();
+    Serial.println("\n⚠️ No hay configuración WiFi guardada");
+    Serial.println("📱 Conéctate a la red 'RegisMAC-Config' y abre http://192.168.4.1");
+    Serial.println("   El portal permanecerá activo hasta que configures el WiFi\n");
   }
 }
 

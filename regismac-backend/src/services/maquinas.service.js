@@ -140,18 +140,27 @@ export class MaquinasService {
       },
     });
     
-    // Actualizar automáticamente el estado a "consegnata" si tiene data_consegna pero el estado no es "consegnata"
-    if (maquina && maquina.data_consegna !== null && maquina.data_consegna !== undefined && maquina.stato !== 'consegnata') {
-      await this.prisma.maquina.update({
-        where: { id_maquina: id },
-        data: {
-          stato: 'consegnata'
-        }
+      // Actualizar automáticamente el estado a "consegnata" si tiene data_consegna pero el estado no es "consegnata"
+      if (maquina && maquina.data_consegna !== null && maquina.data_consegna !== undefined && maquina.stato !== 'consegnata') {
+        await this.prisma.maquina.update({
+          where: { id_maquina: Number(id) },
+          data: {
+            stato: 'consegnata'
+          }
+        });
+        maquina.stato = 'consegnata';
+      }
+      
+      return maquina;
+    } catch (error) {
+      console.error('❌ Error en findById de MaquinasService:', {
+        message: error.message,
+        code: error.code,
+        name: error.name,
+        id: id
       });
-      maquina.stato = 'consegnata';
+      throw error;
     }
-    
-    return maquina;
   }
 
   async create(data) {

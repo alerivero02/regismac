@@ -137,25 +137,6 @@ function startAutomaticBackups() {
   }, backupIntervalMs);
 }
 
-async function startSerialConnection() {
-  const enableSerial = process.env.ENABLE_SERIAL_CONNECTION !== 'false';
-  if (!enableSerial) {
-    return;
-  }
-
-  try {
-    const serialPortService = await import('./src/services/serialPort.service.js');
-    setTimeout(async () => {
-      try {
-        await serialPortService.connectToESP32();
-      } catch (error) {
-        log('ℹ️  No se pudo conectar automáticamente al ESP32');
-      }
-    }, 2000);
-  } catch (error) {
-    log('ℹ️  Servicio serial no disponible');
-  }
-}
 
 async function startServer() {
   try {
@@ -180,10 +161,6 @@ async function startServer() {
       
       startAutoPing();
       startAutomaticBackups();
-      
-      if (!isProduction) {
-        startSerialConnection();
-      }
     });
   } catch (error) {
     logError("Database connection error:", error.message);

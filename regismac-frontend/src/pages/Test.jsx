@@ -2377,8 +2377,8 @@ export default function Test() {
                     >
                       {(() => {
                         // Prioridad: temperaturaActual si está disponible, sino esp32Estado
-                        const temp = (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined && !isNaN(temperaturaWebSerial))
-                          ? temperaturaWebSerial
+                        const temp = (temperaturaActual !== null && temperaturaActual !== undefined && !isNaN(temperaturaActual))
+                          ? temperaturaActual
                           : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))
                           ? esp32Estado.temperatura
                           : null;

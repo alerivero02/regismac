@@ -167,6 +167,12 @@ export const createMaquina = async (req, res, next) => {
 
 export const updateMaquina = async (req, res, next) => {
   try {
+    // Verificar que prisma esté disponible
+    if (!req.app || !req.app.locals || !req.app.locals.prisma) {
+      console.error('❌ Prisma no está disponible en req.app.locals');
+      throw new ApiError("Errore di connessione al database. Il servizio non è disponibile.", 503);
+    }
+    
     const service = new MaquinasService(req.app.locals.prisma);
     const id = Number(req.params.id);
     

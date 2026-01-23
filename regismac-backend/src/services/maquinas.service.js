@@ -5,7 +5,12 @@ export class MaquinasService {
 
   async findAll() {
     try {
-    const maquinas = await this.prisma.maquina.findMany({
+      // Verificar que prisma esté disponible
+      if (!this.prisma) {
+        throw new Error('Prisma client no está disponible');
+      }
+      
+      const maquinas = await this.prisma.maquina.findMany({
       include: { 
         tecnico: {
           select: {
@@ -108,7 +113,13 @@ export class MaquinasService {
   }
 
   async findById(id) {
-    const maquina = await this.prisma.maquina.findUnique({
+    try {
+      // Verificar que prisma esté disponible
+      if (!this.prisma) {
+        throw new Error('Prisma client no está disponible');
+      }
+      
+      const maquina = await this.prisma.maquina.findUnique({
       where: { id_maquina: id },
       include: { 
         tecnico: {
@@ -143,84 +154,118 @@ export class MaquinasService {
     return maquina;
   }
 
-  create(data) {
-    // Transformar tecnicoId a id_tecnico para Prisma
-    const prismaData = { ...data };
-    if (prismaData.tecnicoId !== undefined) {
-      prismaData.id_tecnico = prismaData.tecnicoId ? Number(prismaData.tecnicoId) : null;
-      delete prismaData.tecnicoId;
+  async create(data) {
+    try {
+      // Verificar que prisma esté disponible
+      if (!this.prisma) {
+        throw new Error('Prisma client no está disponible');
+      }
+
+      // Transformar tecnicoId a id_tecnico para Prisma
+      const prismaData = { ...data };
+      if (prismaData.tecnicoId !== undefined) {
+        prismaData.id_tecnico = prismaData.tecnicoId ? Number(prismaData.tecnicoId) : null;
+        delete prismaData.tecnicoId;
+      }
+      
+      // Convertir campos numéricos de string a número
+      if (prismaData.quantita_gas !== undefined && prismaData.quantita_gas !== null && prismaData.quantita_gas !== '') {
+        prismaData.quantita_gas = parseFloat(prismaData.quantita_gas);
+      } else if (prismaData.quantita_gas === '' || prismaData.quantita_gas === null) {
+        prismaData.quantita_gas = null;
+      }
+      
+      // Convertir id_tecnico si viene como string
+      if (prismaData.id_tecnico !== undefined && prismaData.id_tecnico !== null && prismaData.id_tecnico !== '') {
+        prismaData.id_tecnico = Number(prismaData.id_tecnico);
+      } else if (prismaData.id_tecnico === '' || prismaData.id_tecnico === null) {
+        prismaData.id_tecnico = null;
+      }
+      
+      // Convertir data_consegna si viene como string
+      if (prismaData.data_consegna && typeof prismaData.data_consegna === 'string') {
+        prismaData.data_consegna = new Date(prismaData.data_consegna);
+      }
+      
+      // Si se establece data_consegna, cambiar automáticamente el estado a "consegnata"
+      if (prismaData.data_consegna !== undefined && prismaData.data_consegna !== null) {
+        prismaData.stato = 'consegnata';
+      }
+      
+      return await this.prisma.maquina.create({ data: prismaData });
+    } catch (error) {
+      console.error('❌ Error en create de MaquinasService:', {
+        message: error.message,
+        code: error.code,
+        name: error.name
+      });
+      throw error;
     }
-    
-    // Convertir campos numéricos de string a número
-    if (prismaData.quantita_gas !== undefined && prismaData.quantita_gas !== null && prismaData.quantita_gas !== '') {
-      prismaData.quantita_gas = parseFloat(prismaData.quantita_gas);
-    } else if (prismaData.quantita_gas === '' || prismaData.quantita_gas === null) {
-      prismaData.quantita_gas = null;
-    }
-    
-    // Convertir id_tecnico si viene como string
-    if (prismaData.id_tecnico !== undefined && prismaData.id_tecnico !== null && prismaData.id_tecnico !== '') {
-      prismaData.id_tecnico = Number(prismaData.id_tecnico);
-    } else if (prismaData.id_tecnico === '' || prismaData.id_tecnico === null) {
-      prismaData.id_tecnico = null;
-    }
-    
-    // Convertir data_consegna si viene como string
-    if (prismaData.data_consegna && typeof prismaData.data_consegna === 'string') {
-      prismaData.data_consegna = new Date(prismaData.data_consegna);
-    }
-    
-    // Si se establece data_consegna, cambiar automáticamente el estado a "consegnata"
-    if (prismaData.data_consegna !== undefined && prismaData.data_consegna !== null) {
-      prismaData.stato = 'consegnata';
-    }
-    
-    return this.prisma.maquina.create({ data: prismaData });
   }
 
-  update(id, data) {
-    // Transformar tecnicoId a id_tecnico para Prisma
-    const prismaData = { ...data };
-    if (prismaData.tecnicoId !== undefined) {
-      prismaData.id_tecnico = prismaData.tecnicoId ? Number(prismaData.tecnicoId) : null;
-      delete prismaData.tecnicoId;
+  async update(id, data) {
+    try {
+      // Verificar que prisma esté disponible
+      if (!this.prisma) {
+        throw new Error('Prisma client no está disponible');
+      }
+
+      // Transformar tecnicoId a id_tecnico para Prisma
+      const prismaData = { ...data };
+      if (prismaData.tecnicoId !== undefined) {
+        prismaData.id_tecnico = prismaData.tecnicoId ? Number(prismaData.tecnicoId) : null;
+        delete prismaData.tecnicoId;
+      }
+      
+      // Convertir campos numéricos de string a número
+      if (prismaData.quantita_gas !== undefined && prismaData.quantita_gas !== null && prismaData.quantita_gas !== '') {
+        prismaData.quantita_gas = parseFloat(prismaData.quantita_gas);
+      } else if (prismaData.quantita_gas === '' || prismaData.quantita_gas === null) {
+        prismaData.quantita_gas = null;
+      }
+      
+      // Convertir id_tecnico si viene como string
+      if (prismaData.id_tecnico !== undefined && prismaData.id_tecnico !== null && prismaData.id_tecnico !== '') {
+        prismaData.id_tecnico = Number(prismaData.id_tecnico);
+      } else if (prismaData.id_tecnico === '' || prismaData.id_tecnico === null) {
+        prismaData.id_tecnico = null;
+      }
+      
+      // Convertir data_consegna si viene como string
+      if (prismaData.data_consegna && typeof prismaData.data_consegna === 'string') {
+        prismaData.data_consegna = new Date(prismaData.data_consegna);
+      }
+      
+      // Si se establece data_consegna, cambiar automáticamente el estado a "consegnata"
+      if (prismaData.data_consegna !== undefined && prismaData.data_consegna !== null) {
+        prismaData.stato = 'consegnata';
+      }
+      
+      // Si se elimina data_consegna (se establece como null), no cambiar el estado automáticamente
+      // (el usuario puede querer mantener el estado aunque se elimine la fecha)
+      
+      return await this.prisma.maquina.update({
+        where: { id_maquina: Number(id) },
+        data: prismaData,
+      });
+    } catch (error) {
+      console.error('❌ Error en update de MaquinasService:', {
+        message: error.message,
+        code: error.code,
+        name: error.name,
+        id: id
+      });
+      throw error;
     }
-    
-    // Convertir campos numéricos de string a número
-    if (prismaData.quantita_gas !== undefined && prismaData.quantita_gas !== null && prismaData.quantita_gas !== '') {
-      prismaData.quantita_gas = parseFloat(prismaData.quantita_gas);
-    } else if (prismaData.quantita_gas === '' || prismaData.quantita_gas === null) {
-      prismaData.quantita_gas = null;
-    }
-    
-    // Convertir id_tecnico si viene como string
-    if (prismaData.id_tecnico !== undefined && prismaData.id_tecnico !== null && prismaData.id_tecnico !== '') {
-      prismaData.id_tecnico = Number(prismaData.id_tecnico);
-    } else if (prismaData.id_tecnico === '' || prismaData.id_tecnico === null) {
-      prismaData.id_tecnico = null;
-    }
-    
-    // Convertir data_consegna si viene como string
-    if (prismaData.data_consegna && typeof prismaData.data_consegna === 'string') {
-      prismaData.data_consegna = new Date(prismaData.data_consegna);
-    }
-    
-    // Si se establece data_consegna, cambiar automáticamente el estado a "consegnata"
-    if (prismaData.data_consegna !== undefined && prismaData.data_consegna !== null) {
-      prismaData.stato = 'consegnata';
-    }
-    
-    // Si se elimina data_consegna (se establece como null), no cambiar el estado automáticamente
-    // (el usuario puede querer mantener el estado aunque se elimine la fecha)
-    
-    return this.prisma.maquina.update({
-      where: { id_maquina: id },
-      data: prismaData,
-    });
   }
 
   // Actualizar múltiples máquinas en lote
-  updateBatch(ids, data) {
+  async updateBatch(ids, data) {
+    try {
+      // Verificar que prisma esté disponible
+      if (!this.prisma) {
+        throw new Error('Prisma client no está disponible');
+      }
     // Transformar tecnicoId a id_tecnico para Prisma
     const prismaData = { ...data };
     if (prismaData.tecnicoId !== undefined) {

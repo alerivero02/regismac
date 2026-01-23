@@ -459,6 +459,11 @@ export const sensorAPI = {
     
     // Desconectar del ESP32
     desconectar: async () => {
+      if (sensorAPI.pythonService.isProduction()) {
+        console.log('[Python Service] ⚠️ En producción, no se puede desconectar desde el frontend');
+        return false;
+      }
+      
       try {
         const response = await fetch('http://localhost:5000/api/sensor/desconectar', {
           method: 'POST',
@@ -474,6 +479,17 @@ export const sensorAPI = {
     
     // Obtener estado del sensor desde el servicio Python
     obtenerEstado: async () => {
+      if (sensorAPI.pythonService.isProduction()) {
+        // En producción, obtener estado del backend en lugar del servicio Python local
+        try {
+          const estado = await sensorAPI.obtenerEstado();
+          return estado;
+        } catch (error) {
+          console.warn('[Python Service] Error obteniendo estado del backend:', error);
+          return null;
+        }
+      }
+      
       try {
         const response = await fetch('http://localhost:5000/api/sensor/estado', {
           method: 'GET',

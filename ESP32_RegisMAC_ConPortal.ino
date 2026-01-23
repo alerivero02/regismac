@@ -296,7 +296,7 @@ void handleRoot() {
             <button type="submit">✅ Guardar y Conectar</button>
         </form>
         
-        <button class="reset-btn" onclick="resetConfig()">🔄 Resetear Configuración</button>
+        <button class="reset-btn" onclick="resetConfig()">Resetear Configuración</button>
         
         <div id="status" class="status"></div>
     </div>
@@ -313,10 +313,14 @@ void handleRoot() {
             statusDiv.style.display = 'none';
             
             try {
+                const ssidEncoded = encodeURIComponent(ssid);
+                const passwordEncoded = encodeURIComponent(password);
+                const serverEncoded = encodeURIComponent(server);
+                const bodyData = 'ssid=' + ssidEncoded + '&password=' + passwordEncoded + '&server=' + serverEncoded;
                 const response = await fetch('/config', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `ssid=${encodeURIComponent(ssid)}&password=${encodeURIComponent(password)}&server=${encodeURIComponent(server)}`
+                    body: bodyData
                 });
                 
                 if (response.ok) {

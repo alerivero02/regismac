@@ -150,13 +150,6 @@ export default function Test() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tecnicos.length, currentUser]); // Solo cuando los técnicos cambien de 0 a >0
 
-  // Verificar soporte WebSerial y detectar dispositivo móvil solo una vez
-  useEffect(() => {
-    // Detectar si es un dispositivo móvil
-    const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    setIsMobileDevice(mobile);
-    
-  }, []); // Solo una vez al montar
 
   // Actualizar cronómetro cada segundo cuando el test está activo
   useEffect(() => {

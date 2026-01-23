@@ -229,25 +229,35 @@ export default function Test() {
   // Conectar WebSocket para recibir actualizaciones en tiempo real
   useEffect(() => {
     console.log('[WebSocket] 🔌 Iniciando conexión WebSocket...');
-    const socket = connectSocket();
+    const socketInstance = connectSocket();
     
-    // Verificar estado de conexión
+    // Verificar estado de conexión periódicamente
     const checkConnection = () => {
-      const status = socket?.connected;
+      const status = socketInstance?.connected;
       console.log('[WebSocket] 📊 Estado de conexión:', {
         connected: status,
-        socketId: socket?.id,
-        readyState: socket?.io?.readyState
+        socketId: socketInstance?.id,
+        readyState: socketInstance?.io?.readyState,
+        transport: socketInstance?.io?.engine?.transport?.name
       });
       return status;
     };
     
-    // Verificar conexión después de un breve delay
+    // Verificar conexión inmediatamente y después de delays
+    checkConnection();
     setTimeout(() => {
       if (!checkConnection()) {
-        console.warn('[WebSocket] ⚠️ Socket no conectado después de 2 segundos');
+        console.warn('[WebSocket] ⚠️ Socket no conectado después de 2 segundos, reintentando...');
+        // Intentar reconectar manualmente si no está conectado
+        if (socketInstance && !socketInstance.connected) {
+          socketInstance.connect();
+        }
       }
     }, 2000);
+    
+    setTimeout(() => {
+      checkConnection();
+    }, 5000);
     
     const handleSensorUpdate = (data) => {
       console.log('[WebSocket] 📨 EVENTO RECIBIDO COMPLETO:', {
@@ -257,7 +267,8 @@ export default function Test() {
         timestamp: data.timestamp,
         tipoTimestamp: typeof data.timestamp,
         horaActual: new Date().toLocaleTimeString(),
-        socketConnected: socket?.connected
+        socketConnected: socketInstance?.connected,
+        socketId: socketInstance?.id
       });
       
       if (data.temperatura !== undefined && data.temperatura !== null) {
@@ -343,11 +354,15 @@ export default function Test() {
       }
     };
     
+    // Registrar el listener de actualizaciones del sensor
+    console.log('[WebSocket] 📝 Registrando listener de sensor:update...');
     onSensorUpdate(handleSensorUpdate);
     
     return () => {
+      console.log('[WebSocket] 🧹 Limpiando listeners y desconectando...');
       offSensorUpdate(handleSensorUpdate);
-      disconnectSocket();
+      // NO desconectar el socket aquí, solo remover el listener
+      // El socket debe permanecer conectado para otros componentes
     };
   }, [showNotification]);
 

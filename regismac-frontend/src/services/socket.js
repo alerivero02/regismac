@@ -6,8 +6,17 @@ let isConnected = false;
 
 export function connectSocket() {
   if (socket?.connected) {
-    console.log('[Socket] ✅ Socket ya está conectado, reutilizando');
+    console.log('[Socket] ✅ Socket ya está conectado, reutilizando - ID:', socket.id);
     return socket;
+  }
+
+  // Si hay un socket existente pero desconectado, limpiarlo primero
+  if (socket && !socket.connected) {
+    console.log('[Socket] 🧹 Limpiando socket desconectado anterior');
+    socket.removeAllListeners();
+    socket.disconnect();
+    socket = null;
+    isConnected = false;
   }
 
   const apiUrl = getApiBaseUrl();
@@ -17,13 +26,17 @@ export function connectSocket() {
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1000,
-    reconnectionAttempts: 5,
+    reconnectionAttempts: Infinity, // Reintentar indefinidamente
+    reconnectionDelayMax: 5000,
     timeout: 20000,
-    forceNew: false
+    forceNew: false,
+    autoConnect: true
   });
 
   socket.on('connect', () => {
-    console.log('[Socket] ✅ Conectado al servidor WebSocket - ID:', socket.id);
+    console.log('[Socket] ✅ Conectado al servidor WebSocket - ID:', socket.id, {
+      transport: socket.io.engine.transport.name
+    });
     isConnected = true;
   });
 
@@ -33,11 +46,17 @@ export function connectSocket() {
   });
 
   socket.on('connect_error', (error) => {
-    console.warn('[Socket] ⚠️ Error de conexión:', error.message, error);
+    console.error('[Socket] ❌ Error de conexión:', {
+      message: error.message,
+      type: error.type,
+      description: error.description,
+      context: error.context
+    });
   });
   
   socket.on('reconnect', (attemptNumber) => {
     console.log('[Socket] 🔄 Reconectado después de', attemptNumber, 'intentos');
+    isConnected = true;
   });
   
   socket.on('reconnect_attempt', (attemptNumber) => {
@@ -52,7 +71,7 @@ export function connectSocket() {
     console.error('[Socket] ❌ Falló la reconexión después de todos los intentos');
   });
   
-  // Agregar listener para recibir actualizaciones del sensor
+  // Agregar listener para recibir actualizaciones del sensor (siempre activo)
   socket.on('sensor:update', (data) => {
     console.log('[Socket] 📨 Evento sensor:update recibido:', {
       temperatura: data.temperatura,
@@ -75,18 +94,22 @@ export function disconnectSocket() {
 
 export function onSensorUpdate(callback) {
   if (!socket) {
+    console.log('[Socket] 🔌 Socket no existe, creando nueva conexión...');
     connectSocket();
   }
   
   // Asegurar que el socket esté conectado
   if (!socket.connected) {
-    console.warn('[Socket] ⚠️ Socket no conectado, esperando conexión...');
+    console.log('[Socket] ⏳ Socket no conectado aún, esperando conexión...');
+    // Registrar el listener de todas formas, se activará cuando se conecte
+    socket.on('sensor:update', callback);
+    
+    // También esperar el evento connect para confirmar
     socket.once('connect', () => {
-      console.log('[Socket] ✅ Socket conectado, registrando listener');
-      socket.on('sensor:update', callback);
+      console.log('[Socket] ✅ Socket conectado, listener ya registrado');
     });
   } else {
-    console.log('[Socket] ✅ Socket conectado, registrando listener inmediatamente');
+    console.log('[Socket] ✅ Socket conectado, registrando listener inmediatamente - ID:', socket.id);
     socket.on('sensor:update', callback);
   }
 }

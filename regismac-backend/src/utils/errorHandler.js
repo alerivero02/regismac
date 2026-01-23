@@ -9,8 +9,19 @@ export const errorHandler = (err, req, res, next) => {
                            err.code === 'P1002' || 
                            err.code === 'P1017' || 
                            err.code === 'P1000' ||
+                           err.code === 'ECONNREFUSED' ||
+                           err.code === 'ETIMEDOUT' ||
+                           err.code === 'ENOTFOUND' ||
                            (err.cause && err.cause.code === 'E57P01') ||
-                           (err.message && err.message.includes('terminating connection'));
+                           (err.message && (
+                             err.message.includes('terminating connection') ||
+                             err.message.includes('connection') ||
+                             err.message.includes('timeout') ||
+                             err.message.includes('ECONNREFUSED') ||
+                             err.message.includes('Can\'t reach database server') ||
+                             err.message.includes('Connection closed') ||
+                             err.message.includes('Connection terminated')
+                           ));
   
   if (isConnectionError) {
     // Detectar el tipo de base de datos desde DATABASE_URL

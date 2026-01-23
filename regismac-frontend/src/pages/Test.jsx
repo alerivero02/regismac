@@ -702,7 +702,6 @@ export default function Test() {
         console.log('[Test] Intentando iniciar test. Estado:', {
           temperaturaActual,
           esp32Estado: esp32Estado?.temperatura,
-          conexionSerial
         });
       }
       
@@ -717,7 +716,7 @@ export default function Test() {
         if (isDev) {
           console.log('[Test] Usando temperatura del servidor:', temperaturaInicial);
         }
-      } else if (conexionSerial.connected) {
+      } else {
         // Si hay conexión pero no tenemos temperatura aún, esperar un poco y reintentar
         if (isDev) {
           console.log('[Test] Hay conexión pero no hay temperatura. Esperando...');
@@ -2373,7 +2372,7 @@ export default function Test() {
                       className="text-2xl font-bold text-gray-900 transition-all duration-200" 
                       key={`temp-${temperaturaUpdateKey}`}
                       style={{ 
-                        animation: (temperaturaWebSerial !== null || esp32Estado?.temperatura !== null) ? 'pulse 0.3s ease-in-out' : 'none'
+                        animation: (temperaturaActual !== null || esp32Estado?.temperatura !== null) ? 'pulse 0.3s ease-in-out' : 'none'
                       }}
                     >
                       {(() => {
@@ -2421,7 +2420,7 @@ export default function Test() {
                 </div>
               </div>
               
-              {(esp32Estado?.timestamp || temperaturaWebSerial !== null) && (() => {
+              {(esp32Estado?.timestamp || temperaturaActual !== null) && (() => {
                 const timestampDisplay = esp32Estado?.timestamp 
                   ? (esp32Estado.timestamp instanceof Date 
                       ? esp32Estado.timestamp.toLocaleTimeString() 
@@ -2460,7 +2459,7 @@ export default function Test() {
                     <span className="font-semibold text-gray-900">
                       {(esp32Estado?.temperaturaInicial !== null && esp32Estado?.temperaturaInicial !== undefined)
                         ? `${esp32Estado.temperaturaInicial.toFixed(1)}°C`
-                        : (temperaturaWebSerial !== null && temperaturaWebSerial !== undefined ? `${temperaturaWebSerial.toFixed(1)}°C` : '--')}
+                        : (temperaturaActual !== null && temperaturaActual !== undefined ? `${temperaturaActual.toFixed(1)}°C` : '--')}
                     </span>
                   </div>
                   <div>

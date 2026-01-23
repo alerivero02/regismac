@@ -85,10 +85,8 @@ export class TestsService {
         id_tecnico: data.tecnicoId,
       };
       
-      // Agregar temperatura_final solo si está definido (para compatibilidad con bases de datos sin esta columna)
-      if (data.temperatura_final !== undefined && data.temperatura_final !== null) {
-        prismaData.temperatura_final = data.temperatura_final;
-      }
+      // NO agregar temperatura_final - la columna no existe en la base de datos
+      // Si en el futuro se necesita, primero agregar la columna con una migración
       
       // Si se proporciona hora_test, convertirla a DateTime
       if (data.hora_test) {

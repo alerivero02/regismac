@@ -57,18 +57,28 @@ export function emitSensorUpdate(data) {
     ultimaEmisionRef = tiempoEmision;
     
     const horaEmision = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
-    const clientesConectados = io.sockets.sockets.size;
     
-    console.log(`[Socket Service] 📤 Emitiendo sensor:update [${horaEmision}] (${tiempoDesdeUltima}ms desde última):`, {
-      temperatura: data.temperatura,
-      humedad: data.humedad,
-      timestamp: data.timestamp,
-      tipoTimestamp: typeof data.timestamp,
-      clientesConectados: clientesConectados
-    });
+    // Obtener lista de sockets conectados de forma más confiable
+    const socketsArray = Array.from(io.sockets.sockets.values());
+    const clientesConectados = socketsArray.length;
     
-    if (clientesConectados === 0) {
-      console.warn('[Socket Service] ⚠️ No hay clientes conectados, el evento no será recibido');
+    // Log detallado de sockets conectados
+    if (clientesConectados > 0) {
+      console.log(`[Socket Service] 📤 Emitiendo sensor:update [${horaEmision}] (${tiempoDesdeUltima}ms desde última):`, {
+        temperatura: data.temperatura,
+        humedad: data.humedad,
+        timestamp: data.timestamp,
+        tipoTimestamp: typeof data.timestamp,
+        clientesConectados: clientesConectados,
+        socketIds: socketsArray.map(s => s.id)
+      });
+    } else {
+      console.warn(`[Socket Service] ⚠️ Emitiendo sensor:update [${horaEmision}] pero NO hay clientes conectados:`, {
+        temperatura: data.temperatura,
+        clientesConectados: clientesConectados,
+        ioExists: !!io,
+        socketsSize: io.sockets.sockets.size
+      });
     }
     
     // Emitir inmediatamente sin throttling

@@ -2861,7 +2861,7 @@ export default function Test() {
                     <FiThermometer className="w-5 h-5 text-red-500" />
                     <span 
                       className="text-2xl font-bold text-gray-900 transition-all duration-200" 
-                      key={`temp-${temperaturaUpdateKey}-${temperaturaWebSerialRef.current || temperaturaWebSerial || 0}-${esp32Estado?.temperatura || 0}-${esp32Estado?.timestamp?.getTime() || Date.now()}`}
+                      key={`temp-${temperaturaUpdateKey}`}
                       style={{ 
                         animation: (temperaturaWebSerial !== null || esp32Estado?.temperatura !== null) ? 'pulse 0.3s ease-in-out' : 'none'
                       }}
@@ -2873,14 +2873,6 @@ export default function Test() {
                           : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))
                           ? esp32Estado.temperatura
                           : null;
-                        
-                        console.log('[UI] 🌡️ Renderizando temperatura:', {
-                          webSerialConnected,
-                          temperaturaWebSerial,
-                          esp32EstadoTemp: esp32Estado?.temperatura,
-                          tempFinal: temp,
-                          temperaturaUpdateKey
-                        });
                         
                         return temp !== null ? `${temp.toFixed(1)}°C` : '--';
                       })()}

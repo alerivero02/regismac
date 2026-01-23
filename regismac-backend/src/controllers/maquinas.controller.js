@@ -191,8 +191,17 @@ export const updateMaquina = async (req, res, next) => {
                                error.code === 'P1002' || 
                                error.code === 'P1017' || 
                                error.code === 'P1000' ||
+                               error.code === 'ECONNREFUSED' ||
+                               error.code === 'ETIMEDOUT' ||
+                               error.code === 'ENOTFOUND' ||
                                (error.cause && error.cause.code === 'E57P01') ||
-                               (error.message && error.message.includes('terminating connection'));
+                               (error.message && (
+                                 error.message.includes('terminating connection') ||
+                                 error.message.includes('connection') ||
+                                 error.message.includes('timeout') ||
+                                 error.message.includes('ECONNREFUSED') ||
+                                 error.message.includes('Can\'t reach database server')
+                               ));
       
       if (isConnectionError) {
         console.error('❌ Error de conexión a la base de datos:', error.code);
@@ -461,6 +470,22 @@ export const updateMaquina = async (req, res, next) => {
     }
 
     try {
+      // Verificar conexión antes de actualizar
+      try {
+        await req.app.locals.prisma.$queryRaw`SELECT 1`;
+      } catch (connectionCheckError) {
+        console.error('❌ Error al verificar conexión antes de actualizar:', connectionCheckError.message);
+        // Intentar reconectar
+        try {
+          await req.app.locals.prisma.$disconnect();
+          await req.app.locals.prisma.$connect();
+          console.log('✅ Reconexión exitosa');
+        } catch (reconnectError) {
+          console.error('❌ Error al reconectar:', reconnectError.message);
+          return next(connectionCheckError);
+        }
+      }
+
       // Intentar actualizar con retry en caso de error de conexión
       let retries = 3;
       let updated = null;
@@ -477,8 +502,17 @@ export const updateMaquina = async (req, res, next) => {
                                    updateError.code === 'P1002' || 
                                    updateError.code === 'P1017' || 
                                    updateError.code === 'P1000' ||
+                                   updateError.code === 'ECONNREFUSED' ||
+                                   updateError.code === 'ETIMEDOUT' ||
+                                   updateError.code === 'ENOTFOUND' ||
                                    (updateError.cause && updateError.cause.code === 'E57P01') ||
-                                   (updateError.message && updateError.message.includes('terminating connection'));
+                                   (updateError.message && (
+                                     updateError.message.includes('terminating connection') ||
+                                     updateError.message.includes('connection') ||
+                                     updateError.message.includes('timeout') ||
+                                     updateError.message.includes('ECONNREFUSED') ||
+                                     updateError.message.includes('Can\'t reach database server')
+                                   ));
           
           if (isConnectionError && retries > 1) {
             console.warn(`⚠️ Error de conexión a la base de datos al actualizar máquina. Reintentando... (${retries - 1} intentos restantes)`);
@@ -505,15 +539,25 @@ export const updateMaquina = async (req, res, next) => {
       console.error('❌ Error al actualizar en la base de datos:', {
         code: updateError.code,
         message: updateError.message,
-        name: updateError.name
+        name: updateError.name,
+        stack: updateError.stack
       });
       // Si hay un error de conexión a la base de datos al actualizar
       const isConnectionError = updateError.code === 'P1001' || 
                                 updateError.code === 'P1002' || 
                                 updateError.code === 'P1017' || 
                                 updateError.code === 'P1000' ||
+                                updateError.code === 'ECONNREFUSED' ||
+                                updateError.code === 'ETIMEDOUT' ||
+                                updateError.code === 'ENOTFOUND' ||
                                 (updateError.cause && updateError.cause.code === 'E57P01') ||
-                                (updateError.message && updateError.message.includes('terminating connection'));
+                                (updateError.message && (
+                                  updateError.message.includes('terminating connection') ||
+                                  updateError.message.includes('connection') ||
+                                  updateError.message.includes('timeout') ||
+                                  updateError.message.includes('ECONNREFUSED') ||
+                                  updateError.message.includes('Can\'t reach database server')
+                                ));
       
       if (isConnectionError) {
         console.error('❌ Errore di connessione al database durante l\'aggiornamento:', {

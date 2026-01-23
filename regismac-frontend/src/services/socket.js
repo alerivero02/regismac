@@ -31,6 +31,11 @@ export function connectSocket() {
   socket.on('connect_error', (error) => {
     console.warn('[Socket] ⚠️ Error de conexión:', error.message);
   });
+  
+  // Agregar listener para recibir actualizaciones del sensor
+  socket.on('sensor:update', (data) => {
+    console.log('[Socket] 📨 Evento sensor:update recibido:', data);
+  });
 
   return socket;
 }
@@ -47,7 +52,18 @@ export function onSensorUpdate(callback) {
   if (!socket) {
     connectSocket();
   }
-  socket.on('sensor:update', callback);
+  
+  // Asegurar que el socket esté conectado
+  if (!socket.connected) {
+    console.warn('[Socket] ⚠️ Socket no conectado, esperando conexión...');
+    socket.once('connect', () => {
+      console.log('[Socket] ✅ Socket conectado, registrando listener');
+      socket.on('sensor:update', callback);
+    });
+  } else {
+    console.log('[Socket] ✅ Socket conectado, registrando listener inmediatamente');
+    socket.on('sensor:update', callback);
+  }
 }
 
 export function offSensorUpdate(callback) {

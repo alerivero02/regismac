@@ -40,6 +40,31 @@ export const getTestsByMaquina = async (req, res, next) => {
 
 export const createTest = async (req, res, next) => {
   try {
+    console.log('🔵 createTest - Iniciando creación de test');
+    console.log('🔵 createTest - Body recibido:', JSON.stringify(req.body, null, 2));
+    
+    // Verificar que Prisma esté disponible
+    if (!req.app || !req.app.locals || !req.app.locals.prisma) {
+      console.error('❌ createTest - Prisma no está disponible');
+      throw new ApiError("Errore di connessione al database. Il servizio non è disponibile.", 503);
+    }
+    
+    // Verificar conexión antes de crear
+    try {
+      await req.app.locals.prisma.$queryRaw`SELECT 1`;
+      console.log('✅ createTest - Conexión a la base de datos verificada');
+    } catch (connectionCheckError) {
+      console.error('❌ createTest - Error al verificar conexión:', connectionCheckError.message);
+      try {
+        await req.app.locals.prisma.$disconnect();
+        await req.app.locals.prisma.$connect();
+        console.log('✅ createTest - Reconexión exitosa');
+      } catch (reconnectError) {
+        console.error('❌ createTest - Error al reconectar:', reconnectError.message);
+        throw new ApiError("Errore di connessione al database PostgreSQL.", 503);
+      }
+    }
+    
     const service = new TestsService(req.app.locals.prisma);
     const maquinasService = new MaquinasService(req.app.locals.prisma);
     
@@ -50,10 +75,18 @@ export const createTest = async (req, res, next) => {
     
     while (retries > 0) {
       try {
+        console.log(`🔵 createTest - Intento ${4 - retries}/3 de crear test`);
         nuevo = await service.create(req.body);
+        console.log('✅ createTest - Test creado exitosamente:', nuevo.id_test);
         break;
       } catch (createError) {
         lastError = createError;
+        console.error('❌ createTest - Error al crear test:', {
+          code: createError.code,
+          message: createError.message,
+          name: createError.name,
+          meta: createError.meta
+        });
         
         // Si es un error de columna faltante (P2022), intentar crear sin temperatura_final
         if (createError.code === 'P2022' && createError.meta?.column === 'temperatura_final') {

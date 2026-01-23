@@ -97,12 +97,16 @@ export const recibirDatosSensor = async (req, res, next) => {
 
     // Emitir actualización vía WebSocket
     try {
-      emitSensorUpdate({
+      const updateData = {
         temperatura: sensorState.temperatura,
         humedad: sensorState.humedad,
         timestamp: sensorState.timestamp.toISOString() // Convertir a ISO string para serialización correcta
+      };
+      emitSensorUpdate(updateData);
+      console.log('✅ recibirDatosSensor - Actualización emitida vía WebSocket:', {
+        temperatura: updateData.temperatura,
+        timestamp: updateData.timestamp
       });
-      console.log('✅ recibirDatosSensor - Actualización emitida vía WebSocket');
     } catch (wsError) {
       console.error('⚠️ recibirDatosSensor - Error al emitir WebSocket:', wsError.message);
       // No fallar si WebSocket falla

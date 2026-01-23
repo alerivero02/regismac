@@ -228,7 +228,26 @@ export default function Test() {
 
   // Conectar WebSocket para recibir actualizaciones en tiempo real
   useEffect(() => {
-    connectSocket();
+    console.log('[WebSocket] 🔌 Iniciando conexión WebSocket...');
+    const socket = connectSocket();
+    
+    // Verificar estado de conexión
+    const checkConnection = () => {
+      const status = socket?.connected;
+      console.log('[WebSocket] 📊 Estado de conexión:', {
+        connected: status,
+        socketId: socket?.id,
+        readyState: socket?.io?.readyState
+      });
+      return status;
+    };
+    
+    // Verificar conexión después de un breve delay
+    setTimeout(() => {
+      if (!checkConnection()) {
+        console.warn('[WebSocket] ⚠️ Socket no conectado después de 2 segundos');
+      }
+    }, 2000);
     
     const handleSensorUpdate = (data) => {
       console.log('[WebSocket] 📨 EVENTO RECIBIDO COMPLETO:', {
@@ -237,7 +256,8 @@ export default function Test() {
         humedad: data.humedad,
         timestamp: data.timestamp,
         tipoTimestamp: typeof data.timestamp,
-        horaActual: new Date().toLocaleTimeString()
+        horaActual: new Date().toLocaleTimeString(),
+        socketConnected: socket?.connected
       });
       
       if (data.temperatura !== undefined && data.temperatura !== null) {
@@ -2841,16 +2861,29 @@ export default function Test() {
                     <FiThermometer className="w-5 h-5 text-red-500" />
                     <span 
                       className="text-2xl font-bold text-gray-900 transition-all duration-200" 
-                      key={`temp-${temperaturaUpdateKey}-${temperaturaWebSerialRef.current || temperaturaWebSerial || 0}-${esp32Estado?.temperatura || 0}-${Date.now()}`}
+                      key={`temp-${temperaturaUpdateKey}-${temperaturaWebSerialRef.current || temperaturaWebSerial || 0}-${esp32Estado?.temperatura || 0}-${esp32Estado?.timestamp?.getTime() || Date.now()}`}
                       style={{ 
-                        animation: temperaturaWebSerial !== null ? 'pulse 0.3s ease-in-out' : 'none'
+                        animation: (temperaturaWebSerial !== null || esp32Estado?.temperatura !== null) ? 'pulse 0.3s ease-in-out' : 'none'
                       }}
                     >
-                      {(webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined && !isNaN(temperaturaWebSerial))
-                        ? `${temperaturaWebSerial.toFixed(1)}°C`
-                        : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))
-                        ? `${esp32Estado.temperatura.toFixed(1)}°C`
-                        : '--'}
+                      {(() => {
+                        // Prioridad: temperaturaWebSerial si está disponible, sino esp32Estado
+                        const temp = (webSerialConnected && temperaturaWebSerial !== null && temperaturaWebSerial !== undefined && !isNaN(temperaturaWebSerial))
+                          ? temperaturaWebSerial
+                          : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))
+                          ? esp32Estado.temperatura
+                          : null;
+                        
+                        console.log('[UI] 🌡️ Renderizando temperatura:', {
+                          webSerialConnected,
+                          temperaturaWebSerial,
+                          esp32EstadoTemp: esp32Estado?.temperatura,
+                          tempFinal: temp,
+                          temperaturaUpdateKey
+                        });
+                        
+                        return temp !== null ? `${temp.toFixed(1)}°C` : '--';
+                      })()}
                     </span>
                   </div>
                   {/* Debug info solo en desarrollo */}

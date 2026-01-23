@@ -6,35 +6,60 @@ let isConnected = false;
 
 export function connectSocket() {
   if (socket?.connected) {
+    console.log('[Socket] ✅ Socket ya está conectado, reutilizando');
     return socket;
   }
 
   const apiUrl = getApiBaseUrl();
+  console.log('[Socket] 🔌 Conectando a:', apiUrl);
+  
   socket = io(apiUrl, {
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionDelay: 1000,
     reconnectionAttempts: 5,
-    timeout: 20000
+    timeout: 20000,
+    forceNew: false
   });
 
   socket.on('connect', () => {
-    console.log('[Socket] ✅ Conectado al servidor WebSocket');
+    console.log('[Socket] ✅ Conectado al servidor WebSocket - ID:', socket.id);
     isConnected = true;
   });
 
-  socket.on('disconnect', () => {
-    console.log('[Socket] ❌ Desconectado del servidor WebSocket');
+  socket.on('disconnect', (reason) => {
+    console.log('[Socket] ❌ Desconectado del servidor WebSocket - Razón:', reason);
     isConnected = false;
   });
 
   socket.on('connect_error', (error) => {
-    console.warn('[Socket] ⚠️ Error de conexión:', error.message);
+    console.warn('[Socket] ⚠️ Error de conexión:', error.message, error);
+  });
+  
+  socket.on('reconnect', (attemptNumber) => {
+    console.log('[Socket] 🔄 Reconectado después de', attemptNumber, 'intentos');
+  });
+  
+  socket.on('reconnect_attempt', (attemptNumber) => {
+    console.log('[Socket] 🔄 Intento de reconexión', attemptNumber);
+  });
+  
+  socket.on('reconnect_error', (error) => {
+    console.warn('[Socket] ⚠️ Error al reconectar:', error.message);
+  });
+  
+  socket.on('reconnect_failed', () => {
+    console.error('[Socket] ❌ Falló la reconexión después de todos los intentos');
   });
   
   // Agregar listener para recibir actualizaciones del sensor
   socket.on('sensor:update', (data) => {
-    console.log('[Socket] 📨 Evento sensor:update recibido:', data);
+    console.log('[Socket] 📨 Evento sensor:update recibido:', {
+      temperatura: data.temperatura,
+      humedad: data.humedad,
+      timestamp: data.timestamp,
+      horaRecepcion: new Date().toLocaleTimeString()
+    });
   });
 
   return socket;

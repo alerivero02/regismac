@@ -33,10 +33,14 @@ export class MaquinasService {
             id_maquina: true,
             id_tecnico: true,
             temperatura_iniziale: true,
+            regolazione_vite: true,
             tempo_0_gradi: true,
             tempo_meno8_gradi: true,
+            quantita_liquido: true,
+            humedad_ambiente: true,
             fecha_test: true,
-            hora_test: true
+            hora_test: true,
+            observazioni: true
           },
           orderBy: {
             fecha_test: 'desc'
@@ -120,25 +124,43 @@ export class MaquinasService {
       }
       
       const maquina = await this.prisma.maquina.findUnique({
-      where: { id_maquina: id },
-      include: { 
-        tecnico: {
-          select: {
-            id_tecnico: true,
-            nome: true,
-            cognome: true
+        where: { id_maquina: id },
+        include: { 
+          tecnico: {
+            select: {
+              id_tecnico: true,
+              nome: true,
+              cognome: true
+            }
+          },
+          tests: {
+            select: {
+              id_test: true,
+              id_maquina: true,
+              id_tecnico: true,
+              temperatura_iniziale: true,
+              regolazione_vite: true,
+              tempo_0_gradi: true,
+              tempo_meno8_gradi: true,
+              quantita_liquido: true,
+              humedad_ambiente: true,
+              fecha_test: true,
+              hora_test: true,
+              observazioni: true,
+              tecnico: {
+                select: {
+                  id_tecnico: true,
+                  nome: true,
+                  cognome: true
+                }
+              }
+            },
+            orderBy: {
+              fecha_test: 'desc'
+            }
           }
         },
-        tests: {
-          include: {
-            tecnico: true
-          },
-          orderBy: {
-            fecha_test: 'desc'
-          }
-        }
-      },
-    });
+      });
     
       // Actualizar automáticamente el estado a "consegnata" si tiene data_consegna pero el estado no es "consegnata"
       if (maquina && maquina.data_consegna !== null && maquina.data_consegna !== undefined && maquina.stato !== 'consegnata') {

@@ -540,8 +540,13 @@ export const updateMaquina = async (req, res, next) => {
         code: updateError.code,
         message: updateError.message,
         name: updateError.name,
-        stack: updateError.stack
+        stack: updateError.stack,
+        cause: updateError.cause,
+        meta: updateError.meta,
+        id: id,
+        dataToSave: Object.keys(dataToSave)
       });
+      
       // Si hay un error de conexión a la base de datos al actualizar
       const isConnectionError = updateError.code === 'P1001' || 
                                 updateError.code === 'P1002' || 
@@ -556,7 +561,9 @@ export const updateMaquina = async (req, res, next) => {
                                   updateError.message.includes('connection') ||
                                   updateError.message.includes('timeout') ||
                                   updateError.message.includes('ECONNREFUSED') ||
-                                  updateError.message.includes('Can\'t reach database server')
+                                  updateError.message.includes('Can\'t reach database server') ||
+                                  updateError.message.includes('Connection closed') ||
+                                  updateError.message.includes('Connection terminated')
                                 ));
       
       if (isConnectionError) {
@@ -567,12 +574,20 @@ export const updateMaquina = async (req, res, next) => {
         });
         return next(updateError); // Dejar que el errorHandler lo maneje con 503
       }
+      
       // Otros errores de Prisma
       if (updateError.code && updateError.code.startsWith('P')) {
-        console.error('❌ Errore Prisma durante l\'aggiornamento:', updateError);
+        console.error('❌ Errore Prisma durante l\'aggiornamento:', {
+          code: updateError.code,
+          message: updateError.message,
+          meta: updateError.meta
+        });
         return next(updateError);
       }
-      throw updateError;
+      
+      // Si no es un error conocido, pasarlo al errorHandler
+      console.error('❌ Error desconocido al actualizar máquina:', updateError);
+      return next(updateError);
     }
   } catch (err) {
     console.error('❌ Errore generale in updateMaquina:', {

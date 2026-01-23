@@ -26,6 +26,7 @@ export const errorHandler = (err, req, res, next) => {
   if (isConnectionError) {
     // Detectar el tipo de base de datos desde DATABASE_URL
     const dbUrl = process.env.DATABASE_URL || '';
+    const isNeon = dbUrl.includes('neon.tech') || dbUrl.includes('neon');
     const dbType = dbUrl.includes('postgresql') || dbUrl.includes('postgres') ? 'PostgreSQL' 
                   : dbUrl.includes('mysql') ? 'MySQL' // Solo para desarrollo local
                   : 'database';
@@ -37,7 +38,11 @@ export const errorHandler = (err, req, res, next) => {
     if (isProduction) {
       // Mensaje específico para producción
       if (dbType === 'PostgreSQL') {
-        errorMessage = 'Errore di connessione al database PostgreSQL su Render.com. Il database potrebbe essere inattivo. Verifica il dashboard di Render.';
+        if (isNeon) {
+          errorMessage = 'Errore di connessione al database PostgreSQL (Neon). Il database potrebbe essere sospeso. Verifica lo stato in https://console.neon.tech e riattivalo se necessario.';
+        } else {
+          errorMessage = 'Errore di connessione al database PostgreSQL. Verifica che il database sia disponibile e che la configurazione sia corretta.';
+        }
       } else {
         errorMessage = `Errore di connessione al database ${dbType}. Verifica che il servizio database sia disponibile.`;
       }
@@ -49,9 +54,12 @@ export const errorHandler = (err, req, res, next) => {
     console.error('🔍 Database Connection Error Details:', {
       code: err.code,
       dbType: dbType,
+      isNeon: isNeon,
       hasDatabaseUrl: !!dbUrl,
-      databaseUrlPrefix: dbUrl.substring(0, 20) + '...',
-      isProduction: isProduction
+      databaseUrlPrefix: dbUrl.substring(0, 30) + '...',
+      isProduction: isProduction,
+      message: err.message,
+      cause: err.cause
     });
     
     return res.status(503).json({

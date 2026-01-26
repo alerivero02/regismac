@@ -62,6 +62,7 @@ export default function Test() {
   const temperaturaActualRef = useRef(null); // Ref para acceso directo al valor más reciente
   const testESP32ActivoRef = useRef(false); // Ref para acceso al estado del test
   const ultimaActualizacionRef = useRef(null); // Ref para rastrear tiempo de última actualización
+  const alarmaMenos8ActivadaRef = useRef(false); // Ref para controlar que la alarma solo suene una vez
   
   const [showCronometroModal, setShowCronometroModal] = useState(false);
 
@@ -88,6 +89,52 @@ export default function Test() {
     setTimeout(() => {
       setNotification(prev => ({ ...prev, show: false }));
     }, 5000);
+  }, []);
+
+  // Función para reproducir señal sonora de alarma
+  const reproducirAlarmaSonora = useCallback(() => {
+    try {
+      // Crear contexto de audio
+      const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      
+      // Función para generar un pitido
+      const generarPitido = (frecuencia, duracion, inicio) => {
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = frecuencia;
+        oscillator.type = 'sine';
+        
+        // Envelope para suavizar el sonido
+        gainNode.gain.setValueAtTime(0, inicio);
+        gainNode.gain.linearRampToValueAtTime(0.3, inicio + 0.01);
+        gainNode.gain.linearRampToValueAtTime(0.3, inicio + duracion - 0.01);
+        gainNode.gain.linearRampToValueAtTime(0, inicio + duracion);
+        
+        oscillator.start(inicio);
+        oscillator.stop(inicio + duracion);
+      };
+      
+      // Generar 3 pitidos cortos (alarma)
+      const tiempoInicio = audioContext.currentTime;
+      generarPitido(800, 0.2, tiempoInicio);      // Pitido 1
+      generarPitido(800, 0.2, tiempoInicio + 0.3); // Pitido 2
+      generarPitido(800, 0.2, tiempoInicio + 0.6); // Pitido 3
+      
+      console.log('🔔 Alarma sonora activada: Temperatura alcanzó -8°C');
+    } catch (error) {
+      console.error('Error al reproducir alarma sonora:', error);
+      // Fallback: intentar con beep del sistema si está disponible
+      if (window.speechSynthesis) {
+        const utterance = new SpeechSynthesisUtterance('Alarma: Temperatura menos 8 grados');
+        utterance.volume = 1;
+        utterance.rate = 1.5;
+        window.speechSynthesis.speak(utterance);
+      }
+    }
   }, []);
 
   const loadCurrentUser = useCallback(async () => {
@@ -296,6 +343,16 @@ export default function Test() {
               }));
               showNotification(`✅ Temperatura -8°C detectada`, 'success');
             }
+          
+          // Detectar cuando la temperatura llega a -8°C o menos para activar alarma sonora
+          if (temperatura <= -8.0 && !alarmaMenos8ActivadaRef.current) {
+            alarmaMenos8ActivadaRef.current = true;
+            reproducirAlarmaSonora();
+            showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
+          } else if (temperatura > -8.0 && alarmaMenos8ActivadaRef.current) {
+            // Resetear la alarma cuando la temperatura suba por encima de -8°
+            alarmaMenos8ActivadaRef.current = false;
+          }
           }
         }
       }
@@ -410,6 +467,16 @@ export default function Test() {
               humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
               timestamp: timestamp
             }));
+            
+            // Detectar cuando la temperatura llega a -8°C o menos para activar alarma sonora
+            if (temperatura <= -8.0 && !alarmaMenos8ActivadaRef.current) {
+              alarmaMenos8ActivadaRef.current = true;
+              reproducirAlarmaSonora();
+              showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
+            } else if (temperatura > -8.0 && alarmaMenos8ActivadaRef.current) {
+              // Resetear la alarma cuando la temperatura suba por encima de -8°
+              alarmaMenos8ActivadaRef.current = false;
+            }
           }
         }
         // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
@@ -431,7 +498,7 @@ export default function Test() {
             const temperatura = parseFloat(estado.temperatura);
             if (!isNaN(temperatura)) {
               console.log('[Polling] 🔄 Actualizando temperatura vía HTTP polling (WebSocket desconectado):', temperatura);
-              setTemperaturaWebSerial(temperatura);
+              setTemperaturaActual(temperatura);
               temperaturaActualRef.current = temperatura;
               setTemperaturaUpdateKey(prev => prev + 1);
               
@@ -442,6 +509,16 @@ export default function Test() {
                 humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
                 timestamp: timestamp
               }));
+              
+              // Detectar cuando la temperatura llega a -8°C o menos para activar alarma sonora
+              if (temperatura <= -8.0 && !alarmaMenos8ActivadaRef.current) {
+                alarmaMenos8ActivadaRef.current = true;
+                reproducirAlarmaSonora();
+                showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
+              } else if (temperatura > -8.0 && alarmaMenos8ActivadaRef.current) {
+                // Resetear la alarma cuando la temperatura suba por encima de -8°
+                alarmaMenos8ActivadaRef.current = false;
+              }
             }
           }
           // Si WebSocket está conectado, usar la temperatura del servidor como fallback
@@ -594,6 +671,7 @@ export default function Test() {
               
               setTestESP32Activo(false);
       testESP32ActivoRef.current = false;
+      alarmaMenos8ActivadaRef.current = false; // Resetear alarma al finalizar test automáticamente
               setFechaHoraInicioTestESP32(null);
               setShowESP32Modal(false);
               autoSaveRef.current = false;
@@ -735,6 +813,7 @@ export default function Test() {
       tiempoInicioTestRef.current = Date.now();
       tiempo0GradosRef.current = null;
       tiempoMenos8GradosRef.current = null;
+      alarmaMenos8ActivadaRef.current = false; // Resetear alarma al iniciar nuevo test
       
       // Actualizar estado local con temperatura inicial
       setEsp32Estado(prev => ({
@@ -773,6 +852,7 @@ export default function Test() {
       const resultado = await sensorAPI.finalizarTest();
       setTestESP32Activo(false);
       testESP32ActivoRef.current = false;
+      alarmaMenos8ActivadaRef.current = false; // Resetear alarma al finalizar test
       
       // Guardar SIEMPRE el test, incluso si no se alcanzaron todas las temperaturas objetivo
       const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
@@ -875,6 +955,7 @@ export default function Test() {
       showNotification(error.message || 'Error al finalizar el test', 'error');
       setTestESP32Activo(false);
       testESP32ActivoRef.current = false;
+      alarmaMenos8ActivadaRef.current = false; // Resetear alarma en caso de error
       setFechaHoraInicioTestESP32(null);
     } finally {
       setIsSubmitting(false);

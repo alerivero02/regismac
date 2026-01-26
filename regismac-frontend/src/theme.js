@@ -60,7 +60,7 @@ const theme = createTheme({
   },
   typography: {
     fontFamily: [
-      'Inter',
+      'DM Sans',
       '-apple-system',
       'BlinkMacSystemFont',
       '"Segoe UI"',

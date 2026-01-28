@@ -352,9 +352,9 @@ export const sensorAPI = {
     body: { temperatura, humedad }
   }),
   obtenerEstado: () => fetchAPI('/api/sensor/estado'),
-  iniciarTest: (temperaturaInicial) => fetchAPI('/api/sensor/iniciar', {
+  iniciarTest: () => fetchAPI('/api/sensor/iniciar', {
     method: 'POST',
-    body: { temperaturaInicial }
+    body: {} // El backend toma automáticamente la temperatura del sensor
   }),
   finalizarTest: () => fetchAPI('/api/sensor/finalizar', {
     method: 'POST'

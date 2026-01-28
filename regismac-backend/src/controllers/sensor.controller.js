@@ -127,22 +127,34 @@ export const obtenerEstadoSensor = async (req, res, next) => {
 // Endpoint para iniciar un test (llamado desde el frontend)
 export const iniciarTest = async (req, res, next) => {
   try {
-    const { temperaturaInicial } = req.body;
-
     if (sensorState.testActivo) {
       throw new ApiError("Ya hay un test activo. Debe finalizar el test actual primero.", 400);
     }
 
-    if (temperaturaInicial === undefined || temperaturaInicial === null) {
-      throw new ApiError("Temperatura inicial es requerida", 400);
+    // Tomar la temperatura actual del sensor ESP32 al momento de iniciar el test
+    if (sensorState.temperatura === null || sensorState.temperatura === undefined) {
+      throw new ApiError("No hay datos de temperatura disponibles del sensor. Asegúrese de que el ESP32 esté conectado y enviando datos.", 400);
     }
 
-    // Iniciar nuevo test
+    // Usar la temperatura actual del sensor como temperatura inicial
+    const temperaturaInicial = parseFloat(sensorState.temperatura);
+
+    // Validar que la temperatura sea válida
+    if (isNaN(temperaturaInicial) || temperaturaInicial < -55 || temperaturaInicial > 125) {
+      throw new ApiError(`Temperatura del sensor inválida: ${sensorState.temperatura}°C. Verifique la conexión del sensor.`, 400);
+    }
+
+    // Iniciar nuevo test con la temperatura actual del sensor
     sensorState.testActivo = true;
-    sensorState.temperaturaInicial = parseFloat(temperaturaInicial);
+    sensorState.temperaturaInicial = temperaturaInicial;
     sensorState.tiempoInicio = Date.now();
     sensorState.tiempo0Grados = null;
     sensorState.tiempoMenos8Grados = null;
+
+    console.log('✅ Test iniciado con temperatura inicial del sensor:', {
+      temperaturaInicial: sensorState.temperaturaInicial,
+      timestamp: new Date().toISOString()
+    });
 
     res.json({
       success: true,

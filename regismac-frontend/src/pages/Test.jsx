@@ -735,74 +735,37 @@ export default function Test() {
         setIsIniciandoTest(false);
         return;
       }
-
-      // Obtener temperatura del estado actual
-      let temperaturaInicial = null;
-      
-      // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
-      const isDev = import.meta.env.DEV;
-      if (isDev) {
-        console.log('[Test] Intentando iniciar test. Estado:', {
-          temperaturaActual,
-          esp32Estado: esp32Estado?.temperatura,
-        });
-      }
-      
-      if (temperaturaActual !== null && temperaturaActual !== undefined) {
-        temperaturaInicial = temperaturaActual;
-        if (isDev) {
-          console.log('[Test] Usando temperatura actual:', temperaturaInicial);
-        }
-      } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
-        // Usar temperatura del servidor
-        temperaturaInicial = esp32Estado.temperatura;
-        if (isDev) {
-          console.log('[Test] Usando temperatura del servidor:', temperaturaInicial);
-        }
-      } else {
-        // Si hay conexión pero no tenemos temperatura aún, esperar un poco y reintentar
-        if (isDev) {
-          console.log('[Test] Hay conexión pero no hay temperatura. Esperando...');
-        }
-        showNotification('Aspettando i dati del sensore...', 'info');
-        setIsIniciandoTest(false);
-        
-        // Esperar 2 segundos y verificar de nuevo
-        setTimeout(async () => {
-          try {
-            const estado = await sensorAPI.obtenerEstado();
-            if (estado.temperatura !== null && estado.temperatura !== undefined) {
-              iniciarTestESP32();
-            } else {
-              showNotification('Impossibile leggere la temperatura del sensore. Verifica la connessione.', 'error');
-            }
-          } catch (error) {
-            showNotification('Errore nel leggere i dati del sensore.', 'error');
-          }
-        }, 2000);
-        return;
-      }
-      
-      if (temperaturaInicial === null || temperaturaInicial === undefined) {
-        showNotification('Impossibile leggere la temperatura del sensore. Verifica la connessione USB o WiFi.', 'error');
-        setIsIniciandoTest(false);
-        return;
-      }
       
       // Resetear flag de auto-guardado
       autoSaveRef.current = false;
       
-      // Iniciar test en el servidor (si está disponible) o solo localmente
+      // Iniciar test en el servidor - el backend tomará automáticamente la temperatura del sensor
+      let resultado;
       try {
-        await sensorAPI.iniciarTest(temperaturaInicial);
+        resultado = await sensorAPI.iniciarTest();
       } catch (error) {
         // Si el servidor no está disponible pero tenemos USB, continuar solo con USB
         // Verificar si hay datos disponibles
         if (temperaturaActual !== null || esp32Estado?.temperatura !== null) {
           console.warn('Servidor no disponible, continuando solo con USB:', error.message);
+          // Usar temperatura local como fallback
+          const temperaturaInicial = temperaturaActual !== null ? temperaturaActual : esp32Estado?.temperatura;
+          resultado = {
+            temperaturaInicial,
+            tiempoInicio: Date.now()
+          };
         } else {
           throw error;
         }
+      }
+      
+      // Obtener temperatura inicial de la respuesta del servidor
+      const temperaturaInicial = resultado.temperaturaInicial;
+      
+      if (temperaturaInicial === null || temperaturaInicial === undefined) {
+        showNotification('No se pudo obtener la temperatura inicial del sensor. Verifica la conexión del ESP32.', 'error');
+        setIsIniciandoTest(false);
+        return;
       }
       
       setTestESP32Activo(true);
@@ -810,12 +773,12 @@ export default function Test() {
       setFechaHoraInicioTestESP32(new Date().toISOString());
       
       // Inicializar referencias para detección local de temperaturas
-      tiempoInicioTestRef.current = Date.now();
+      tiempoInicioTestRef.current = resultado.tiempoInicio || Date.now();
       tiempo0GradosRef.current = null;
       tiempoMenos8GradosRef.current = null;
       alarmaMenos8ActivadaRef.current = false; // Resetear alarma al iniciar nuevo test
       
-      // Actualizar estado local con temperatura inicial
+      // Actualizar estado local con temperatura inicial del servidor
       setEsp32Estado(prev => ({
         ...prev,
         temperatura: temperaturaInicial,
@@ -824,7 +787,7 @@ export default function Test() {
         tiempoInicio: tiempoInicioTestRef.current,
       }));
       
-      showNotification('✅ Test iniciado. Monitoreando temperatura automáticamente...', 'success');
+      showNotification(`✅ Test iniciado con temperatura inicial: ${temperaturaInicial.toFixed(2)}°C. Monitoreando temperatura automáticamente...`, 'success');
     } catch (error) {
       showNotification(error.message || 'Error al iniciar el test', 'error');
       setIsIniciandoTest(false);

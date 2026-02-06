@@ -9,10 +9,16 @@
 // ESP32 - RegisMAC con Portal de Configuración WiFi
 // ============================================
 
-// Configuración del sensor DS18B20
-#define ONE_WIRE_BUS 4
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
+// Sensores DS18B20: uno en D2 (GPIO 2), otro en D4 (GPIO 4)
+// Conexion: GND de los 2 sensores juntos (y al GND del ESP32);
+//           3.3V de los 2 sensores juntos (y al 3.3V del ESP32);
+//           Datos sensor 1 -> D2, Datos sensor 2 -> D4 (cada uno con pull-up 4.7k a 3.3V)
+#define PIN_SENSOR_D2 2
+#define PIN_SENSOR_D4 4
+OneWire oneWireD2(PIN_SENSOR_D2);
+OneWire oneWireD4(PIN_SENSOR_D4);
+DallasTemperature sensorD2(&oneWireD2);
+DallasTemperature sensorD4(&oneWireD4);
 
 // Servidor web para portal de configuración
 WebServer server(80);
@@ -28,7 +34,9 @@ String serverURL = "https://regismac.onrender.com/api/sensor/datos";
 // Estado
 bool isConfigured = false;
 unsigned long ultimoEnvio = 0;
-const unsigned long INTERVALO_ENVIO = 1000; // 1 segundo
+unsigned long ultimoLog = 0;
+const unsigned long INTERVALO_ENVIO = 200;    // 200 ms envío al servidor (máxima rapidez)
+const unsigned long INTERVALO_LOG_LOCAL = 200; // 200 ms logs en Monitor Serie
 
 // Nombre del Access Point cuando no está configurado
 const char* AP_SSID = "RegisMAC-Config";
@@ -42,6 +50,7 @@ void handleReset();
 void conectarWiFi();
 void iniciarPortalConfiguracion();
 void enviarDatos();
+void logLocalSensor();
 
 void setup() {
   Serial.begin(115200);
@@ -51,9 +60,21 @@ void setup() {
   Serial.println("   ESP32 - RegisMAC con Portal WiFi");
   Serial.println("========================================\n");
   
-  // Inicializar sensor
-  sensors.begin();
-  Serial.println("✅ Sensor DS18B20 inicializado");
+  // Inicializar sensores en D2 y D4
+  sensorD2.begin();
+  sensorD4.begin();
+  int nD2 = sensorD2.getDeviceCount();
+  int nD4 = sensorD4.getDeviceCount();
+  Serial.print("Pin D2: ");
+  Serial.print(nD2);
+  Serial.println(nD2 == 1 ? " sensor detectado" : " sensores detectados (revisar cable/pull-up)");
+  Serial.print("Pin D4: ");
+  Serial.print(nD4);
+  Serial.println(nD4 == 1 ? " sensor detectado" : " sensores detectados (revisar cable/pull-up)");
+  if (nD2 == 0 || nD4 == 0) {
+    Serial.println("⚠️ Revisa: GND y 3.3V comunes, datos en D2/D4, pull-up 4.7k en cada dato");
+  }
+  Serial.println("📟 Logs locales cada 0.5 s en este Monitor Serie\n");
   
   // Cargar configuración guardada
   preferences.begin("regismac", false);
@@ -94,6 +115,12 @@ void setup() {
 }
 
 void loop() {
+  // Log local en tiempo real cada 0.5 s (Arduino IDE → Monitor Serie)
+  if (millis() - ultimoLog >= INTERVALO_LOG_LOCAL) {
+    logLocalSensor();
+    ultimoLog = millis();
+  }
+
   if (isConfigured) {
     // Modo normal: enviar datos
     server.handleClient(); // Mantener servidor activo por si se necesita reconfigurar
@@ -243,24 +270,31 @@ void handleReset() {
 }
 
 void enviarDatos() {
-  // Leer temperatura del sensor DS18B20
-  sensors.requestTemperatures();
-  float temperatura = sensors.getTempCByIndex(0);
-  
-  // Verificar si la lectura fue exitosa
-  if (temperatura == DEVICE_DISCONNECTED_C || temperatura < -55 || temperatura > 125) {
-    Serial.println("❌ Error al leer el sensor DS18B20");
+  sensorD2.requestTemperatures();
+  sensorD4.requestTemperatures();
+  float tempD2 = sensorD2.getTempCByIndex(0);
+  float tempD4 = sensorD4.getTempCByIndex(0);
+
+  bool okD2 = (tempD2 != DEVICE_DISCONNECTED_C && tempD2 >= -55 && tempD2 <= 125);
+  bool okD4 = (tempD4 != DEVICE_DISCONNECTED_C && tempD4 >= -55 && tempD4 <= 125);
+  if (!okD2 && !okD4) {
+    Serial.println("❌ Error al leer ambos sensores DS18B20");
     return;
   }
-  
+
   // Mostrar datos en serial
-  Serial.print("📊 Lectura: T=");
-  Serial.print(temperatura, 2);
+  Serial.print("📊 Lectura: D2=");
+  Serial.print(okD2 ? String(tempD2, 2) : "ERR");
+  Serial.print("°C | D4=");
+  Serial.print(okD4 ? String(tempD4, 2) : "ERR");
   Serial.print("°C | ");
-  
-  // Crear objeto JSON
+
+  // JSON: temperatura = promedio o D2 si solo uno válido (compatibilidad); temperatura_d2 y temperatura_d4
+  float temperatura = okD2 && okD4 ? (tempD2 + tempD4) / 2.0f : (okD2 ? tempD2 : tempD4);
   String jsonData = "{";
   jsonData += "\"temperatura\":" + String(temperatura, 2);
+  jsonData += ",\"temperatura_d2\":" + String(okD2 ? tempD2 : -999, 2);
+  jsonData += ",\"temperatura_d4\":" + String(okD4 ? tempD4 : -999, 2);
   jsonData += "}";
   
   // Enviar datos al servidor
@@ -283,4 +317,39 @@ void enviarDatos() {
   }
   
   http.end();
+}
+
+void logLocalSensor() {
+  sensorD2.requestTemperatures();
+  sensorD4.requestTemperatures();
+  float tempD2 = sensorD2.getTempCByIndex(0);
+  float tempD4 = sensorD4.getTempCByIndex(0);
+  unsigned long t = millis() / 1000;
+
+  bool okD2 = (tempD2 != DEVICE_DISCONNECTED_C && tempD2 >= -55 && tempD2 <= 125);
+  bool okD4 = (tempD4 != DEVICE_DISCONNECTED_C && tempD4 >= -55 && tempD4 <= 125);
+
+  Serial.print("[");
+  Serial.print(t);
+  Serial.print(" s] [D2] ");
+  if (okD2) {
+    Serial.print("T = ");
+    Serial.print(tempD2, 2);
+    Serial.print(" °C");
+  } else {
+    Serial.print("Error (raw:");
+    Serial.print(tempD2);
+    Serial.print(")");
+  }
+  Serial.print("  |  [D4] ");
+  if (okD4) {
+    Serial.print("T = ");
+    Serial.print(tempD4, 2);
+    Serial.print(" °C");
+  } else {
+    Serial.print("Error (raw:");
+    Serial.print(tempD4);
+    Serial.print(")");
+  }
+  Serial.println();
 }

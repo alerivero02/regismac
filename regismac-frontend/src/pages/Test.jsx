@@ -404,8 +404,8 @@ export default function Test() {
     
     // Polling HTTP como fallback si WebSocket no está conectado
     
-    // Actualización cada 0.3 s (300 ms) para los dos sensores en tiempo real
-    const pollingInterval = 300;
+    // Actualización lo más rápida posible (100 ms) para los dos sensores
+    const pollingInterval = 100;
     
     const interval = setInterval(async () => {
       try {
@@ -2224,7 +2224,7 @@ export default function Test() {
                     (esp32Estado?.temperatura != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null) ? 'text-green-800' : 'text-yellow-800'
                   }`}>
                     {(esp32Estado?.temperatura != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null)
-                      ? '✅ Conectado – aggiornamento ogni 0,3 s'
+                      ? '✅ Conectato – aggiornamento in tempo reale'
                       : '⚠️ In attesa dati ESP32'}
                   </p>
                 </div>

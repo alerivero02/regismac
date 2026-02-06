@@ -181,7 +181,7 @@ const generalLimiter = rateLimit({
   message: 'Troppi tentativi, riprova più tardi.',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: () => disableRateLimit,
+  skip: (req) => disableRateLimit || req.path.startsWith('/api/sensor'), // Sensor: límite propio (sensorLimiter)
   handler: (req, res) => {
     logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
       ip: req.ip,
@@ -245,7 +245,30 @@ const strictLimiter = rateLimit({
   }
 });
 
+// Sensor: límite alto para polling (frontend) y envío ESP32 en tiempo real
+const sensorLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000, // 1 minuto
+  max: 1200, // ~20 req/s por IP (polling 100ms + ESP32 200ms)
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => disableRateLimit,
+  handler: (req, res) => {
+    logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
+      ip: req.ip,
+      path: req.path,
+      method: req.method,
+      type: 'sensor'
+    });
+    res.status(429).json({
+      error: 'Troppi tentativi',
+      message: 'Limite sensor superato. Riprova tra un minuto.',
+      retryAfter: 60
+    });
+  }
+});
+
 if (!disableRateLimit) {
+  app.use('/api/sensor', sensorLimiter);
   app.use('/api/', generalLimiter);
   app.use('/api/auth/', authLimiter);
   app.use('/api/usuarios/login', authLimiter);

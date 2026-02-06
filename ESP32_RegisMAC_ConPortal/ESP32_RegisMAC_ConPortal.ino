@@ -35,7 +35,7 @@ String serverURL = "https://regismac.onrender.com/api/sensor/datos";
 bool isConfigured = false;
 unsigned long ultimoEnvio = 0;
 unsigned long ultimoLog = 0;
-const unsigned long INTERVALO_ENVIO = 200;    // 200 ms envío al servidor (máxima rapidez)
+const unsigned long INTERVALO_ENVIO = 100;    // 100 ms envío al servidor (máxima rapidez)
 const unsigned long INTERVALO_LOG_LOCAL = 200; // 200 ms logs en Monitor Serie
 
 // Nombre del Access Point cuando no está configurado

@@ -2,8 +2,11 @@ import { ApiError } from "../utils/apiError.js";
 import { emitSensorUpdate } from "../services/socket.service.js";
 
 // Almacenar el estado del sensor en memoria (en producción podría usar Redis)
+// D2 = temperatura serbatoio, D4 = temperatura testina
 let sensorState = {
   temperatura: null,
+  temperatura_d2: null,
+  temperatura_d4: null,
   humedad: null,
   timestamp: null,
   testActivo: false,
@@ -25,22 +28,31 @@ export const recibirDatosSensor = async (req, res, next) => {
       }
     });
 
-    const { temperatura, humedad } = req.body;
+    const { temperatura, temperatura_d2, temperatura_d4, humedad } = req.body;
 
-    if (temperatura === undefined || temperatura === null) {
-      console.error('❌ recibirDatosSensor - Temperatura no proporcionada');
-      throw new ApiError("Temperatura es requerida", 400);
+    const temp = temperatura !== undefined && temperatura !== null ? parseFloat(temperatura) : null;
+    const tempD2 = temperatura_d2 !== undefined && temperatura_d2 !== null && temperatura_d2 !== -999 ? parseFloat(temperatura_d2) : null;
+    const tempD4 = temperatura_d4 !== undefined && temperatura_d4 !== null && temperatura_d4 !== -999 ? parseFloat(temperatura_d4) : null;
+
+    if (temp === null && tempD2 === null && tempD4 === null) {
+      console.error('❌ recibirDatosSensor - Ninguna temperatura proporcionada');
+      throw new ApiError("Al menos una temperatura es requerida (temperatura, temperatura_d2 o temperatura_d4)", 400);
     }
 
-    console.log('✅ recibirDatosSensor - Datos válidos:', { temperatura, humedad });
+    const temperaturaFinal = temp !== null ? temp : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
+    console.log('✅ recibirDatosSensor - Datos válidos:', { temperatura: temperaturaFinal, temperatura_d2: tempD2, temperatura_d4: tempD4, humedad });
 
     // Actualizar estado del sensor
-    sensorState.temperatura = parseFloat(temperatura);
+    sensorState.temperatura = temperaturaFinal;
+    sensorState.temperatura_d2 = tempD2;
+    sensorState.temperatura_d4 = tempD4;
     sensorState.humedad = humedad ? parseFloat(humedad) : null;
     sensorState.timestamp = new Date();
 
     console.log('✅ recibirDatosSensor - Estado actualizado:', {
       temperatura: sensorState.temperatura,
+      temperatura_d2: sensorState.temperatura_d2,
+      temperatura_d4: sensorState.temperatura_d4,
       humedad: sensorState.humedad,
       timestamp: sensorState.timestamp.toISOString()
     });
@@ -49,8 +61,10 @@ export const recibirDatosSensor = async (req, res, next) => {
     try {
       const updateData = {
         temperatura: sensorState.temperatura,
+        temperatura_d2: sensorState.temperatura_d2,
+        temperatura_d4: sensorState.temperatura_d4,
         humedad: sensorState.humedad,
-        timestamp: sensorState.timestamp.toISOString() // Convertir a ISO string para serialización correcta
+        timestamp: sensorState.timestamp.toISOString()
       };
       emitSensorUpdate(updateData);
       console.log('✅ recibirDatosSensor - Actualización emitida vía WebSocket:', {
@@ -62,21 +76,15 @@ export const recibirDatosSensor = async (req, res, next) => {
       // No fallar si WebSocket falla
     }
 
-    // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo
-    if (sensorState.testActivo && sensorState.tiempoInicio) {
-      const tiempoTranscurrido = Math.floor((Date.now() - sensorState.tiempoInicio) / 1000); // segundos
+    // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo (usamos temperatura promedio)
+    const tempRef = sensorState.temperatura;
+    if (sensorState.testActivo && sensorState.tiempoInicio && tempRef !== null) {
+      const tiempoTranscurrido = Math.floor((Date.now() - sensorState.tiempoInicio) / 1000);
 
-      // Detectar 0°C (con tolerancia de ±0.5°C)
-      if (sensorState.tiempo0Grados === null && 
-          sensorState.temperatura >= -0.5 && 
-          sensorState.temperatura <= 0.5) {
+      if (sensorState.tiempo0Grados === null && tempRef >= -0.5 && tempRef <= 0.5) {
         sensorState.tiempo0Grados = tiempoTranscurrido;
       }
-
-      // Detectar -8°C (con tolerancia de ±0.5°C)
-      if (sensorState.tiempoMenos8Grados === null && 
-          sensorState.temperatura >= -8.5 && 
-          sensorState.temperatura <= -7.5) {
+      if (sensorState.tiempoMenos8Grados === null && tempRef >= -8.5 && tempRef <= -7.5) {
         sensorState.tiempoMenos8Grados = tiempoTranscurrido;
       }
     }
@@ -108,13 +116,15 @@ export const obtenerEstadoSensor = async (req, res, next) => {
   try {
     res.json({
       temperatura: sensorState.temperatura,
+      temperatura_d2: sensorState.temperatura_d2,
+      temperatura_d4: sensorState.temperatura_d4,
       humedad: sensorState.humedad,
       timestamp: sensorState.timestamp,
       testActivo: sensorState.testActivo,
       temperaturaInicial: sensorState.temperaturaInicial,
       tiempoInicio: sensorState.tiempoInicio,
-      tiempoTranscurrido: sensorState.tiempoInicio 
-        ? Math.floor((Date.now() - sensorState.tiempoInicio) / 1000) 
+      tiempoTranscurrido: sensorState.tiempoInicio
+        ? Math.floor((Date.now() - sensorState.tiempoInicio) / 1000)
         : 0,
       tiempo0Grados: sensorState.tiempo0Grados,
       tiempoMenos8Grados: sensorState.tiempoMenos8Grados,

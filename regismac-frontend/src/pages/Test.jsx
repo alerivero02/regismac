@@ -265,94 +265,60 @@ export default function Test() {
         socketId: socketInstance?.id
       });
       
-      if (data.temperatura !== undefined && data.temperatura !== null) {
-        const temperatura = parseFloat(data.temperatura);
-        if (!isNaN(temperatura)) {
-          console.log('[WebSocket] 🌡️ Temperatura recibida:', temperatura);
-          
-          // Actualizar temperatura
-          setTemperaturaActual(temperatura);
-          temperaturaActualRef.current = temperatura;
-          setTemperaturaUpdateKey(prev => prev + 1);
-          
-          // Actualizar esp32Estado con temperatura y timestamp
-          const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
-          console.log('[WebSocket] 📅 Preparando actualización de timestamp:', {
-            timestampRecibido: data.timestamp,
-            timestampParseado: timestamp,
-            timestampISO: timestamp.toISOString(),
-            horaLocal: timestamp.toLocaleTimeString(),
-            esDateValido: timestamp instanceof Date,
-            timestampValue: timestamp.valueOf()
-          });
-          
-          console.log('[WebSocket] 🔍 Estado ANTES de actualizar:', {
-            esp32EstadoActual: esp32Estado,
-            timestampActual: esp32Estado?.timestamp,
-            timestampActualISO: esp32Estado?.timestamp instanceof Date ? esp32Estado.timestamp.toISOString() : (esp32Estado?.timestamp ? new Date(esp32Estado.timestamp).toISOString() : 'N/A'),
-            timestampActualLocal: esp32Estado?.timestamp instanceof Date ? esp32Estado.timestamp.toLocaleTimeString() : (esp32Estado?.timestamp ? new Date(esp32Estado.timestamp).toLocaleTimeString() : 'N/A')
-          });
-          
-          setEsp32Estado(prev => {
-            const estadoAnterior = { ...prev };
-            const nuevoEstado = {
+      const temperatura = data.temperatura !== undefined && data.temperatura !== null ? parseFloat(data.temperatura) : null;
+      const tempD2 = data.temperatura_d2 !== undefined && data.temperatura_d2 !== null ? parseFloat(data.temperatura_d2) : null;
+      const tempD4 = data.temperatura_d4 !== undefined && data.temperatura_d4 !== null ? parseFloat(data.temperatura_d4) : null;
+      const hasTemp = (temperatura !== null && !isNaN(temperatura)) || (tempD2 !== null && !isNaN(tempD2)) || (tempD4 !== null && !isNaN(tempD4));
+
+      if (hasTemp) {
+        const tempRef = temperatura !== null && !isNaN(temperatura) ? temperatura : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
+        console.log('[WebSocket] 🌡️ Temperatura recibida:', { temperatura: tempRef, temperatura_d2: tempD2, temperatura_d4: tempD4 });
+
+        setTemperaturaActual(tempRef);
+        temperaturaActualRef.current = tempRef;
+        setTemperaturaUpdateKey(prev => prev + 1);
+
+        const timestamp = data.timestamp ? new Date(data.timestamp) : new Date();
+        setEsp32Estado(prev => {
+          const nuevoEstado = {
+            ...prev,
+            temperatura: tempRef,
+            temperatura_d2: tempD2,
+            temperatura_d4: tempD4,
+            humedad: data.humedad !== undefined && data.humedad !== null ? parseFloat(data.humedad) : (prev?.humedad || null),
+            timestamp: timestamp
+          };
+          return nuevoEstado;
+        });
+
+        if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
+          const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
+          if (tiempo0GradosRef.current === null && tempRef >= -0.5 && tempRef <= 0.5) {
+            tiempo0GradosRef.current = tiempoTranscurrido;
+            const minutos0 = Math.floor(tiempoTranscurrido / 60);
+            const segundos0 = tiempoTranscurrido % 60;
+            setFormData(prev => ({
               ...prev,
-              temperatura: temperatura,
-              humedad: data.humedad !== undefined && data.humedad !== null ? parseFloat(data.humedad) : (prev?.humedad || null),
-              timestamp: timestamp
-            };
-            console.log('[WebSocket] 📊 DENTRO DE setEsp32Estado:', {
-              estadoAnterior: estadoAnterior,
-              nuevoEstado: nuevoEstado,
-              timestampAnterior: estadoAnterior?.timestamp,
-              timestampNuevo: nuevoEstado.timestamp,
-              timestampNuevoISO: nuevoEstado.timestamp instanceof Date ? nuevoEstado.timestamp.toISOString() : (nuevoEstado.timestamp ? new Date(nuevoEstado.timestamp).toISOString() : 'N/A'),
-              timestampNuevoLocal: nuevoEstado.timestamp instanceof Date ? nuevoEstado.timestamp.toLocaleTimeString() : (nuevoEstado.timestamp ? new Date(nuevoEstado.timestamp).toLocaleTimeString() : 'N/A'),
-              sonDiferentes: estadoAnterior?.timestamp?.valueOf() !== nuevoEstado.timestamp?.valueOf()
-            });
-            return nuevoEstado;
-          });
-          
-          // Log después de un pequeño delay para verificar si el estado se actualizó
-          // Nota: Este log mostrará el estado anterior porque React aún no ha actualizado
-          // El useEffect monitoreará el cambio real
-          setTimeout(() => {
-            console.log('[WebSocket] ⏱️ Verificación después de setEsp32Estado (100ms) - Nota: puede mostrar estado anterior');
-          }, 100);
-          
-          // Detección de temperaturas objetivo si hay test activo
-          if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
-            const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
-            if (tiempo0GradosRef.current === null && temperatura >= -0.5 && temperatura <= 0.5) {
-              tiempo0GradosRef.current = tiempoTranscurrido;
-              const minutos0 = Math.floor(tiempoTranscurrido / 60);
-              const segundos0 = tiempoTranscurrido % 60;
-              setFormData(prev => ({
-                ...prev,
-                tiempo_0_manual: `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`,
-              }));
-              showNotification(`✅ Temperatura 0°C detectada`, 'success');
-            }
-            if (tiempoMenos8GradosRef.current === null && temperatura >= -8.5 && temperatura <= -7.5) {
-              tiempoMenos8GradosRef.current = tiempoTranscurrido;
-              const minutosMenos8 = Math.floor(tiempoTranscurrido / 60);
-              const segundosMenos8 = tiempoTranscurrido % 60;
-              setFormData(prev => ({
-                ...prev,
-                tiempo_meno8_manual: `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`,
-              }));
-              showNotification(`✅ Temperatura -8°C detectada`, 'success');
-            }
-          
-          // Detectar cuando la temperatura llega a -8°C o menos para activar alarma sonora
-          if (temperatura <= -8.0 && !alarmaMenos8ActivadaRef.current) {
+              tiempo_0_manual: `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`,
+            }));
+            showNotification(`✅ Temperatura 0°C detectada`, 'success');
+          }
+          if (tiempoMenos8GradosRef.current === null && tempRef >= -8.5 && tempRef <= -7.5) {
+            tiempoMenos8GradosRef.current = tiempoTranscurrido;
+            const minutosMenos8 = Math.floor(tiempoTranscurrido / 60);
+            const segundosMenos8 = tiempoTranscurrido % 60;
+            setFormData(prev => ({
+              ...prev,
+              tiempo_meno8_manual: `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`,
+            }));
+            showNotification(`✅ Temperatura -8°C detectada`, 'success');
+          }
+          if (tempRef <= -8.0 && !alarmaMenos8ActivadaRef.current) {
             alarmaMenos8ActivadaRef.current = true;
             reproducirAlarmaSonora();
             showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
-          } else if (temperatura > -8.0 && alarmaMenos8ActivadaRef.current) {
-            // Resetear la alarma cuando la temperatura suba por encima de -8°
+          } else if (tempRef > -8.0 && alarmaMenos8ActivadaRef.current) {
             alarmaMenos8ActivadaRef.current = false;
-          }
           }
         }
       }
@@ -438,9 +404,8 @@ export default function Test() {
     
     // Polling HTTP como fallback si WebSocket no está conectado
     
-    // Polling adaptativo: 1 segundo durante test, 2 segundos cuando no hay test activo
-    // Este polling es un fallback si el WebSocket no funciona
-    const pollingInterval = testESP32Activo ? 1000 : 2000;
+    // Actualización cada 0.3 s (300 ms) para los dos sensores en tiempo real
+    const pollingInterval = 300;
     
     const interval = setInterval(async () => {
       try {
@@ -452,84 +417,54 @@ export default function Test() {
         const socketStatus = getSocketStatus();
         
         // Si el socket NO está conectado, usar polling como fallback
-        if (!socketStatus.connected && estado && estado.temperatura !== null && estado.temperatura !== undefined) {
-          console.log('[Polling] 🔄 Usando polling como fallback (WebSocket desconectado):', estado.temperatura);
-          const temperatura = parseFloat(estado.temperatura);
-          if (!isNaN(temperatura)) {
-            setTemperaturaActual(temperatura);
-            temperaturaActualRef.current = temperatura;
-            setTemperaturaUpdateKey(prev => prev + 1);
+        const temp = estado.temperatura !== null && estado.temperatura !== undefined ? parseFloat(estado.temperatura) : null;
+        const tempD2 = estado.temperatura_d2 !== null && estado.temperatura_d2 !== undefined ? parseFloat(estado.temperatura_d2) : null;
+        const tempD4 = estado.temperatura_d4 !== null && estado.temperatura_d4 !== undefined ? parseFloat(estado.temperatura_d4) : null;
+        const tempRef = temp !== null && !isNaN(temp) ? temp : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
+
+        if (!socketStatus.connected && (tempRef !== null && !isNaN(tempRef))) {
+          console.log('[Polling] 🔄 Fallback (WebSocket desconectado):', { tempRef, tempD2, tempD4 });
+          setTemperaturaActual(tempRef);
+          temperaturaActualRef.current = tempRef;
+          setTemperaturaUpdateKey(prev => prev + 1);
+          const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
+          setEsp32Estado(prev => ({
+            ...prev,
+            temperatura: tempRef,
+            temperatura_d2: tempD2,
+            temperatura_d4: tempD4,
+            humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
+            timestamp: timestamp
+          }));
             
-            const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
-            setEsp32Estado(prev => ({
-              ...prev,
-              temperatura: temperatura,
-              humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
-              timestamp: timestamp
-            }));
-            
-            // Detectar cuando la temperatura llega a -8°C o menos para activar alarma sonora
-            if (temperatura <= -8.0 && !alarmaMenos8ActivadaRef.current) {
+            if (tempRef <= -8.0 && !alarmaMenos8ActivadaRef.current) {
               alarmaMenos8ActivadaRef.current = true;
               reproducirAlarmaSonora();
               showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
-            } else if (temperatura > -8.0 && alarmaMenos8ActivadaRef.current) {
-              // Resetear la alarma cuando la temperatura suba por encima de -8°
+            } else if (tempRef > -8.0 && alarmaMenos8ActivadaRef.current) {
               alarmaMenos8ActivadaRef.current = false;
             }
-          }
         }
-        // Logs solo en desarrollo (usar import.meta.env.DEV para Vite)
         const isDev = import.meta.env.DEV;
         if (isDev) {
           console.log('[Test] Estado del sensor obtenido:', estado);
         }
-        setEsp32Estado(estado);
-        
-        // Actualizar temperatura del servidor si está disponible
-        // Prioridad: WebSocket > WebSerial > Polling (HTTP)
-        if (estado.temperatura !== null && estado.temperatura !== undefined) {
-          // Verificar si el WebSocket está conectado
+        setEsp32Estado(prev => ({
+          ...prev,
+          ...estado,
+          temperatura_d2: estado.temperatura_d2 !== undefined && estado.temperatura_d2 !== null ? estado.temperatura_d2 : prev?.temperatura_d2,
+          temperatura_d4: estado.temperatura_d4 !== undefined && estado.temperatura_d4 !== null ? estado.temperatura_d4 : prev?.temperatura_d4,
+        }));
+
+        if (tempRef !== null && !isNaN(tempRef)) {
           const { getSocketStatus } = await import('../services/socket.js');
           const socketStatus = getSocketStatus();
-          
-          // Si WebSocket NO está conectado, usar polling como fuente principal
           if (!socketStatus.connected) {
-            const temperatura = parseFloat(estado.temperatura);
-            if (!isNaN(temperatura)) {
-              console.log('[Polling] 🔄 Actualizando temperatura vía HTTP polling (WebSocket desconectado):', temperatura);
-              setTemperaturaActual(temperatura);
-              temperaturaActualRef.current = temperatura;
-              setTemperaturaUpdateKey(prev => prev + 1);
-              
-              const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
-              setEsp32Estado(prev => ({
-                ...prev,
-                temperatura: temperatura,
-                humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
-                timestamp: timestamp
-              }));
-              
-              // Detectar cuando la temperatura llega a -8°C o menos para activar alarma sonora
-              if (temperatura <= -8.0 && !alarmaMenos8ActivadaRef.current) {
-                alarmaMenos8ActivadaRef.current = true;
-                reproducirAlarmaSonora();
-                showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
-              } else if (temperatura > -8.0 && alarmaMenos8ActivadaRef.current) {
-                // Resetear la alarma cuando la temperatura suba por encima de -8°
-                alarmaMenos8ActivadaRef.current = false;
-              }
-            }
-          }
-          // Si WebSocket está conectado, usar la temperatura del servidor como fallback
-          else {
-            // Actualizar solo si no tenemos temperatura o si la del servidor es más reciente
-            if (temperaturaActual === null || (estado.timestamp && estado.timestamp > (esp32Estado?.timestamp || 0))) {
-              if (isDev) {
-                console.log('[Test] Usando temperatura del servidor:', estado.temperatura);
-              }
-              setTemperaturaActual(estado.temperatura);
-            }
+            setTemperaturaActual(tempRef);
+            temperaturaActualRef.current = tempRef;
+            setTemperaturaUpdateKey(prev => prev + 1);
+          } else if (temperaturaActual === null || (estado.timestamp && estado.timestamp > (esp32Estado?.timestamp || 0))) {
+            setTemperaturaActual(estado.temperatura);
           }
         }
         
@@ -716,27 +651,12 @@ export default function Test() {
 
 
   const iniciarTestESP32 = useCallback(async () => {
-    // Prevenir múltiples clics
     if (isIniciandoTest || testESP32Activo) {
       return;
     }
-    
     setIsIniciandoTest(true);
-    
     try {
-      if (!selectedMaquina) {
-        showNotification('Selecciona una máquina antes de iniciar el test', 'error');
-        setIsIniciandoTest(false);
-        return;
-      }
-
-      if (!formData.tecnicoId) {
-        showNotification('Selecciona un técnico antes de iniciar el test', 'error');
-        setIsIniciandoTest(false);
-        return;
-      }
-      
-      // Resetear flag de auto-guardado
+      // Máquina y técnico no obligatorios al iniciar; solo al finalizar para guardar
       autoSaveRef.current = false;
       
       // Iniciar test en el servidor - el backend tomará automáticamente la temperatura del sensor
@@ -792,26 +712,17 @@ export default function Test() {
       showNotification(error.message || 'Error al iniciar el test', 'error');
       setIsIniciandoTest(false);
     }
-  }, [selectedMaquina, formData.tecnicoId, esp32Estado, temperaturaActual, showNotification, isIniciandoTest, testESP32Activo]);
+  }, [esp32Estado, temperaturaActual, showNotification, isIniciandoTest, testESP32Activo]);
 
   const finalizarTestESP32 = useCallback(async () => {
     if (isSubmitting) return;
-    
     setIsSubmitting(true);
-    
     try {
-      if (!selectedMaquina) {
-        showNotification('Selecciona una máquina antes de finalizar el test', 'error');
+      if (!selectedMaquina || !formData.tecnicoId) {
+        showNotification('Seleziona macchina e tecnico per salvare il test', 'error');
         setIsSubmitting(false);
         return;
       }
-
-      if (!formData.tecnicoId) {
-        showNotification('Selecciona un técnico antes de finalizar el test', 'error');
-        setIsSubmitting(false);
-        return;
-      }
-
       const resultado = await sensorAPI.finalizarTest();
       setTestESP32Activo(false);
       testESP32ActivoRef.current = false;
@@ -885,11 +796,10 @@ export default function Test() {
       };
 
       await testsAPI.create(dataToSend);
-      
+
       const testsActualizados = await testsAPI.getAll();
       setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
-      
-      // Actualizar formulario con los datos disponibles
+
       setFormData(prev => ({
         ...prev,
         temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
@@ -897,18 +807,16 @@ export default function Test() {
         tiempo_meno8_manual: tiempoMenos8Formato || prev.tiempo_meno8_manual,
         humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
       }));
-      
-      setShowESP32Modal(false);
+
       setFechaHoraInicioTestESP32(null);
-      
-      // Mensaje según si se alcanzaron todas las temperaturas
+      // No cerrar modal: permitir reiniciar test (Inicio Test de nuevo)
       if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempoMenos8Grados !== null) {
-        showNotification('✅ Test completado y guardado correctamente!', 'success');
+        showNotification('✅ Test completato e salvato. Puoi avviare un nuovo test.', 'success');
       } else {
         const temperaturasNoAlcanzadas = [];
         if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
         if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
-        showNotification(`✅ Test guardado. Temperaturas no alcanzadas: ${temperaturasNoAlcanzadas.join(', ')}`, 'info');
+        showNotification(`✅ Test salvato. Puoi avviare un nuovo test. Non raggiunte: ${temperaturasNoAlcanzadas.join(', ')}`, 'info');
       }
     } catch (error) {
       const isDev = import.meta.env.DEV;
@@ -1806,18 +1714,7 @@ export default function Test() {
                   {/* Botón ESP32 - siempre visible */}
                     <button
                       type="button"
-                      onClick={() => {
-                      // Validar que se hayan completado los datos obligatorios
-                      if (!selectedMaquina) {
-                        showNotification('Seleziona una macchina prima di aprire il sensore ESP32', 'error');
-                        return;
-                      }
-                      if (!formData.tecnicoId) {
-                        showNotification('Seleziona un tecnico prima di aprire il sensore ESP32', 'error');
-                        return;
-                      }
-                        setShowESP32Modal(true);
-                      }}
+                      onClick={() => setShowESP32Modal(true)}
                       className="px-3 py-1 rounded text-xs font-semibold transition-all bg-green-500 text-white hover:bg-green-600 flex items-center gap-1 relative z-10"
                       title="Test automático con ESP32"
                     >
@@ -2257,8 +2154,8 @@ export default function Test() {
         </div>
       )}
 
-      {/* Modal ESP32 - Solo se muestra si hay máquina y técnico seleccionados */}
-      {showESP32Modal && selectedMaquina && formData.tecnicoId && (
+      {/* Modal ESP32 - abierto al pulsar ESP32 (máquina y técnico solo obligatorios al finalizar para guardar) */}
+      {showESP32Modal && (
         <div 
           className="fixed inset-0 flex items-center justify-center z-50 p-4" 
           style={{ 
@@ -2314,27 +2211,26 @@ export default function Test() {
             </div>
 
             <div className="mb-4 space-y-3">
-              {/* Estado de conexión WiFi */}
               <div className={`p-3 rounded-lg ${
-                esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined
+                (esp32Estado?.temperatura != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null)
                   ? 'bg-green-50 border border-green-200' 
                   : 'bg-yellow-50 border border-yellow-200'
               }`}>
                 <div className="flex items-center gap-2">
                   <div className={`w-3 h-3 rounded-full ${
-                    esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? 'bg-green-500' : 'bg-yellow-500'
+                    (esp32Estado?.temperatura != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null) ? 'bg-green-500' : 'bg-yellow-500'
                   }`}></div>
                   <p className={`text-sm font-semibold ${
-                    esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? 'text-green-800' : 'text-yellow-800'
+                    (esp32Estado?.temperatura != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null) ? 'text-green-800' : 'text-yellow-800'
                   }`}>
-                    {esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined
-                      ? '✅ Conectado vía WiFi - Recibiendo datos'
-                      : '⚠️ Esperando datos del ESP32 vía WiFi'}
+                    {(esp32Estado?.temperatura != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null)
+                      ? '✅ Conectado – aggiornamento ogni 0,3 s'
+                      : '⚠️ In attesa dati ESP32'}
                   </p>
                 </div>
               </div>
 
-              {esp32Estado?.temperatura === null && (
+              {(esp32Estado?.temperatura == null && esp32Estado?.temperatura_d2 == null && esp32Estado?.temperatura_d4 == null) && (
                 <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
                   <p className="text-sm text-blue-800">
                     ℹ️ Connetti l'ESP32 via WiFi/HTTP. Il sensore invierà i dati automaticamente al server.
@@ -2370,41 +2266,38 @@ export default function Test() {
               </div>
             )}
 
-            {/* Estado del sensor */}
+            {/* Dos sensores: Temperatura serbatoio (D2) y Temperatura testina (D4) */}
             <div className="mb-6 p-4 bg-gray-50 rounded-xl">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-gray-600 mb-1 block">Temperatura Attuale</label>
+                  <label className="text-xs text-gray-600 mb-1 block">Temperatura serbatoio (D2)</label>
                   <div className="flex items-center gap-2">
                     <FiThermometer className="w-5 h-5 text-red-500" />
                     <span 
                       className="text-2xl font-bold text-gray-900 transition-all duration-200" 
-                      key={`temp-${temperaturaUpdateKey}`}
-                      style={{ 
-                        animation: (temperaturaActual !== null || esp32Estado?.temperatura !== null) ? 'pulse 0.3s ease-in-out' : 'none'
-                      }}
+                      key={`temp-d2-${temperaturaUpdateKey}`}
+                      style={{ animation: (esp32Estado?.temperatura_d2 != null) ? 'pulse 0.3s ease-in-out' : 'none' }}
                     >
-                      {(() => {
-                        // Prioridad: temperaturaActual si está disponible, sino esp32Estado
-                        const temp = (temperaturaActual !== null && temperaturaActual !== undefined && !isNaN(temperaturaActual))
-                          ? temperaturaActual
-                          : (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined && !isNaN(esp32Estado.temperatura))
-                          ? esp32Estado.temperatura
-                          : null;
-                        
-                        return temp !== null ? `${temp.toFixed(1)}°C` : '--';
-                      })()}
+                      {(esp32Estado?.temperatura_d2 != null && !isNaN(esp32Estado.temperatura_d2))
+                        ? `${Number(esp32Estado.temperatura_d2).toFixed(1)}°C` : '--'}
                     </span>
                   </div>
-                  {/* Debug info solo en desarrollo */}
-                  {import.meta.env.DEV && (
-                    <div className="text-xs text-gray-400 mt-1 font-mono">
-                      Debug: TA={temperaturaActual !== null && temperaturaActual !== undefined ? temperaturaActual.toFixed(2) : 'null'}, 
-                      ES={esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined ? esp32Estado.temperatura.toFixed(2) : 'null'}
-                    </div>
-                  )}
                 </div>
                 <div>
+                  <label className="text-xs text-gray-600 mb-1 block">Temperatura testina (D4)</label>
+                  <div className="flex items-center gap-2">
+                    <FiThermometer className="w-5 h-5 text-blue-500" />
+                    <span 
+                      className="text-2xl font-bold text-gray-900 transition-all duration-200" 
+                      key={`temp-d4-${temperaturaUpdateKey}`}
+                      style={{ animation: (esp32Estado?.temperatura_d4 != null) ? 'pulse 0.3s ease-in-out' : 'none' }}
+                    >
+                      {(esp32Estado?.temperatura_d4 != null && !isNaN(esp32Estado.temperatura_d4))
+                        ? `${Number(esp32Estado.temperatura_d4).toFixed(1)}°C` : '--'}
+                    </span>
+                  </div>
+                </div>
+                <div className="col-span-2">
                   {testESP32Activo ? (
                     <>
                       <label className="text-xs text-gray-600 mb-1 block">Tempo Trascorso</label>
@@ -2429,7 +2322,7 @@ export default function Test() {
                 </div>
               </div>
               
-              {(esp32Estado?.timestamp || temperaturaActual !== null) && (() => {
+              {(esp32Estado?.timestamp || temperaturaActual != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null) && (() => {
                 const timestampDisplay = esp32Estado?.timestamp 
                   ? (esp32Estado.timestamp instanceof Date 
                       ? esp32Estado.timestamp.toLocaleTimeString() 
@@ -2524,8 +2417,8 @@ export default function Test() {
                   disabled={
                     isIniciandoTest ||
                     (
-                      (temperaturaActual === null || temperaturaActual === undefined) && 
-                      (!esp32Estado || (esp32Estado.temperatura === null || esp32Estado.temperatura === undefined))
+                      (temperaturaActual === null || temperaturaActual === undefined) &&
+                      (!esp32Estado || (esp32Estado.temperatura == null && esp32Estado.temperatura_d2 == null && esp32Estado.temperatura_d4 == null))
                     )
                   }
                   className={`flex-1 flex items-center justify-center gap-2 py-3 font-semibold transition-all ${

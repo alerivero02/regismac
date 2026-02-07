@@ -44,16 +44,18 @@ export default function Login() {
     const errorParam = urlParams.get('error');
     const solicitudEnviada = urlParams.get('solicitud_enviada');
     const sessionExpired = urlParams.get('sessionExpired') || sessionStorage.getItem('sessionExpired');
-    
+    const sessionReplaced = urlParams.get('sessionReplaced') === 'true' || sessionStorage.getItem('sessionReplaced');
+
     // Limpiar sessionStorage
-    if (sessionExpired) {
-      sessionStorage.removeItem('sessionExpired');
-    }
-    
+    if (sessionExpired) sessionStorage.removeItem('sessionExpired');
+    if (sessionReplaced) sessionStorage.removeItem('sessionReplaced');
+
     if (sessionExpired) {
       setNotification({
         show: true,
-        message: 'Sessione scaduta. Effettua nuovamente il login.',
+        message: sessionReplaced
+          ? 'Hai effettuato l\'accesso da un altro dispositivo o browser. Effettua nuovamente il login.'
+          : 'Sessione scaduta. Effettua nuovamente il login.',
         type: 'error'
       });
     } else if (solicitudEnviada === 'true') {
@@ -279,7 +281,7 @@ export default function Login() {
           </div>
 
           <p className="mt-3 sm:mt-4 text-xs text-gray-500 text-center px-2">
-            Accedendo, accetti i nostri termini di servizio e la politica sulla privacy
+            Accedendo, accetti i nostri termini di servizio e l'informativa sulla privacy
           </p>
         </div>
       </div>

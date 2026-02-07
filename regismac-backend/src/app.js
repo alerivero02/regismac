@@ -303,6 +303,8 @@ if (sessionSecret) {
   
   app.use(passport.initialize());
   app.use(passport.session());
+  const { enforceSingleSession } = await import("./middleware/singleSession.js");
+  app.use(enforceSingleSession);
 } else {
   console.error('❌ No se puede configurar sesiones sin SESSION_SECRET');
   app.use(passport.initialize());

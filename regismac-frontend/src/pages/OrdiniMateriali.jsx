@@ -1865,8 +1865,8 @@ export default function OrdiniMateriali() {
                 title="Elimina tutte le ordini annullate"
               >
                 <FiTrash2 className="w-4 h-4 sm:w-5 sm:h-5" />
-                <span className="hidden sm:inline">Elimina Annullate</span>
-                <span className="sm:hidden">Annullate</span>
+                <span className="hidden sm:inline">Elimina ordini annullati</span>
+                <span className="sm:hidden">Annullati</span>
               </button>
               <button
                 onClick={handleCancelAll}

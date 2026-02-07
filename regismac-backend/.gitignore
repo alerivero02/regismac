@@ -25,12 +25,14 @@ yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
 
-# Prisma
-prisma/migrations/
+# Prisma (las migraciones SÍ se versionan para producción)
+# prisma/migrations/ → no ignorar
 
 # Backups (NO incluir en git por seguridad)
 backups/
 *.sql
+# Excepción: migraciones Prisma sí se versionan
+!prisma/migrations/**/*.sql
 
 # IDE
 .vscode/

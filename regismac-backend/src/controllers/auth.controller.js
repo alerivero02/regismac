@@ -217,10 +217,17 @@ export const googleCallback = async (req, res, next) => {
               }
             }
 
+      // Control de sesión única: asociar esta sesión al usuario (invalida cualquier sesión previa)
+      const sessionId = req.sessionID;
+      if (sessionId) {
+        await service.setCurrentSessionId(usuario.id_usuario, sessionId);
+      }
+
       // Guardar usuario en sesión (sin password) y agregar tokens
       const { password, ...usuarioSinPassword } = usuario;
       const usuarioConToken = {
         ...usuarioSinPassword,
+        current_session_id: sessionId || null,
         accessToken: googleUser.accessToken, // Para usar con Google Drive
         refreshToken: googleUser.refreshToken, // Para renovar el access token
       };
@@ -246,9 +253,17 @@ export const googleCallback = async (req, res, next) => {
 };
 
 export const logout = (req, res) => {
-  req.logout((err) => {
+  const userId = req.user?.id_usuario;
+  req.logout(async (err) => {
     if (err) {
-      return res.status(500).json({ error: "Error al cerrar sesión" });
+      return res.status(500).json({ error: "Errore durante il logout" });
+    }
+    if (userId && req.app?.locals?.prisma) {
+      try {
+        const { UsuariosService } = await import("../services/usuarios.service.js");
+        const service = new UsuariosService(req.app.locals.prisma);
+        await service.clearCurrentSessionId(userId);
+      } catch (_) {}
     }
     if (req.session) {
       req.session.destroy((err) => {
@@ -265,7 +280,7 @@ export const logout = (req, res) => {
           maxAge: 0, // Expirar inmediatamente
         };
         res.clearCookie(cookieName, cookieOptions);
-        res.json({ message: "Sesión cerrada correctamente" });
+        res.json({ message: "Sessione chiusa correttamente" });
       });
     } else {
       // Limpiar cookie aunque no haya sesión activa
@@ -278,7 +293,7 @@ export const logout = (req, res) => {
         maxAge: 0,
       };
       res.clearCookie(cookieName, cookieOptions);
-      res.json({ message: "Sesión cerrada correctamente" });
+      res.json({ message: "Sessione chiusa correttamente" });
     }
   });
 };
@@ -302,7 +317,7 @@ export const getCurrentUser = async (req, res, next) => {
         // Si no hay Prisma disponible, devolver el usuario de la sesión
         if (!prisma) {
           console.warn('⚠️  Prisma no disponible, devolviendo usuario de sesión');
-          const { password, ...usuarioSinPassword } = req.user;
+          const { password, current_session_id, ...usuarioSinPassword } = req.user;
           return res.json({
             ...usuarioSinPassword,
             tiene_password: !!req.user.password
@@ -315,19 +330,18 @@ export const getCurrentUser = async (req, res, next) => {
           const service = new UsuariosService(prisma);
           const usuarioCompleto = await service.findById(req.user.id_usuario);
           
-          // Devolver usuario sin password pero con indicador si tiene password
-          const { password, ...usuarioSinPassword } = usuarioCompleto || req.user;
+          // Devolver usuario sin password ni current_session_id (uso interno)
+          const { password, current_session_id, ...usuarioSinPassword } = usuarioCompleto || req.user;
           const usuarioRespuesta = {
             ...usuarioSinPassword,
-            tiene_password: !!password, // Indicador booleano si tiene contraseña
+            tiene_password: !!password,
           };
-          
           return res.json(usuarioRespuesta);
         } catch (dbError) {
           console.error('❌ Error en getCurrentUser al obtener usuario de BD:', dbError);
           console.error('❌ Stack:', dbError.stack);
           // Si hay error de BD, devolver el usuario de la sesión
-          const { password, ...usuarioSinPassword } = req.user;
+          const { password, current_session_id, ...usuarioSinPassword } = req.user;
           return res.json({
             ...usuarioSinPassword,
             tiene_password: !!req.user.password
@@ -338,18 +352,16 @@ export const getCurrentUser = async (req, res, next) => {
         console.error('❌ Stack:', error.stack);
         // Si hay error, devolver el usuario de la sesión como fallback
         if (req.user) {
-          const { password, ...usuarioSinPassword } = req.user;
+          const { password, current_session_id, ...usuarioSinPassword } = req.user;
           return res.json({
             ...usuarioSinPassword,
             tiene_password: !!req.user.password
           });
         }
-        // Si no hay usuario, devolver 401
-        return res.status(401).json({ error: "No autenticado" });
+        return res.status(401).json({ error: "Non autenticato" });
       }
     } else {
-      // No hay sesión activa o el usuario no está autenticado
-      return res.status(401).json({ error: "No autenticado" });
+      return res.status(401).json({ error: "Non autenticato" });
     }
   } catch (error) {
     console.error('❌ Error crítico en getCurrentUser:', error);
@@ -357,7 +369,7 @@ export const getCurrentUser = async (req, res, next) => {
     // En caso de error crítico, SIEMPRE devolver 401 en lugar de 500
     // Esto evita que se propague el error y cause un 500
     try {
-      return res.status(401).json({ error: "No autenticado" });
+      return res.status(401).json({ error: "Non autenticato" });
     } catch (e) {
       // Si incluso esto falla, al menos loguear el error
       console.error('❌ Error crítico al enviar respuesta 401:', e);

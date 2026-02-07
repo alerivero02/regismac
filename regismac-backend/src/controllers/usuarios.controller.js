@@ -13,9 +13,8 @@ export const registrarUsuario = async (req, res, next) => {
       throw new ApiError("Email e nome sono obbligatori", 400);
     }
     
-    // Si no hay password ni google_id, es un error
-    if (!password && !google_id) {
-      throw new ApiError("Devi fornire una password o registrarti con Google", 400);
+    if (!password) {
+      throw new ApiError("Devi fornire una password per la registrazione", 400);
     }
 
     // Verificar si el email ya existe
@@ -89,15 +88,23 @@ export const loginUsuario = async (req, res, next) => {
     // Log de autenticación exitosa
     logAuthAttempt(req, true);
 
-    // Crear sesión (sin password)
+    // Control de sesión única: asociar esta sesión al usuario
+    const sessionId = req.sessionID;
+    if (sessionId) {
+      await service.setCurrentSessionId(usuario.id_usuario, sessionId);
+    }
+
+    // Crear sesión (sin password) incluyendo current_session_id para validación en middleware
     const { password: _, ...usuarioSinPassword } = usuario;
-    req.login(usuarioSinPassword, (err) => {
+    const usuarioParaSesion = { ...usuarioSinPassword, current_session_id: sessionId || null };
+    req.login(usuarioParaSesion, (err) => {
       if (err) {
         return next(err);
       }
+      const { current_session_id: _, ...usuarioRespuesta } = usuarioParaSesion;
       res.json({
         message: "Accesso effettuato con successo",
-        usuario: usuarioSinPassword,
+        usuario: usuarioRespuesta,
       });
     });
   } catch (err) {
@@ -251,4 +258,3 @@ export const updateRol = async (req, res, next) => {
     next(err);
   }
 };
-

@@ -82,7 +82,7 @@ export default function AdminUsuarios() {
     const roles = {
       admin: 'Amministratore',
       tecnico: 'Tecnico',
-      comercial: 'Comercial',
+      comercial: 'Commerciale',
     };
     return roles[rol] || rol;
   };
@@ -268,7 +268,7 @@ export default function AdminUsuarios() {
                           >
                             <option value="admin">Amministratore</option>
                             <option value="tecnico">Tecnico</option>
-                            <option value="comercial">Comercial</option>
+                            <option value="comercial">Commerciale</option>
                           </select>
                           <button
                             onClick={() => handleUpdateRol(usuario.id_usuario, editingRol.rol)}
@@ -361,7 +361,7 @@ export default function AdminUsuarios() {
                       >
                         <option value="admin">Amministratore</option>
                         <option value="tecnico">Tecnico</option>
-                        <option value="comercial">Comercial</option>
+                        <option value="comercial">Commerciale</option>
                       </select>
                       <button
                         onClick={() => handleUpdateRol(usuario.id_usuario, editingRol.rol)}
@@ -404,4 +404,3 @@ export default function AdminUsuarios() {
     </div>
   );
 }
-

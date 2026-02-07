@@ -492,7 +492,7 @@ export default function Layout() {
                               {user.nombre} {user.apellido}
                             </div>
                             <div className="text-xs text-gray-500 capitalize mt-1">
-                              {user.rol === 'admin' ? 'Amministratore' : user.rol === 'tecnico' ? 'Tecnico' : 'Comercial'}
+                              {user.rol === 'admin' ? 'Amministratore' : user.rol === 'tecnico' ? 'Tecnico' : 'Commerciale'}
                             </div>
                             {user.email && (
                               <div className="text-xs text-gray-400 mt-1 truncate">
@@ -607,7 +607,7 @@ export default function Layout() {
                         {user.nombre} {user.apellido}
                       </div>
                       <div className="text-xs text-gray-500 capitalize">
-                        {user.rol === 'admin' ? 'Amministratore' : user.rol === 'tecnico' ? 'Tecnico' : 'Comercial'}
+                        {user.rol === 'admin' ? 'Amministratore' : user.rol === 'tecnico' ? 'Tecnico' : 'Commerciale'}
                       </div>
                     </div>
                   </div>

@@ -42,18 +42,21 @@ export const getApiBaseUrl = () => {
 const API_BASE_URL = getApiBaseUrl();
 let isRedirecting = false;
 
-function handleSessionExpired() {
+function handleSessionExpired(sessionReplaced = false) {
   if (isRedirecting) return;
-  
+
   const currentPath = window.location.pathname;
   if (currentPath === '/login' || currentPath === '/registro') {
     return;
   }
-  
+
   isRedirecting = true;
   sessionStorage.setItem('sessionExpired', 'true');
-  window.location.href = '/login?sessionExpired=true';
-  
+  if (sessionReplaced) {
+    sessionStorage.setItem('sessionReplaced', 'true');
+  }
+  window.location.href = '/login?sessionExpired=true' + (sessionReplaced ? '&sessionReplaced=true' : '');
+
   setTimeout(() => {
     isRedirecting = false;
   }, 2000);
@@ -63,7 +66,7 @@ function fetchWithTimeout(url, options = {}, timeout = 10000) {
   return Promise.race([
     fetch(url, options),
     new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout: La petición tardó demasiado')), timeout)
+      setTimeout(() => reject(new Error('Timeout: la richiesta ha impiegato troppo tempo')), timeout)
     )
   ]);
 }
@@ -102,7 +105,7 @@ async function fetchAPI(endpoint, options = {}) {
       
       if (response.status === 404) {
         if (errorMessage.includes('Ruta no encontrada') || errorMessage.includes('no existe')) {
-          errorMessage = `Ruta de API no encontrada: ${endpoint}. Verifica que el endpoint sea correcto.`;
+          errorMessage = `Endpoint API non trovato: ${endpoint}. Verifica che l'endpoint sia corretto.`;
           console.error('🔴 Error 404:', {
             endpoint,
             url,
@@ -116,13 +119,18 @@ async function fetchAPI(endpoint, options = {}) {
       
       else if (response.status === 401) {
         const isAuthRoute = endpoint.includes('/auth/') || endpoint.includes('/usuarios/login') || endpoint.includes('/usuarios/registro');
-        const isAuthError = errorMessage.toLowerCase().includes('autenticat') || 
+        const sessionReplaced = data.code === 'session_replaced';
+        const isAuthError = errorMessage.toLowerCase().includes('autenticat') ||
                            errorMessage.toLowerCase().includes('sessione') ||
+                           errorMessage.toLowerCase().includes('sostituita') ||
                            errorMessage.toLowerCase().includes('token') ||
                            errorMessage.toLowerCase().includes('unauthorized');
-        
-        if (!isAuthRoute && isAuthError) {
-          handleSessionExpired();
+
+        if (sessionReplaced || (data.message && data.message.includes('altro dispositivo'))) {
+          handleSessionExpired(true);
+          errorMessage = data.message || 'Hai effettuato l\'accesso da un altro dispositivo o browser. Effettua nuovamente il login.';
+        } else if (!isAuthRoute && isAuthError) {
+          handleSessionExpired(false);
           errorMessage = 'Sessione scaduta. Effettua nuovamente il login.';
         } else if (!isAuthRoute) {
           errorMessage = errorMessage || 'Errore nella richiesta. Riprova più tardi.';

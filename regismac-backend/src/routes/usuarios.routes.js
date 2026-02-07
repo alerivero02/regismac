@@ -29,3 +29,6 @@ router.put("/:id/rol", requireAuth, requireAdmin, updateRol);
 
 export default router;
 
+
+
+

@@ -2224,7 +2224,7 @@ export default function Test() {
                     (esp32Estado?.temperatura != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null) ? 'text-green-800' : 'text-yellow-800'
                   }`}>
                     {(esp32Estado?.temperatura != null || esp32Estado?.temperatura_d2 != null || esp32Estado?.temperatura_d4 != null)
-                      ? '✅ Conectato – aggiornamento in tempo reale'
+                      ? '✅ Connesso – aggiornamento in tempo reale'
                       : '⚠️ In attesa dati ESP32'}
                   </p>
                 </div>

@@ -132,5 +132,20 @@ export class UsuariosService {
       data: { password: hashedPassword },
     });
   }
-}
 
+  /** Asocia la sesión actual al usuario (control de una sola sesión activa por cuenta) */
+  async setCurrentSessionId(idUsuario, sessionId) {
+    return this.prisma.usuario.update({
+      where: { id_usuario: idUsuario },
+      data: { current_session_id: sessionId },
+    });
+  }
+
+  /** Limpia la sesión del usuario al cerrar sesión */
+  async clearCurrentSessionId(idUsuario) {
+    return this.prisma.usuario.update({
+      where: { id_usuario: idUsuario },
+      data: { current_session_id: null },
+    });
+  }
+}

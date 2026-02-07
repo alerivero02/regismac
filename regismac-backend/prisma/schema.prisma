@@ -82,6 +82,7 @@ model Usuario {
   foto                 String?
   rol                  String    @default("tecnico") // "admin", "tecnico", "comercial"
   estado               String    @default("pendiente") // "pendiente", "aprobado", "rechazado"
+  current_session_id   String?   // ID de sesión válida: solo una sesión activa por usuario
   fecha_registro       DateTime  @default(now())
   fecha_aprobacion     DateTime?
   aprobado_por         Int?

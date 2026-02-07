@@ -1,10 +1,13 @@
 /**
- * Middleware de control de sesión única por usuario.
- * Comprueba contra la BD: si el usuario tiene otra sesión activa (otro dispositivo),
- * esta sesión se invalida y se devuelve 401 session_replaced.
- * No se aplica a rutas de login para no bloquear el acceso.
+ * Control de sesión única por usuario.
+ * Solo activo si ENABLE_SINGLE_SESSION=true y con almacén de sesiones persistente (Redis/DB).
+ * Con el almacén en memoria por defecto (Render), los IDs no coinciden tras reinicio y bloquearía el login.
  */
 export const enforceSingleSession = async (req, res, next) => {
+  if (process.env.ENABLE_SINGLE_SESSION !== 'true') {
+    return next();
+  }
+
   const path = req.path || req.originalUrl?.split('?')[0] || '';
   const isLoginRoute =
     path === '/api/auth/google' ||

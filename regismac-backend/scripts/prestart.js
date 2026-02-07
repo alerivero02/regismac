@@ -42,52 +42,36 @@ if (!prismaClientExists) {
   }
 }
 
-// En producción, ejecutar migraciones pendientes
+// En producción, ejecutar migraciones pendientes (sin volcar salida Prisma)
 if (isProduction) {
   (async () => {
-    log('🔄 Ejecutando migraciones de Prisma en producción...');
     try {
-      // Verificar si existe migration_lock.toml con provider incorrecto
       const migrationLockPath = join(__dirname, '..', 'prisma', 'migrations', 'migration_lock.toml');
       if (existsSync(migrationLockPath)) {
         const lockContent = await readFile(migrationLockPath, 'utf-8');
-        // Si el lock tiene mysql pero el schema es postgresql, eliminar el directorio de migraciones
         if (lockContent.includes('provider = "mysql"')) {
-          log('⚠️  Detectado migration_lock.toml con provider mysql, pero schema usa postgresql');
-          log('🗑️  Eliminando directorio de migraciones para reiniciar historial...');
           const migrationsDir = join(__dirname, '..', 'prisma', 'migrations');
           if (existsSync(migrationsDir)) {
             rmSync(migrationsDir, { recursive: true, force: true });
-            log('✅ Directorio de migraciones eliminado');
           }
         }
       }
-      
       execSync('npx prisma migrate deploy', {
-        stdio: 'inherit',
+        stdio: 'pipe',
         cwd: join(__dirname, '..'),
         env: { ...process.env }
       });
-      log('✅ Migraciones ejecutadas correctamente');
+      console.log('Migraciones: OK');
     } catch (error) {
-      logError('❌ Error al ejecutar migraciones:', error.message);
-      
-      // Si es el error P3019 (provider mismatch), intentar eliminar migraciones y continuar
       if (error.message && error.message.includes('P3019')) {
-        log('⚠️  Error P3019 detectado: provider mismatch en migration_lock.toml');
         try {
           const migrationsDir = join(__dirname, '..', 'prisma', 'migrations');
           if (existsSync(migrationsDir)) {
             rmSync(migrationsDir, { recursive: true, force: true });
-            log('✅ Directorio de migraciones eliminado. Continuando...');
           }
-        } catch (rmError) {
-          logError('❌ Error al eliminar directorio de migraciones:', rmError.message);
-        }
+        } catch (_) {}
       }
-      
-      // En producción, continuar aunque falle (puede que ya estén aplicadas)
-      log('⚠️  Continuando sin aplicar migraciones...');
+      console.error('Migraciones:', error.message?.split('\n')[0] || 'error');
     }
   })();
 }

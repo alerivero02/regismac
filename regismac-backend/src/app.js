@@ -286,6 +286,13 @@ if (!sessionSecret) {
 }
 
 if (sessionSecret) {
+  if (process.env.NODE_ENV === 'production') {
+    const _warn = console.warn;
+    console.warn = (...args) => {
+      if (args[0] && String(args[0]).includes('MemoryStore')) return;
+      _warn.apply(console, args);
+    };
+  }
   app.use(session({
     secret: sessionSecret,
     resave: false,

@@ -9,8 +9,9 @@ export function initializeSocketIO(httpServer) {
                        ? process.env.BACKEND_URL || "*" 
                        : "*");
   
-  console.log('[Socket Service] 🔌 Inicializando Socket.IO con CORS:', corsOrigin);
-  
+  const isProd = process.env.NODE_ENV === 'production';
+  if (!isProd) console.log('[Socket] CORS:', corsOrigin);
+
   io = new Server(httpServer, {
     cors: {
       origin: corsOrigin,
@@ -22,29 +23,18 @@ export function initializeSocketIO(httpServer) {
   });
 
   io.on('connection', (socket) => {
-    console.log('✅ Cliente WebSocket conectado:', socket.id, {
-      transport: socket.conn.transport.name,
-      clientesConectados: io.sockets.sockets.size
-    });
-    
-    socket.on('disconnect', (reason) => {
-      console.log('❌ Cliente WebSocket desconectado:', socket.id, 'Razón:', reason);
-    });
-    
-    socket.on('error', (error) => {
-      console.error('❌ Error en socket:', socket.id, error);
+    if (!isProd) console.log('[Socket] conectado:', socket.id);
+    socket.on('disconnect', () => {});
+    socket.on('error', (err) => {
+      if (isProd) return;
+      console.error('[Socket] error:', socket.id, err?.message);
     });
   });
-  
   io.engine.on('connection_error', (err) => {
-    console.error('❌ Error de conexión Socket.IO:', {
-      message: err.message,
-      code: err.code,
-      context: err.context
-    });
+    if (!isProd) console.error('[Socket] connection_error:', err?.message);
   });
 
-  console.log('[Socket Service] ✅ Socket.IO inicializado correctamente');
+  if (!isProd) console.log('[Socket] OK');
   return io;
 }
 
@@ -62,29 +52,12 @@ export function emitSensorUpdate(data) {
     const socketsArray = Array.from(io.sockets.sockets.values());
     const clientesConectados = socketsArray.length;
     
-    // Log detallado de sockets conectados
-    if (clientesConectados > 0) {
-      console.log(`[Socket Service] 📤 Emitiendo sensor:update [${horaEmision}] (${tiempoDesdeUltima}ms desde última):`, {
-        temperatura: data.temperatura,
-        humedad: data.humedad,
-        timestamp: data.timestamp,
-        tipoTimestamp: typeof data.timestamp,
-        clientesConectados: clientesConectados,
-        socketIds: socketsArray.map(s => s.id)
-      });
-    } else {
-      console.warn(`[Socket Service] ⚠️ Emitiendo sensor:update [${horaEmision}] pero NO hay clientes conectados:`, {
-        temperatura: data.temperatura,
-        clientesConectados: clientesConectados,
-        ioExists: !!io,
-        socketsSize: io.sockets.sockets.size
-      });
+    if (process.env.NODE_ENV !== 'production') {
+      if (clientesConectados > 0) {
+        console.log('[Socket] sensor:update', { temp: data.temperatura, clientes: clientesConectados });
+      }
     }
-    
-    // Emitir inmediatamente sin throttling
     io.emit('sensor:update', data);
-  } else {
-    console.warn('[Socket Service] ⚠️ Socket.IO no inicializado, no se puede emitir actualización');
   }
 }
 

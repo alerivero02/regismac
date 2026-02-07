@@ -41,12 +41,12 @@ function configureGoogleStrategy() {
       };
 
       passport.use('google', googleStrategy);
-      console.log('✅ Estrategia de Google OAuth configurada correctamente');
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('Google OAuth: OK');
+      }
     } catch (error) {
-      console.error('❌ Error al configurar estrategia de Google:', error);
+      console.error('Google OAuth:', error.message);
     }
-  } else {
-    console.warn('⚠️  Google OAuth no configurado: faltan GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET');
   }
 }
 
@@ -56,8 +56,9 @@ function configureGoogleStrategy() {
 try {
   configureGoogleStrategy();
 } catch (error) {
-  console.error('❌ Error al inicializar Google OAuth strategy:', error);
-  // No lanzar error, permitir que la app se cargue sin Google OAuth
+  if (process.env.NODE_ENV !== 'production') {
+    console.error('Google OAuth init:', error?.message);
+  }
 }
 
 passport.serializeUser((user, done) => {

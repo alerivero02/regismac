@@ -84,11 +84,40 @@ Guarda los cambios. Render volverá a desplegar el servicio si está configurado
 
 ---
 
-## Errores frecuentes
+## Error 400: redirect_uri_mismatch (solución paso a paso)
+
+Si ves **"Accesso bloccato: la richiesta dell'app non è valida"** y **Errore 400: redirect_uri_mismatch**:
+
+1. **Comprueba tu BACKEND_URL en Render**  
+   Dashboard Render → servicio **regismac** → **Environment** → valor de **BACKEND_URL**.  
+   Debe ser la URL pública del sitio **sin barra al final**, por ejemplo:  
+   `https://regismac.onrender.com`  
+   (Si tu servicio tiene otra URL, p. ej. `https://regismac-xxxx.onrender.com`, usa esa.)
+
+2. **Construye la URI de callback exacta**  
+   Es siempre:  
+   `(BACKEND_URL)/api/auth/google/callback`  
+   Ejemplo:  
+   `https://regismac.onrender.com/api/auth/google/callback`
+
+3. **Añádela en Google Cloud**  
+   - [Google Cloud Console](https://console.cloud.google.com/) → tu proyecto → **APIs y servicios** → **Credenciales**.
+   - Abre el **ID de cliente de OAuth** (tipo "Aplicación web") que usas para RegisMAC.
+   - En **URIs de redirección autorizados**:
+     - Añade **exactamente** la URI del paso 2 (copiar/pegar, sin espacios).
+     - Debe ser **https** (no http), **sin barra final** después de `callback`, **sin** `www` a menos que tu BACKEND_URL lleve www.
+   - Guarda los cambios (puede tardar unos minutos en aplicarse).
+
+4. **Vuelve a probar**  
+   Cierra sesión en Google si hace falta, recarga la app y pulsa de nuevo **Continua con Google**.
+
+---
+
+## Otros errores frecuentes
 
 | Error | Causa | Solución |
 |-------|--------|----------|
-| **redirect_uri_mismatch** | La URL de callback no coincide con la configurada en Google. | En Google Cloud, en **URIs de redirección autorizados**, pon exactamente `https://TU-DOMINIO/api/auth/google/callback` (mismo protocolo, dominio y path). |
+| **redirect_uri_mismatch** | La URI de callback no coincide con la de Google. | Sigue los pasos de la sección anterior. La URI en Google debe ser **idéntica** a `BACKEND_URL` + `/api/auth/google/callback`. |
 | **Google OAuth non configurato** | Faltan variables en el servidor. | Comprueba en Render que **GOOGLE_CLIENT_ID** y **GOOGLE_CLIENT_SECRET** estén definidas y sin espacios. |
 | **Access blocked: invalid_client** | Secreto incorrecto o cliente mal configurado. | Revisa que el **Secreto de cliente** en Render sea el mismo que en Google y que el tipo de aplicación sea **Aplicación web**. |
 

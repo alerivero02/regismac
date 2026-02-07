@@ -4,7 +4,8 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 function configureGoogleStrategy() {
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     try {
-      const callbackURL = `${process.env.BACKEND_URL || 'http://localhost:3000'}/api/auth/google/callback`;
+      const base = (process.env.BACKEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+      const callbackURL = `${base}/api/auth/google/callback`;
       
       const googleStrategy = new GoogleStrategy(
         {

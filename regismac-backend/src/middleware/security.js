@@ -100,32 +100,35 @@ export const preventPathTraversal = (req, res, next) => {
   
   // Verificar path
   if (checkString(req.path)) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       error: 'Ruta no válida',
       message: 'La ruta contiene caracteres no permitidos'
     });
   }
-  
-  // Verificar query parameters
-  for (const key in req.query) {
-    if (checkString(req.query[key])) {
-      return res.status(400).json({ 
-        error: 'Parámetro no válido',
-        message: 'Los parámetros contienen caracteres no permitidos'
-      });
+
+  // No validar query en callback de Google OAuth: code y state pueden contener // o otros caracteres
+  const isGoogleCallback = req.path === '/api/auth/google/callback' || req.originalUrl?.startsWith('/api/auth/google/callback');
+  if (!isGoogleCallback) {
+    for (const key in req.query) {
+      if (checkString(req.query[key])) {
+        return res.status(400).json({
+          error: 'Parámetro no válido',
+          message: 'Los parámetros contienen caracteres no permitidos'
+        });
+      }
     }
   }
-  
+
   // Verificar parámetros de URL
   for (const key in req.params) {
     if (checkString(req.params[key])) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Parámetro no válido',
         message: 'Los parámetros contienen caracteres no permitidos'
       });
     }
   }
-  
+
   next();
 };
 

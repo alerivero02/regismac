@@ -118,7 +118,9 @@ async function fetchAPI(endpoint, options = {}) {
       }
       
       else if (response.status === 401) {
-        const isAuthRoute = endpoint.includes('/auth/') || endpoint.includes('/usuarios/login') || endpoint.includes('/usuarios/registro');
+        // No redirigir solo en rutas de login/registro/Google; /api/auth/me con 401 = sesión perdida
+        const isLoginOrRegister = endpoint.includes('/usuarios/login') || endpoint.includes('/usuarios/registro') ||
+          endpoint === '/api/auth/google' || endpoint.includes('/api/auth/google/callback');
         const sessionReplaced = data.code === 'session_replaced';
         const isAuthError = errorMessage.toLowerCase().includes('autenticat') ||
                            errorMessage.toLowerCase().includes('sessione') ||
@@ -129,29 +131,27 @@ async function fetchAPI(endpoint, options = {}) {
         if (sessionReplaced || (data.message && data.message.includes('altro dispositivo'))) {
           handleSessionExpired(true);
           errorMessage = data.message || 'Hai effettuato l\'accesso da un altro dispositivo o browser. Effettua nuovamente il login.';
-        } else if (!isAuthRoute && isAuthError) {
+        } else if (!isLoginOrRegister) {
+          // 401 en cualquier otra ruta (incl. /api/auth/me) = sesión perdida → redirigir a login
           handleSessionExpired(false);
-          errorMessage = 'Sessione scaduta. Effettua nuovamente il login.';
-        } else if (!isAuthRoute) {
-          errorMessage = errorMessage || 'Errore nella richiesta. Riprova più tardi.';
+          errorMessage = errorMessage || 'Sessione scaduta. Effettua nuovamente il login.';
         } else {
           errorMessage = 'Non autenticato. Effettua il login.';
         }
       } else if (errorMessage.includes('conexión') || errorMessage.includes('connessione') || errorMessage.includes('database') || errorMessage.includes('PostgreSQL') || errorMessage.includes('postgresql')) {
         errorMessage = 'Errore di connessione al database PostgreSQL. Verifica che il database sia disponibile e che la configurazione sia corretta.';
       } else if (errorMessage.includes('autenticado') || errorMessage.includes('autenticato')) {
-        const isAuthError = errorMessage.toLowerCase().includes('autenticat') || 
+        const isAuthError = errorMessage.toLowerCase().includes('autenticat') ||
                            errorMessage.toLowerCase().includes('sessione') ||
                            errorMessage.toLowerCase().includes('token');
-        if (isAuthError && !endpoint.includes('/auth/') && !endpoint.includes('/usuarios/login') && !endpoint.includes('/usuarios/registro')) {
-          handleSessionExpired();
-        }
+        const isLoginOrRegisterReq = endpoint.includes('/usuarios/login') || endpoint.includes('/usuarios/registro') ||
+          endpoint === '/api/auth/google' || endpoint.includes('/api/auth/google/callback');
+        if (isAuthError && !isLoginOrRegisterReq) handleSessionExpired();
         errorMessage = 'Devi essere autenticato per eseguire questa operazione.';
       } else if (errorMessage.includes('No autenticado')) {
-        const isAuthRoute = endpoint.includes('/auth/') || endpoint.includes('/usuarios/login') || endpoint.includes('/usuarios/registro');
-        if (!isAuthRoute) {
-          handleSessionExpired();
-        }
+        const isLoginOrRegisterReq = endpoint.includes('/usuarios/login') || endpoint.includes('/usuarios/registro') ||
+          endpoint === '/api/auth/google' || endpoint.includes('/api/auth/google/callback');
+        if (!isLoginOrRegisterReq) handleSessionExpired();
         errorMessage = 'Non autenticato. Effettua il login.';
       } else if (response.status === 429) {
         errorMessage = data.message || data.error || 'Hai superato il limite di tentativi. Riprova tra 15 minuti.';

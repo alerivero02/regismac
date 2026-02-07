@@ -101,25 +101,40 @@ export default function Layout() {
         if (!sessionStorage.getItem('consoleCleared')) {
           console.clear();
           sessionStorage.setItem('consoleCleared', 'true');
-          // Limpiar el flag después de 1 segundo para permitir limpiar en próximos logins
-          setTimeout(() => {
-            sessionStorage.removeItem('consoleCleared');
-          }, 1000);
+          setTimeout(() => sessionStorage.removeItem('consoleCleared'), 1000);
         }
-        
         setUser(userData);
-        
-        // Si el usuario NO tiene contraseña (sin importar cómo se registró), mostrar modal OBLIGATORIO
-        // Esto aplica a TODOS los usuarios sin contraseña
         if (!userData.tiene_password) {
           setShowPasswordModal(true);
         }
       }
     } catch (error) {
-      console.error('Error loading user:', error);
       setUser(null);
+      // 401 ya redirige vía api.js handleSessionExpired; por si no, forzar salida
+      if (error?.status === 401) {
+        sessionStorage.setItem('sessionExpired', 'true');
+        window.location.href = '/login?sessionExpired=true';
+      }
     }
   };
+
+  // Detectar sesión perdida: comprobar cada 2 min y al volver a la pestaña
+  useEffect(() => {
+    const checkSession = () => {
+      authAPI.getCurrentUser().catch(() => {
+        // 401 → api.js redirige a login; aquí solo por si falla la red
+      });
+    };
+    const interval = setInterval(checkSession, 2 * 60 * 1000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') checkSession();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, []);
 
   const handlePasswordSet = () => {
     // Recargar usuario para actualizar el estado

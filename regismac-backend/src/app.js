@@ -178,11 +178,18 @@ const disableRateLimit = process.env.DISABLE_RATE_LIMIT === 'true';
 
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: isDevelopment ? 1000 : 500, // Más restrictivo en producción
+  max: isDevelopment ? 1000 : 1000, // Aumentado en producción para evitar bloqueos
   message: 'Troppi tentativi, riprova più tardi.',
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => disableRateLimit || req.path.startsWith('/api/sensor'), // Sensor: límite propio (sensorLimiter)
+  skip: (req) => {
+    // Excluir sensor, auth y rutas de usuarios comunes del general limiter
+    return disableRateLimit || 
+           req.path.startsWith('/api/sensor') || 
+           req.path.startsWith('/api/auth/') ||
+           req.path === '/api/usuarios/login' ||
+           req.path === '/api/usuarios/registro';
+  },
   handler: (req, res) => {
     logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
       ip: req.ip,
@@ -199,7 +206,7 @@ const generalLimiter = rateLimit({
 
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
-  max: isDevelopment ? 50 : 20, // Más restrictivo para autenticación
+  max: isDevelopment ? 100 : 50, // Aumentado: más permisivo para evitar bloqueos legítimos
   message: {
     error: 'Troppi tentativi di accesso',
     message: 'Hai superato il limite di tentativi di accesso. Riprova tra 15 minuti o usa l\'accesso con Google.',
@@ -293,8 +300,14 @@ if (!disableRateLimit) {
   app.use('/api/usuarios/registro', authLimiter);
   // 3. General limiter (excluye sensor y auth)
   app.use('/api/', generalLimiter);
-  // 4. Rate limiting estricto para endpoints administrativos
-  app.use('/api/usuarios', strictLimiter);
+  // 4. Rate limiting estricto para endpoints administrativos (excluir login y registro que ya tienen authLimiter)
+  app.use('/api/usuarios', (req, res, next) => {
+    // Excluir login y registro del strictLimiter ya que tienen su propio authLimiter
+    if (req.path === '/login' || req.path === '/registro') {
+      return next();
+    }
+    return strictLimiter(req, res, next);
+  });
   app.use('/api/admin', strictLimiter);
 }
 

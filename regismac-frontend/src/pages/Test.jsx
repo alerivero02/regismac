@@ -252,10 +252,8 @@ export default function Test() {
           showNotification('Temperaturas detectadas automáticamente!', 'success');
         }
       } catch (error) {
-        // Solo loguear errores críticos, ignorar timeouts silenciosamente durante polling
-        if (!error.message?.includes('Timeout')) {
-          console.error('Error al obtener estado del sensor en polling:', error);
-        }
+        // No loguear errores de polling para evitar spam en consola
+        // Los timeouts son esperados cuando el servidor está lento o no disponible
         // No mostrar error al usuario en cada polling para evitar spam
       }
     }, 3000); // Polling cada 3 segundos cuando hay test activo
@@ -545,7 +543,9 @@ export default function Test() {
       // Polling menos frecuente como fallback (solo cuando WebSocket falla)
       // Si hay un test activo, polling más frecuente (5 segundos)
       // Si no hay test activo, polling menos frecuente (10 segundos)
-      const pollingInterval = testESP32Activo ? 5000 : 10000;
+      let intervaloActual = testESP32Activo ? 5000 : 10000;
+      let erroresConsecutivos = 0;
+      const maxErroresConsecutivos = 3;
       
       const interval = setInterval(async () => {
         try {
@@ -557,10 +557,23 @@ export default function Test() {
           if (socketStatusCheck.connected) {
             clearInterval(interval);
             setEsp32PollingInterval(null);
+            erroresConsecutivos = 0;
             return;
           }
           
           const estado = await sensorAPI.obtenerEstado();
+          
+          // Si la petición fue exitosa, resetear contador de errores
+          erroresConsecutivos = 0;
+          // Restaurar intervalo normal si se había aumentado
+          const nuevoIntervalo = testESP32Activo ? 5000 : 10000;
+          if (intervaloActual !== nuevoIntervalo) {
+            intervaloActual = nuevoIntervalo;
+            clearInterval(interval);
+            setEsp32PollingInterval(null);
+            verificarYConfigurarPolling();
+            return;
+          }
           
           const temp = estado.temperatura !== null && estado.temperatura !== undefined ? parseFloat(estado.temperatura) : null;
           const tempD2 = estado.temperatura_d2 !== null && estado.temperatura_d2 !== undefined ? parseFloat(estado.temperatura_d2) : null;
@@ -648,15 +661,51 @@ export default function Test() {
           });
         }
       } catch (error) {
-        // Manejar errores silenciosamente durante polling para evitar spam en consola
-        // Solo loguear errores críticos que no sean timeouts
-        if (!error.message?.includes('Timeout') && !error.message?.includes('timeout')) {
-          const isDev = import.meta.env.DEV;
-          if (isDev) {
-            console.warn('[Polling] Error al obtener estado (no crítico):', error.message);
+        erroresConsecutivos++;
+        
+        // Silenciar completamente los errores de timeout - son esperados cuando el servidor está lento
+        const esTimeout = error.message?.includes('Timeout') || 
+                         error.message?.includes('timeout') || 
+                         error.message?.includes('Il server non risponde');
+        
+        if (esTimeout) {
+          // Si hay muchos timeouts consecutivos, aumentar el intervalo de polling (backoff exponencial)
+          if (erroresConsecutivos >= maxErroresConsecutivos) {
+            const nuevoIntervalo = Math.min(intervaloActual * 2, 30000); // Máximo 30 segundos
+            if (nuevoIntervalo !== intervaloActual) {
+              intervaloActual = nuevoIntervalo;
+              clearInterval(interval);
+              setEsp32PollingInterval(null);
+              // Reiniciar polling con nuevo intervalo
+              setTimeout(() => {
+                verificarYConfigurarPolling();
+              }, nuevoIntervalo);
+              return;
+            }
+          }
+          // No loguear timeouts - son esperados cuando el servidor está lento o no disponible
+          return;
+        }
+        
+        // Para otros errores, solo loguear en desarrollo y solo ocasionalmente
+        const isDev = import.meta.env.DEV;
+        if (isDev && erroresConsecutivos <= 1) {
+          console.warn('[Polling] Error al obtener estado:', error.message);
+        }
+        
+        // Si hay muchos errores consecutivos, aumentar el intervalo
+        if (erroresConsecutivos >= maxErroresConsecutivos) {
+          const nuevoIntervalo = Math.min(intervaloActual * 2, 30000);
+          if (nuevoIntervalo !== intervaloActual) {
+            intervaloActual = nuevoIntervalo;
+            clearInterval(interval);
+            setEsp32PollingInterval(null);
+            setTimeout(() => {
+              verificarYConfigurarPolling();
+            }, nuevoIntervalo);
+            return;
           }
         }
-        // No propagar el error para evitar que se muestre al usuario en cada polling
       }
         
         // Cuando ambas temperaturas están detectadas, guardar automáticamente
@@ -790,7 +839,7 @@ export default function Test() {
           }
         }
       }
-    }, pollingInterval);
+    }, intervaloActual);
     
     setEsp32PollingInterval(interval);
     };

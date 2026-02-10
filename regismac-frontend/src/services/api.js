@@ -187,14 +187,14 @@ async function fetchAPI(endpoint, options = {}) {
     }
     if (error.message && error.message.includes('Timeout')) {
       const backendUrl = API_BASE_URL;
-      // No mostrar error de timeout en cada polling, solo loguear
+      // No mostrar error de timeout en cada polling
       const isSensorEndpoint = endpoint.includes('/sensor/');
       if (!isSensorEndpoint) {
         throw new Error(`Timeout: Il server non risponde entro 15 secondi. Verifica che il backend sia in esecuzione su ${backendUrl}`);
       }
-      // Para endpoints del sensor, solo loguear silenciosamente
-      console.warn(`[Polling] Timeout en ${endpoint}, reintentando...`);
-      throw error; // Re-lanzar para que el componente maneje el error silenciosamente
+      // Para endpoints del sensor, no loguear timeouts - son esperados cuando el servidor está lento
+      // Re-lanzar el error para que el componente lo maneje silenciosamente
+      throw error;
     }
     console.error('Errore API:', error);
     throw error;

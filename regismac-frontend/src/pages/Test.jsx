@@ -348,8 +348,13 @@ export default function Test() {
     };
   }, [testESP32Activo]);
 
-  // Conectar WebSocket para recibir actualizaciones en tiempo real
+  // Conectar WebSocket para recibir actualizaciones en tiempo real (solo cuando el modal está abierto)
   useEffect(() => {
+    // Si el modal está cerrado, no hacer nada
+    if (!showESP32Modal) {
+      return;
+    }
+    
     const socketInstance = connectSocket();
     
     // Función para detener el polling cuando el WebSocket está conectado
@@ -399,6 +404,11 @@ export default function Test() {
     socketInstance.on('connect', handleConnect);
     
     const handleSensorUpdate = (data) => {
+      // Solo procesar actualizaciones si el modal está abierto
+      if (!showESP32Modal) {
+        return;
+      }
+      
       const temperatura = data.temperatura !== undefined && data.temperatura !== null ? parseFloat(data.temperatura) : null;
       const tempD2 = data.temperatura_d2 !== undefined && data.temperatura_d2 !== null ? parseFloat(data.temperatura_d2) : null;
       const tempD4 = data.temperatura_d4 !== undefined && data.temperatura_d4 !== null ? parseFloat(data.temperatura_d4) : null;
@@ -466,7 +476,7 @@ export default function Test() {
       // NO desconectar el socket aquí, solo remover el listener
       // El socket debe permanecer conectado para otros componentes
     };
-  }, [showNotification, esp32PollingInterval]);
+  }, [showNotification, esp32PollingInterval, showESP32Modal]);
 
 
   // Cleanup al desmontar
@@ -482,10 +492,14 @@ export default function Test() {
 
   useEffect(() => {
     if (!showESP32Modal) {
+      // Detener polling cuando el modal se cierra
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
         setEsp32PollingInterval(null);
       }
+      // Limpiar estados relacionados para evitar conflictos
+      // No limpiar esp32Estado completamente porque puede contener datos útiles
+      // Solo detener las actualizaciones activas
       return;
     }
     

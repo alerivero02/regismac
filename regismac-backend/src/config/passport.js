@@ -4,8 +4,25 @@ import { Strategy as GoogleStrategy } from 'passport-google-oauth20';
 function configureGoogleStrategy() {
   if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     try {
-      const base = (process.env.BACKEND_URL || 'http://localhost:3000').replace(/\/+$/, '');
+      // Determinar la URL base del callback
+      // En producción, usar BACKEND_URL si está configurado
+      // Si no, usar el dominio de producción (regismac.site)
+      let base;
+      if (process.env.BACKEND_URL) {
+        base = process.env.BACKEND_URL.replace(/\/+$/, '');
+      } else if (process.env.NODE_ENV === 'production') {
+        // En producción sin BACKEND_URL, usar el dominio de producción
+        base = 'https://regismac.site';
+      } else {
+        base = 'http://localhost:3000';
+      }
+      
       const callbackURL = `${base}/api/auth/google/callback`;
+      
+      // Log en desarrollo para debugging
+      if (process.env.NODE_ENV !== 'production') {
+        console.log('🔐 Google OAuth callback URL:', callbackURL);
+      }
       
       const googleStrategy = new GoogleStrategy(
         {

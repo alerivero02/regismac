@@ -48,6 +48,15 @@ export const googleAuth = async (req, res, next) => {
       });
     }
     
+    // Log del callback URL que se está usando (solo en desarrollo)
+    if (process.env.NODE_ENV !== 'production') {
+      const strategy = passport._strategies.google;
+      if (strategy && strategy._oauth2) {
+        const callbackURL = strategy._oauth2._redirectUri || 'no configurado';
+        console.log('🔐 Usando callback URL:', callbackURL);
+      }
+    }
+    
     // Detectar si viene de una IP local (no localhost)
     const referer = req.get('referer');
     const host = req.get('host');

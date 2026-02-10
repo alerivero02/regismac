@@ -56,10 +56,52 @@ export class TecnicosService {
           }
         });
 
-        return tecnicos.filter(t => t.usuario && t.usuario.rol === 'tecnico' && t.usuario.estado === 'aprobado');
+        // PASO 4: Filtrar una vez más para garantizar que solo sean técnicos válidos
+        return tecnicos.filter(tecnico => {
+          if (!tecnico.usuario) return false;
+          // Verificar explícitamente rol y estado
+          return tecnico.usuario.rol === 'tecnico' && tecnico.usuario.estado === 'aprobado';
+        });
       } catch (error) {
         console.error('Error en getTecnicosFromUsuarios:', error);
-        return [];
+        // Fallback: obtener usuarios técnicos y luego técnicos
+        try {
+          const usuariosTecnicos = await this.prisma.usuario.findMany({
+            where: {
+              estado: 'aprobado',
+              rol: 'tecnico'
+            },
+            select: {
+              id_usuario: true
+            }
+          });
+
+          if (!usuariosTecnicos || usuariosTecnicos.length === 0) {
+            return [];
+          }
+
+          const idsUsuarios = usuariosTecnicos.map(u => u.id_usuario);
+
+          return await this.prisma.tecnico.findMany({
+            where: {
+              id_usuario: {
+                in: idsUsuarios
+              }
+            },
+            select: {
+              id_tecnico: true,
+              nome: true,
+              cognome: true,
+              id_usuario: true
+            },
+            orderBy: {
+              nome: 'asc'
+            }
+          });
+        } catch (fallbackError) {
+          console.error('Error en fallback de getTecnicosFromUsuarios:', fallbackError);
+          throw error;
+        }
       }
     }
   

@@ -349,14 +349,28 @@ export default function Test() {
     };
   }, [testESP32Activo]);
 
+  // Ref para almacenar el handler del WebSocket y poder removerlo correctamente
+  const handleSensorUpdateRef = useRef(null);
+  
   // Conectar WebSocket para recibir actualizaciones en tiempo real (solo cuando el modal está abierto)
   useEffect(() => {
-    // Si el modal está cerrado, no hacer nada
+    const socketInstance = connectSocket();
+    
+    // Si el modal está cerrado, remover todos los listeners y salir
     if (!showESP32Modal) {
+      // Remover el listener específico si existe
+      if (handleSensorUpdateRef.current) {
+        offSensorUpdate(handleSensorUpdateRef.current);
+        handleSensorUpdateRef.current = null;
+      }
+      // También remover todos los listeners de sensor:update para asegurar limpieza completa
+      socketInstance.off('sensor:update');
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.log('[WebSocket] 🧹 Modal cerrado - listeners removidos');
+      }
       return;
     }
-    
-    const socketInstance = connectSocket();
     
     // Función para detener el polling cuando el WebSocket está conectado
     const detenerPollingSiConectado = () => {
@@ -381,7 +395,7 @@ export default function Test() {
     
     // Verificar conexión inmediatamente y después de delays
     checkConnection();
-    setTimeout(() => {
+    const timeout1 = setTimeout(() => {
       if (!checkConnection()) {
         console.warn('[WebSocket] ⚠️ Socket no conectado después de 2 segundos, reintentando...');
         // Intentar reconectar manualmente si no está conectado
@@ -393,7 +407,7 @@ export default function Test() {
       }
     }, 2000);
     
-    setTimeout(() => {
+    const timeout2 = setTimeout(() => {
       checkConnection();
     }, 5000);
     
@@ -404,6 +418,7 @@ export default function Test() {
     
     socketInstance.on('connect', handleConnect);
     
+    // Crear el handler y guardarlo en el ref para poder removerlo después
     const handleSensorUpdate = (data) => {
       // Solo procesar actualizaciones si el modal está abierto (usar ref para valor actual)
       if (!showESP32ModalRef.current) {
@@ -468,12 +483,24 @@ export default function Test() {
       }
     };
     
+    // Guardar el handler en el ref
+    handleSensorUpdateRef.current = handleSensorUpdate;
+    
     // Registrar el listener de actualizaciones del sensor
     onSensorUpdate(handleSensorUpdate);
     
     return () => {
+      // Limpiar timeouts
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      
       // Remover listener cuando el modal se cierra o el componente se desmonta
-      offSensorUpdate(handleSensorUpdate);
+      if (handleSensorUpdateRef.current) {
+        offSensorUpdate(handleSensorUpdateRef.current);
+        handleSensorUpdateRef.current = null;
+      }
+      // También remover todos los listeners de sensor:update para asegurar limpieza completa
+      socketInstance.off('sensor:update');
       socketInstance.off('connect', handleConnect);
       // NO desconectar el socket aquí, solo remover el listener
       // El socket debe permanecer conectado para otros componentes

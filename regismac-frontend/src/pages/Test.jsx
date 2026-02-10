@@ -354,9 +354,24 @@ export default function Test() {
   useEffect(() => {
     const socketInstance = connectSocket();
     
+    // Función para detener el polling cuando el WebSocket está conectado
+    const detenerPollingSiConectado = () => {
+      if (esp32PollingInterval && socketInstance?.connected) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+        const isDev = import.meta.env.DEV;
+        if (isDev) {
+          console.log('[WebSocket] ✅ WebSocket conectado, polling detenido');
+        }
+      }
+    };
+    
     // Verificar estado de conexión periódicamente
     const checkConnection = () => {
       const status = socketInstance?.connected;
+      if (status) {
+        detenerPollingSiConectado();
+      }
       return status;
     };
     
@@ -369,12 +384,21 @@ export default function Test() {
         if (socketInstance && !socketInstance.connected) {
           socketInstance.connect();
         }
+      } else {
+        detenerPollingSiConectado();
       }
     }, 2000);
     
     setTimeout(() => {
       checkConnection();
     }, 5000);
+    
+    // Listener para cuando el socket se conecta
+    const handleConnect = () => {
+      detenerPollingSiConectado();
+    };
+    
+    socketInstance.on('connect', handleConnect);
     
     const handleSensorUpdate = (data) => {
       const temperatura = data.temperatura !== undefined && data.temperatura !== null ? parseFloat(data.temperatura) : null;
@@ -440,10 +464,11 @@ export default function Test() {
     
     return () => {
       offSensorUpdate(handleSensorUpdate);
+      socketInstance.off('connect', handleConnect);
       // NO desconectar el socket aquí, solo remover el listener
       // El socket debe permanecer conectado para otros componentes
     };
-  }, [showNotification]);
+  }, [showNotification, esp32PollingInterval]);
 
 
   // Cleanup al desmontar
@@ -496,72 +521,88 @@ export default function Test() {
     
     cargarEstadoInicial();
     
-    // Polling HTTP como fallback si WebSocket no está conectado
-    
-    // Reducir frecuencia del polling para evitar saturar el backend
-    // Si hay un test activo, polling más frecuente (2 segundos)
-    // Si no hay test activo, polling menos frecuente (5 segundos)
-    const pollingInterval = testESP32Activo ? 2000 : 5000;
-    
-    const interval = setInterval(async () => {
-      try {
-        const estado = await sensorAPI.obtenerEstado();
-        
-        // Solo actualizar si el WebSocket no está funcionando
-        // Verificar si el socket está conectado
-        const { getSocketStatus } = await import('../services/socket.js');
-        const socketStatus = getSocketStatus();
-        
-        // Si el socket NO está conectado, usar polling como fallback
-        const temp = estado.temperatura !== null && estado.temperatura !== undefined ? parseFloat(estado.temperatura) : null;
-        const tempD2 = estado.temperatura_d2 !== null && estado.temperatura_d2 !== undefined ? parseFloat(estado.temperatura_d2) : null;
-        const tempD4 = estado.temperatura_d4 !== null && estado.temperatura_d4 !== undefined ? parseFloat(estado.temperatura_d4) : null;
-        const tempRef = temp !== null && !isNaN(temp) ? temp : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
-
-        if (!socketStatus.connected && (tempRef !== null && !isNaN(tempRef))) {
-          setTemperaturaActual(tempRef);
-          temperaturaActualRef.current = tempRef;
-          setTemperaturaUpdateKey(prev => prev + 1);
-          const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
-          setEsp32Estado(prev => ({
-            ...prev,
-            temperatura: tempRef,
-            temperatura_d2: tempD2,
-            temperatura_d4: tempD4,
-            humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
-            timestamp: timestamp
-          }));
-            
-            if (tempRef <= -8.0 && !alarmaMenos8ActivadaRef.current) {
-              alarmaMenos8ActivadaRef.current = true;
-              reproducirAlarmaSonora();
-              showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
-            } else if (tempRef > -8.0 && alarmaMenos8ActivadaRef.current) {
-              alarmaMenos8ActivadaRef.current = false;
-            }
+    // Polling HTTP SOLO como fallback cuando WebSocket NO está conectado
+    // Verificar estado del WebSocket antes de iniciar polling
+    const verificarYConfigurarPolling = async () => {
+      const { getSocketStatus } = await import('../services/socket.js');
+      const socketStatus = getSocketStatus();
+      
+      // Si el WebSocket está conectado, NO hacer polling
+      if (socketStatus.connected) {
+        if (esp32PollingInterval) {
+          clearInterval(esp32PollingInterval);
+          setEsp32PollingInterval(null);
         }
-        const isDev = import.meta.env.DEV;
-        if (isDev) {
-          console.log('[Test] Estado del sensor obtenido:', estado);
-        }
-        setEsp32Estado(prev => ({
-          ...prev,
-          ...estado,
-          temperatura_d2: estado.temperatura_d2 !== undefined && estado.temperatura_d2 !== null ? estado.temperatura_d2 : prev?.temperatura_d2,
-          temperatura_d4: estado.temperatura_d4 !== undefined && estado.temperatura_d4 !== null ? estado.temperatura_d4 : prev?.temperatura_d4,
-        }));
+        return;
+      }
+      
+      // Solo hacer polling si el WebSocket NO está conectado
+      // Si ya hay un intervalo activo, no crear otro
+      if (esp32PollingInterval) {
+        return;
+      }
+      
+      // Polling menos frecuente como fallback (solo cuando WebSocket falla)
+      // Si hay un test activo, polling más frecuente (5 segundos)
+      // Si no hay test activo, polling menos frecuente (10 segundos)
+      const pollingInterval = testESP32Activo ? 5000 : 10000;
+      
+      const interval = setInterval(async () => {
+        try {
+          // Verificar nuevamente el estado del WebSocket antes de cada polling
+          const { getSocketStatus: getSocketStatusCheck } = await import('../services/socket.js');
+          const socketStatusCheck = getSocketStatusCheck();
+          
+          // Si el WebSocket se conectó, detener el polling
+          if (socketStatusCheck.connected) {
+            clearInterval(interval);
+            setEsp32PollingInterval(null);
+            return;
+          }
+          
+          const estado = await sensorAPI.obtenerEstado();
+          
+          const temp = estado.temperatura !== null && estado.temperatura !== undefined ? parseFloat(estado.temperatura) : null;
+          const tempD2 = estado.temperatura_d2 !== null && estado.temperatura_d2 !== undefined ? parseFloat(estado.temperatura_d2) : null;
+          const tempD4 = estado.temperatura_d4 !== null && estado.temperatura_d4 !== undefined ? parseFloat(estado.temperatura_d4) : null;
+          const tempRef = temp !== null && !isNaN(temp) ? temp : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
 
-        if (tempRef !== null && !isNaN(tempRef)) {
-          const { getSocketStatus } = await import('../services/socket.js');
-          const socketStatus = getSocketStatus();
-          if (!socketStatus.connected) {
+          if (tempRef !== null && !isNaN(tempRef)) {
             setTemperaturaActual(tempRef);
             temperaturaActualRef.current = tempRef;
             setTemperaturaUpdateKey(prev => prev + 1);
-          } else if (temperaturaActual === null || (estado.timestamp && estado.timestamp > (esp32Estado?.timestamp || 0))) {
-            setTemperaturaActual(estado.temperatura);
+            const timestamp = estado.timestamp ? new Date(estado.timestamp) : new Date();
+            setEsp32Estado(prev => ({
+              ...prev,
+              temperatura: tempRef,
+              temperatura_d2: tempD2,
+              temperatura_d4: tempD4,
+              humedad: estado.humedad !== undefined && estado.humedad !== null ? parseFloat(estado.humedad) : (prev?.humedad || null),
+              timestamp: timestamp
+            }));
+              
+              if (tempRef <= -8.0 && !alarmaMenos8ActivadaRef.current) {
+                alarmaMenos8ActivadaRef.current = true;
+                reproducirAlarmaSonora();
+                showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
+              } else if (tempRef > -8.0 && alarmaMenos8ActivadaRef.current) {
+                alarmaMenos8ActivadaRef.current = false;
+              }
           }
-        }
+          
+          // Actualizar estado completo del sensor (incluyendo testActivo, tiempos, etc.)
+          setEsp32Estado(prev => ({
+            ...prev,
+            ...estado,
+            temperatura: tempRef,
+            temperatura_d2: tempD2 !== null ? tempD2 : (estado.temperatura_d2 !== undefined && estado.temperatura_d2 !== null ? estado.temperatura_d2 : prev?.temperatura_d2),
+            temperatura_d4: tempD4 !== null ? tempD4 : (estado.temperatura_d4 !== undefined && estado.temperatura_d4 !== null ? estado.temperatura_d4 : prev?.temperatura_d4),
+          }));
+          
+          const isDev = import.meta.env.DEV;
+          if (isDev) {
+            console.log('[Test] Estado del sensor obtenido vía polling (fallback):', estado);
+          }
         
         // Actualizar temperatura inicial cuando se inicia el test
         if (estado.testActivo && estado.temperaturaInicial && !formData.temperatura_iniziale) {
@@ -749,13 +790,28 @@ export default function Test() {
           }
         }
       }
-    }, pollingInterval); // Polling adaptativo: 2s durante test activo, 5s cuando no hay test
+    }, pollingInterval);
     
     setEsp32PollingInterval(interval);
+    };
+    
+    // Verificar estado del WebSocket y configurar polling solo si es necesario
+    // Esperar un poco para que el WebSocket tenga tiempo de conectar
+    setTimeout(() => {
+      verificarYConfigurarPolling();
+    }, 2000);
+    
+    // También verificar periódicamente si el WebSocket se desconectó
+    const checkInterval = setInterval(() => {
+      verificarYConfigurarPolling();
+    }, 5000);
     
     return () => {
-      clearInterval(interval);
-      setEsp32PollingInterval(null);
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+      clearInterval(checkInterval);
     };
   }, [showESP32Modal, selectedMaquina, formData.tecnicoId, isSubmitting, fechaHoraInicioTestESP32, testESP32Activo, showNotification]);
   

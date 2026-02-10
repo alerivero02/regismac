@@ -352,18 +352,11 @@ export default function Test() {
 
   // Conectar WebSocket para recibir actualizaciones en tiempo real
   useEffect(() => {
-    console.log('[WebSocket] 🔌 Iniciando conexión WebSocket...');
     const socketInstance = connectSocket();
     
     // Verificar estado de conexión periódicamente
     const checkConnection = () => {
       const status = socketInstance?.connected;
-      console.log('[WebSocket] 📊 Estado de conexión:', {
-        connected: status,
-        socketId: socketInstance?.id,
-        readyState: socketInstance?.io?.readyState,
-        transport: socketInstance?.io?.engine?.transport?.name
-      });
       return status;
     };
     
@@ -384,17 +377,6 @@ export default function Test() {
     }, 5000);
     
     const handleSensorUpdate = (data) => {
-      console.log('[WebSocket] 📨 EVENTO RECIBIDO COMPLETO:', {
-        dataCompleta: data,
-        temperatura: data.temperatura,
-        humedad: data.humedad,
-        timestamp: data.timestamp,
-        tipoTimestamp: typeof data.timestamp,
-        horaActual: new Date().toLocaleTimeString(),
-        socketConnected: socketInstance?.connected,
-        socketId: socketInstance?.id
-      });
-      
       const temperatura = data.temperatura !== undefined && data.temperatura !== null ? parseFloat(data.temperatura) : null;
       const tempD2 = data.temperatura_d2 !== undefined && data.temperatura_d2 !== null ? parseFloat(data.temperatura_d2) : null;
       const tempD4 = data.temperatura_d4 !== undefined && data.temperatura_d4 !== null ? parseFloat(data.temperatura_d4) : null;
@@ -402,7 +384,6 @@ export default function Test() {
 
       if (hasTemp) {
         const tempRef = temperatura !== null && !isNaN(temperatura) ? temperatura : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
-        console.log('[WebSocket] 🌡️ Temperatura recibida:', { temperatura: tempRef, temperatura_d2: tempD2, temperatura_d4: tempD4 });
 
         setTemperaturaActual(tempRef);
         temperaturaActualRef.current = tempRef;
@@ -455,32 +436,15 @@ export default function Test() {
     };
     
     // Registrar el listener de actualizaciones del sensor
-    console.log('[WebSocket] 📝 Registrando listener de sensor:update...');
     onSensorUpdate(handleSensorUpdate);
     
     return () => {
-      console.log('[WebSocket] 🧹 Limpiando listeners y desconectando...');
       offSensorUpdate(handleSensorUpdate);
       // NO desconectar el socket aquí, solo remover el listener
       // El socket debe permanecer conectado para otros componentes
     };
   }, [showNotification]);
 
-  // Monitorear cambios en esp32Estado para debugging
-  useEffect(() => {
-    console.log('[Test] 🔄 esp32Estado CAMBIÓ:', {
-      esp32Estado: esp32Estado,
-      temperatura: esp32Estado?.temperatura,
-      humedad: esp32Estado?.humedad,
-      timestamp: esp32Estado?.timestamp,
-      timestampTipo: typeof esp32Estado?.timestamp,
-      timestampEsDate: esp32Estado?.timestamp instanceof Date,
-      timestampISO: esp32Estado?.timestamp instanceof Date ? esp32Estado.timestamp.toISOString() : (esp32Estado?.timestamp ? new Date(esp32Estado.timestamp).toISOString() : 'N/A'),
-      timestampLocal: esp32Estado?.timestamp instanceof Date ? esp32Estado.timestamp.toLocaleTimeString() : (esp32Estado?.timestamp ? new Date(esp32Estado.timestamp).toLocaleTimeString() : 'N/A'),
-      horaActual: new Date().toLocaleTimeString(),
-      stackTrace: new Error().stack
-    });
-  }, [esp32Estado]);
 
   // Cleanup al desmontar
   useEffect(() => {
@@ -555,7 +519,6 @@ export default function Test() {
         const tempRef = temp !== null && !isNaN(temp) ? temp : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
 
         if (!socketStatus.connected && (tempRef !== null && !isNaN(tempRef))) {
-          console.log('[Polling] 🔄 Fallback (WebSocket desconectado):', { tempRef, tempD2, tempD4 });
           setTemperaturaActual(tempRef);
           temperaturaActualRef.current = tempRef;
           setTemperaturaUpdateKey(prev => prev + 1);

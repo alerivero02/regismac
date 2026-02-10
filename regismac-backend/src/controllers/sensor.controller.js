@@ -19,7 +19,9 @@ let sensorState = {
 // Endpoint para que el ESP32 envíe datos de temperatura
 export const recibirDatosSensor = async (req, res, next) => {
   try {
-    console.log('📡 recibirDatosSensor - Request recibido:', {
+    // Log solo en desarrollo
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📡 recibirDatosSensor - Request recibido:', {
       body: req.body,
       headers: {
         'content-type': req.headers['content-type'],
@@ -100,7 +102,6 @@ export const recibirDatosSensor = async (req, res, next) => {
       } : null
     };
     
-    console.log('✅ recibirDatosSensor - Enviando respuesta:', response);
     res.json(response);
   } catch (err) {
     console.error('❌ recibirDatosSensor - Error:', {
@@ -160,11 +161,6 @@ export const iniciarTest = async (req, res, next) => {
     sensorState.tiempoInicio = Date.now();
     sensorState.tiempo0Grados = null;
     sensorState.tiempoMenos8Grados = null;
-
-    console.log('✅ Test iniciado con temperatura inicial del sensor:', {
-      temperaturaInicial: sensorState.temperaturaInicial,
-      timestamp: new Date().toISOString()
-    });
 
     res.json({
       success: true,

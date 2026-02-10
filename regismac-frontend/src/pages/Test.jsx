@@ -350,7 +350,7 @@ export default function Test() {
     } catch (error) {
       console.error('Error al cargar usuario actual:', error);
     }
-  }, [tecnicos]);
+  };
 
   const loadData = useCallback(async () => {
     // Evitar múltiples cargas simultáneas

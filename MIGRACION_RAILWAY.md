@@ -50,13 +50,42 @@ GOOGLE_CLIENT_SECRET=tu_google_client_secret
 - `FRONTEND_URL` y `BACKEND_URL` las actualizarás DESPUÉS del primer deploy con la URL real que Railway te dé
 - Railway te dará una URL como: `regismac-production.up.railway.app`
 
-## 📋 Paso 4: Base de datos PostgreSQL
+## 📋 Paso 4: Base de datos PostgreSQL ⚠️ IMPORTANTE
 
-Railway ofrece PostgreSQL gratis:
+### ⚠️ NO PIERDAS TUS DATOS - Lee esto primero:
 
-1. En tu proyecto Railway, click **"New"** → **"Database"** → **"Add PostgreSQL"**
-2. Railway creará automáticamente la variable `DATABASE_URL`
-3. **¡Listo!** No necesitas configurar nada más
+**Tienes 2 opciones:**
+
+### Opción A: Mantener Base de Datos en Render (RECOMENDADO - Más Seguro) ⭐
+
+**Esta es la opción MÁS SEGURA - CERO riesgo de perder datos:**
+
+1. **NO crees PostgreSQL en Railway todavía**
+2. En Railway, ve a **Settings → Variables**
+3. Agrega `DATABASE_URL` con la **misma URL de Render**
+   - Ve a Render Dashboard → Tu servicio PostgreSQL
+   - Copia la **"Internal Database URL"** o **"External Database URL"**
+   - Pégala en Railway como `DATABASE_URL`
+4. **¡Listo!** Railway usará la misma base de datos de Render
+5. **Tus datos están seguros** - No se tocan, no se mueven, no se pierden
+
+**Ventajas:**
+- ✅ **CERO riesgo** - Los datos siguen en Render
+- ✅ Puedes probar Railway sin miedo
+- ✅ Si algo falla, vuelves a Render fácilmente
+- ✅ Puedes migrar la BD después cuando estés seguro
+
+### Opción B: Migrar Base de Datos a Railway PostgreSQL
+
+**Solo haz esto si quieres tener TODO en Railway:**
+
+1. **PRIMERO:** Haz backup completo de Render (VER `MIGRACION_DATOS_SEGURO.md`)
+2. En Railway, click **"New"** → **"Database"** → **"Add PostgreSQL"**
+3. Railway creará automáticamente la variable `DATABASE_URL`
+4. Restaura el backup en Railway PostgreSQL
+5. Verifica que todos los datos estén ahí
+
+**⚠️ IMPORTANTE:** Lee `MIGRACION_DATOS_SEGURO.md` antes de hacer esto.
 
 ## 📋 Paso 5: Ejecutar migraciones
 

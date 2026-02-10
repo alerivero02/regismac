@@ -533,10 +533,24 @@ export default function Test() {
         clearInterval(esp32PollingInterval);
         setEsp32PollingInterval(null);
       }
+      
+      // Remover listener del WebSocket inmediatamente cuando el modal se cierra
+      (async () => {
+        const { getSocketStatus } = await import('../services/socket.js');
+        const socketStatus = getSocketStatus();
+        if (socketStatus.socket && handleSensorUpdateRef.current) {
+          socketStatus.socket.off('sensor:update', handleSensorUpdateRef.current);
+          handleSensorUpdateRef.current = null;
+          const isDev = import.meta.env.DEV;
+          if (isDev) {
+            console.log('[WebSocket] 🧹 Listener removido inmediatamente - modal cerrado');
+          }
+        }
+      })();
+      
       // Limpiar estados relacionados para evitar conflictos
       // No limpiar esp32Estado completamente porque puede contener datos útiles
       // Solo detener las actualizaciones activas
-      // El listener del WebSocket se removerá automáticamente por el cleanup del useEffect anterior
       return;
     }
     

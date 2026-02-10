@@ -137,7 +137,207 @@ export default function Test() {
     }
   }, []);
 
-  const loadCurrentUser = useCallback(async () => {
+  // Efecto para cargar estado inicial cuando el modal se abre
+  useEffect(() => {
+    if (!showESP32Modal) {
+      // Limpiar intervalo cuando se cierra el modal
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+      return;
+    }
+    
+    // Cargar estado inicial con manejo de errores mejorado
+    const cargarEstadoInicial = async () => {
+      try {
+        const estado = await sensorAPI.obtenerEstado();
+        setEsp32Estado(estado);
+        // Actualizar estado local del test activo basado en la respuesta del servidor
+        setTestESP32Activo(estado.testActivo || false);
+      } catch (error) {
+        console.error('Error al obtener estado inicial del sensor:', error);
+        // Si es error de autenticación, mostrar mensaje específico
+        if (error.status === 401 || error.message?.includes('autenticat') || error.message?.includes('Sessione')) {
+          setEsp32Estado({
+            temperatura: null,
+            humedad: null,
+            timestamp: null,
+            testActivo: false,
+            temperaturaInicial: null,
+            tiempoInicio: null,
+            tiempoTranscurrido: 0,
+            tiempo0Grados: null,
+            tiempoMenos8Grados: null,
+            error: 'Sessione scaduta. Effettua nuovamente il login.',
+          });
+        } else {
+          // Inicializar con valores por defecto si hay otro error
+          setEsp32Estado({
+            temperatura: null,
+            humedad: null,
+            timestamp: null,
+            testActivo: false,
+            temperaturaInicial: null,
+            tiempoInicio: null,
+            tiempoTranscurrido: 0,
+            tiempo0Grados: null,
+            tiempoMenos8Grados: null,
+            error: error.message || 'Errore di connessione con il sensore',
+          });
+        }
+        setTestESP32Activo(false);
+      }
+    };
+    
+    cargarEstadoInicial();
+    
+    return () => {
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+    };
+  }, [showESP32Modal]);
+
+  // Efecto separado para manejar el polling solo cuando hay un test activo
+  useEffect(() => {
+    // Solo hacer polling si el modal está abierto Y hay un test activo
+    if (!showESP32Modal || !testESP32Activo) {
+      // Si no hay test activo, limpiar el intervalo si existe
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+      return;
+    }
+    
+    // Configurar polling solo cuando hay un test activo
+    const interval = setInterval(async () => {
+      try {
+        const estado = await sensorAPI.obtenerEstado();
+        setEsp32Estado(estado);
+        
+        // Actualizar estado local del test activo
+        const hayTestActivo = estado.testActivo || false;
+        setTestESP32Activo(hayTestActivo);
+        
+        // Si el test ya no está activo, detener el polling
+        if (!hayTestActivo) {
+          // Limpiar el intervalo si el test ya no está activo
+          clearInterval(interval);
+          setEsp32PollingInterval(null);
+          return;
+        }
+        
+        // Si hay un test activo y se detectaron las temperaturas, actualizar el formulario
+        if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempoMenos8Grados !== null) {
+          // Convertir segundos a formato MM:SS
+          const minutos0 = Math.floor(estado.tiempo0Grados / 60);
+          const segundos0 = estado.tiempo0Grados % 60;
+          const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+          
+          const minutosMenos8 = Math.floor(estado.tiempoMenos8Grados / 60);
+          const segundosMenos8 = estado.tiempoMenos8Grados % 60;
+          const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+          
+          setFormData(prev => ({
+            ...prev,
+            temperatura_iniziale: estado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
+            tiempo_0_manual: tiempo0Formato,
+            tiempo_meno8_manual: tiempoMenos8Formato,
+          }));
+          
+          setModoManual(true);
+          showNotification('Temperaturas detectadas automáticamente!', 'success');
+        }
+      } catch (error) {
+        console.error('Error al obtener estado del sensor en polling:', error);
+        // No mostrar error al usuario en cada polling, solo loguear
+      }
+    }, 3000); // Polling cada 3 segundos (reducido de 2 a 3 segundos para reducir carga)
+    
+    setEsp32PollingInterval(interval);
+    
+    return () => {
+      clearInterval(interval);
+    };
+  }, [showESP32Modal, testESP32Activo]);
+
+  const iniciarTestESP32 = async () => {
+    try {
+      await sensorAPI.iniciarTest(esp32Estado.temperatura);
+      setTestESP32Activo(true);
+      // Guardar la fecha y hora de inicio del test
+      setFechaHoraInicioTestESP32(new Date().toISOString());
+      showNotification('Test iniciado. Monitoreando temperatura...', 'success');
+    } catch (error) {
+      showNotification(error.message || 'Error al iniciar el test', 'error');
+    }
+  };
+
+  const finalizarTestESP32 = async () => {
+    try {
+      // Validar que se haya seleccionado una máquina
+      if (!selectedMaquina) {
+        showNotification('Selecciona una máquina antes de finalizar el test', 'error');
+        return;
+      }
+
+      // Validar que se haya seleccionado un técnico
+      if (!formData.tecnicoId) {
+        showNotification('Selecciona un técnico antes de finalizar el test', 'error');
+        return;
+      }
+
+      const resultado = await sensorAPI.finalizarTest();
+      setTestESP32Activo(false);
+      // Detener el polling explícitamente
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+      
+      if (resultado.resultado.tiempo0Grados && resultado.resultado.tiempoMenos8Grados) {
+        // Reproducir alarma sonora cuando se alcanza -8°C
+        reproducirAlarmaSonora();
+      }
+    } catch (error) {
+      console.error('Error al finalizar test ESP32:', error);
+      showNotification(error.message || 'Error al finalizar el test', 'error');
+      setTestESP32Activo(false);
+      setFechaHoraInicioTestESP32(null);
+      // Detener el polling explícitamente incluso si hay error
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+    }
+  };
+
+  const cancelarTestESP32 = async () => {
+    try {
+      await sensorAPI.cancelarTest();
+      setTestESP32Activo(false);
+      setFechaHoraInicioTestESP32(null);
+      // Detener el polling explícitamente
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+      showNotification('Test cancelado', 'info');
+    } catch (error) {
+      showNotification(error.message || 'Error al cancelar el test', 'error');
+      // Asegurar que el polling se detenga incluso si hay error
+      setTestESP32Activo(false);
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+    }
+  };
+
+  const loadCurrentUser = async () => {
     try {
       const user = await authAPI.getCurrentUser();
       setCurrentUser(user);

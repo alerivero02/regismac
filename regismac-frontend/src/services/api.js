@@ -73,7 +73,7 @@ function handleSessionExpired(sessionReplaced = false) {
   }, 2000);
 }
 
-function fetchWithTimeout(url, options = {}, timeout = 10000) {
+function fetchWithTimeout(url, options = {}, timeout = 15000) {
   return Promise.race([
     fetch(url, options),
     new Promise((_, reject) =>
@@ -100,7 +100,9 @@ async function fetchAPI(endpoint, options = {}) {
   }
 
   try {
-    const response = await fetchWithTimeout(url, config, 10000);
+    // Timeout más largo para endpoints del sensor que pueden tardar más
+    const timeout = endpoint.includes('/sensor/') ? 20000 : 15000;
+    const response = await fetchWithTimeout(url, config, timeout);
     
     const contentType = response.headers.get('content-type');
     let data;
@@ -185,7 +187,14 @@ async function fetchAPI(endpoint, options = {}) {
     }
     if (error.message && error.message.includes('Timeout')) {
       const backendUrl = API_BASE_URL;
-      throw new Error(`Timeout: Il server non risponde entro 10 secondi. Verifica che il backend sia in esecuzione su ${backendUrl}`);
+      // No mostrar error de timeout en cada polling, solo loguear
+      const isSensorEndpoint = endpoint.includes('/sensor/');
+      if (!isSensorEndpoint) {
+        throw new Error(`Timeout: Il server non risponde entro 15 secondi. Verifica che il backend sia in esecuzione su ${backendUrl}`);
+      }
+      // Para endpoints del sensor, solo loguear silenciosamente
+      console.warn(`[Polling] Timeout en ${endpoint}, reintentando...`);
+      throw error; // Re-lanzar para que el componente maneje el error silenciosamente
     }
     console.error('Errore API:', error);
     throw error;

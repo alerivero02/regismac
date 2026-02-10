@@ -209,7 +209,7 @@ const authLimiter = rateLimit({
   legacyHeaders: false,
   skipSuccessfulRequests: true, // No contar intentos exitosos
   skipFailedRequests: false, // Contar intentos fallidos
-  skip: () => disableRateLimit,
+  skip: (req) => disableRateLimit || req.path.startsWith('/api/sensor'), // Excluir rutas del sensor
   handler: (req, res) => {
     logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
       ip: req.ip,
@@ -246,10 +246,13 @@ const strictLimiter = rateLimit({
   }
 });
 
-// Sensor: límite alto para polling (frontend) y envío ESP32 en tiempo real
+// Sensor: límite muy alto para polling (frontend) y envío ESP32 en tiempo real
+// Con polling cada 2 segundos = 30 req/min por usuario
+// Permitimos hasta 10 usuarios simultáneos con polling activo = 300 req/min
+// Más margen para ESP32 y otros usuarios = 600 req/min
 const sensorLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
-  max: 1200, // ~20 req/s por IP (polling 100ms + ESP32 200ms)
+  max: isDevelopment ? 3600 : 1800, // ~30-60 req/s por IP (muy permisivo para polling frecuente)
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => disableRateLimit,
@@ -269,12 +272,16 @@ const sensorLimiter = rateLimit({
 });
 
 if (!disableRateLimit) {
+  // IMPORTANTE: Orden de aplicación de rate limiters
+  // 1. Sensor limiter primero (más permisivo, específico para polling)
   app.use('/api/sensor', sensorLimiter);
-  app.use('/api/', generalLimiter);
+  // 2. Auth limiter (solo para rutas de autenticación, excluye sensor)
   app.use('/api/auth/', authLimiter);
   app.use('/api/usuarios/login', authLimiter);
   app.use('/api/usuarios/registro', authLimiter);
-  // Rate limiting estricto para endpoints administrativos
+  // 3. General limiter (excluye sensor y auth)
+  app.use('/api/', generalLimiter);
+  // 4. Rate limiting estricto para endpoints administrativos
   app.use('/api/usuarios', strictLimiter);
   app.use('/api/admin', strictLimiter);
 }

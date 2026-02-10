@@ -77,6 +77,30 @@ if (isProduction) {
         console.error('stderr:', errorStderr);
       }
       
+      // Si las migraciones fallan, intentar db push como fallback
+      // Esto crea las tablas directamente desde el schema
+      console.error('⚠️  Intentando crear tablas con prisma db push como fallback...');
+      try {
+        execSync('npx prisma db push --accept-data-loss', {
+          stdio: 'pipe',
+          cwd: join(__dirname, '..'),
+          env: { ...process.env }
+        });
+        console.log('✅ Tablas creadas con prisma db push');
+      } catch (dbPushError) {
+        const dbPushMessage = dbPushError.message || String(dbPushError);
+        const dbPushOutput = dbPushError.stdout ? dbPushError.stdout.toString() : '';
+        const dbPushStderr = dbPushError.stderr ? dbPushError.stderr.toString() : '';
+        
+        console.error('❌ Error al crear tablas con db push:', dbPushMessage);
+        if (dbPushOutput) {
+          console.error('db push stdout:', dbPushOutput);
+        }
+        if (dbPushStderr) {
+          console.error('db push stderr:', dbPushStderr);
+        }
+      }
+      
       if (error.message && error.message.includes('P3019')) {
         try {
           const migrationsDir = join(__dirname, '..', 'prisma', 'migrations');

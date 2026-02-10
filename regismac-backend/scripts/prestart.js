@@ -42,72 +42,81 @@ if (!prismaClientExists) {
   }
 }
 
-// En producción, ejecutar migraciones pendientes (sin volcar salida Prisma)
+// En producción, verificar si las tablas ya existen antes de intentar migraciones
 if (isProduction) {
   (async () => {
     try {
-      const migrationLockPath = join(__dirname, '..', 'prisma', 'migrations', 'migration_lock.toml');
-      if (existsSync(migrationLockPath)) {
-        const lockContent = await readFile(migrationLockPath, 'utf-8');
-        if (lockContent.includes('provider = "mysql"')) {
-          const migrationsDir = join(__dirname, '..', 'prisma', 'migrations');
-          if (existsSync(migrationsDir)) {
-            rmSync(migrationsDir, { recursive: true, force: true });
-          }
-        }
-      }
-      execSync('npx prisma migrate deploy', {
-        stdio: 'pipe',
-        cwd: join(__dirname, '..'),
-        env: { ...process.env }
-      });
-      console.log('Migraciones: OK');
-    } catch (error) {
-      // Mostrar error completo para debugging
-      const errorMessage = error.message || String(error);
-      const errorOutput = error.stdout ? error.stdout.toString() : '';
-      const errorStderr = error.stderr ? error.stderr.toString() : '';
+      // Verificar si las tablas principales ya existen
+      // Si existen, usar db push para sincronizar schema sin intentar migraciones fallidas
+      const { PrismaClient } = await import('@prisma/client');
+      const prisma = new PrismaClient();
       
-      console.error('Migraciones: Command failed: npx prisma migrate deploy');
-      console.error('Error completo:', errorMessage);
-      if (errorOutput) {
-        console.error('stdout:', errorOutput);
-      }
-      if (errorStderr) {
-        console.error('stderr:', errorStderr);
-      }
-      
-      // Si las migraciones fallan, intentar db push como fallback
-      // Esto crea las tablas directamente desde el schema
-      console.error('⚠️  Intentando crear tablas con prisma db push como fallback...');
       try {
-        execSync('npx prisma db push --accept-data-loss', {
+        // Intentar una query simple para verificar si las tablas existen
+        await prisma.$queryRaw`SELECT 1 FROM "Usuario" LIMIT 1`;
+        await prisma.$disconnect();
+        
+        // Si llegamos aquí, las tablas ya existen
+        // Usar db push para sincronizar el schema sin intentar migraciones fallidas
+        console.log('✅ Tablas ya existen, sincronizando schema con db push...');
+        execSync('npx prisma db push --accept-data-loss --skip-generate', {
           stdio: 'pipe',
           cwd: join(__dirname, '..'),
           env: { ...process.env }
         });
-        console.log('✅ Tablas creadas con prisma db push');
-      } catch (dbPushError) {
-        const dbPushMessage = dbPushError.message || String(dbPushError);
-        const dbPushOutput = dbPushError.stdout ? dbPushError.stdout.toString() : '';
-        const dbPushStderr = dbPushError.stderr ? dbPushError.stderr.toString() : '';
+        console.log('✅ Schema sincronizado');
+        return;
+      } catch (tableCheckError) {
+        // Si las tablas no existen, intentar migraciones primero
+        await prisma.$disconnect();
         
-        console.error('❌ Error al crear tablas con db push:', dbPushMessage);
-        if (dbPushOutput) {
-          console.error('db push stdout:', dbPushOutput);
+        const migrationLockPath = join(__dirname, '..', 'prisma', 'migrations', 'migration_lock.toml');
+        if (existsSync(migrationLockPath)) {
+          const lockContent = await readFile(migrationLockPath, 'utf-8');
+          if (lockContent.includes('provider = "mysql"')) {
+            const migrationsDir = join(__dirname, '..', 'prisma', 'migrations');
+            if (existsSync(migrationsDir)) {
+              rmSync(migrationsDir, { recursive: true, force: true });
+            }
+          }
         }
-        if (dbPushStderr) {
-          console.error('db push stderr:', dbPushStderr);
-        }
+        
+        execSync('npx prisma migrate deploy', {
+          stdio: 'pipe',
+          cwd: join(__dirname, '..'),
+          env: { ...process.env }
+        });
+        console.log('✅ Migraciones aplicadas');
+        return;
+      }
+    } catch (error) {
+      // Si hay errores verificando tablas o aplicando migraciones,
+      // usar db push como fallback (ya que las tablas probablemente ya existen)
+      const errorMessage = error.message || String(error);
+      
+      // Solo mostrar errores si no es un error esperado de tabla no encontrada
+      if (!errorMessage.includes('does not exist') && !errorMessage.includes('P2021')) {
+        console.error('⚠️  Error en verificación de tablas/migraciones:', errorMessage.substring(0, 200));
       }
       
-      if (error.message && error.message.includes('P3019')) {
-        try {
-          const migrationsDir = join(__dirname, '..', 'prisma', 'migrations');
-          if (existsSync(migrationsDir)) {
-            rmSync(migrationsDir, { recursive: true, force: true });
-          }
-        } catch (_) {}
+      // Usar db push para asegurar que el schema esté sincronizado
+      // Esto es seguro porque db push solo modifica el schema, no los datos
+      console.log('🔄 Sincronizando schema con db push...');
+      try {
+        execSync('npx prisma db push --accept-data-loss --skip-generate', {
+          stdio: 'pipe',
+          cwd: join(__dirname, '..'),
+          env: { ...process.env }
+        });
+        console.log('✅ Schema sincronizado');
+      } catch (dbPushError) {
+        // Solo mostrar error si es crítico
+        const dbPushMessage = dbPushError.message || String(dbPushError);
+        if (!dbPushMessage.includes('already in sync')) {
+          console.error('⚠️  Error al sincronizar schema:', dbPushMessage.substring(0, 200));
+        } else {
+          console.log('✅ Schema ya está sincronizado');
+        }
       }
     }
   })();

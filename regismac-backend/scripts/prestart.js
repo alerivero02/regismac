@@ -63,6 +63,20 @@ if (isProduction) {
       });
       console.log('Migraciones: OK');
     } catch (error) {
+      // Mostrar error completo para debugging
+      const errorMessage = error.message || String(error);
+      const errorOutput = error.stdout ? error.stdout.toString() : '';
+      const errorStderr = error.stderr ? error.stderr.toString() : '';
+      
+      console.error('Migraciones: Command failed: npx prisma migrate deploy');
+      console.error('Error completo:', errorMessage);
+      if (errorOutput) {
+        console.error('stdout:', errorOutput);
+      }
+      if (errorStderr) {
+        console.error('stderr:', errorStderr);
+      }
+      
       if (error.message && error.message.includes('P3019')) {
         try {
           const migrationsDir = join(__dirname, '..', 'prisma', 'migrations');
@@ -71,7 +85,6 @@ if (isProduction) {
           }
         } catch (_) {}
       }
-      console.error('Migraciones:', error.message?.split('\n')[0] || 'error');
     }
   })();
 }

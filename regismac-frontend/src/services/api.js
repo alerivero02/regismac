@@ -24,7 +24,7 @@ export const getApiBaseUrl = () => {
     }
     
     // En producción, usar el mismo origen (frontend y backend en el mismo dominio)
-    if (hostname.includes('vercel.app') || hostname.includes('netlify.app') || hostname.includes('onrender.com') || hostname.includes('railway.app') || hostname.includes('up.railway.app')) {
+    if (hostname.includes('vercel.app') || hostname.includes('netlify.app') || hostname.includes('onrender.com') || hostname.includes('railway.app') || hostname.includes('up.railway.app') || hostname === 'regismac.site' || hostname.endsWith('.regismac.site')) {
       return window.location.origin;
     }
     

@@ -23,7 +23,8 @@ export const getApiBaseUrl = () => {
       return import.meta.env.VITE_API_URL || 'http://localhost:3000';
     }
     
-    if (hostname.includes('vercel.app') || hostname.includes('netlify.app') || hostname.includes('onrender.com')) {
+    // En producción, usar el mismo origen (frontend y backend en el mismo dominio)
+    if (hostname.includes('vercel.app') || hostname.includes('netlify.app') || hostname.includes('onrender.com') || hostname.includes('railway.app') || hostname.includes('up.railway.app')) {
       return window.location.origin;
     }
     
@@ -34,6 +35,16 @@ export const getApiBaseUrl = () => {
     if (import.meta.env.VITE_API_URL) {
       return import.meta.env.VITE_API_URL;
     }
+    
+    // En producción, por defecto usar el mismo origen
+    if (window.location.protocol === 'https:') {
+      return window.location.origin;
+    }
+  }
+  
+  // Fallback: en desarrollo localhost, en producción mismo origen
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    return window.location.origin;
   }
   
   return 'http://localhost:3000';

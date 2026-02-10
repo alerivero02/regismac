@@ -47,6 +47,7 @@ export default function Test() {
   const [modoManual, setModoManual] = useState(true);
   
   const [showESP32Modal, setShowESP32Modal] = useState(false);
+  const showESP32ModalRef = useRef(showESP32Modal);
   const [esp32Estado, setEsp32Estado] = useState(null);
   const [esp32PollingInterval, setEsp32PollingInterval] = useState(null);
   const [testESP32Activo, setTestESP32Activo] = useState(false);
@@ -404,8 +405,8 @@ export default function Test() {
     socketInstance.on('connect', handleConnect);
     
     const handleSensorUpdate = (data) => {
-      // Solo procesar actualizaciones si el modal está abierto
-      if (!showESP32Modal) {
+      // Solo procesar actualizaciones si el modal está abierto (usar ref para valor actual)
+      if (!showESP32ModalRef.current) {
         return;
       }
       
@@ -471,10 +472,15 @@ export default function Test() {
     onSensorUpdate(handleSensorUpdate);
     
     return () => {
+      // Remover listener cuando el modal se cierra o el componente se desmonta
       offSensorUpdate(handleSensorUpdate);
       socketInstance.off('connect', handleConnect);
       // NO desconectar el socket aquí, solo remover el listener
       // El socket debe permanecer conectado para otros componentes
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.log('[WebSocket] 🧹 Listener removido - modal cerrado o componente desmontado');
+      }
     };
   }, [showNotification, esp32PollingInterval, showESP32Modal]);
 
@@ -491,6 +497,9 @@ export default function Test() {
   }, [esp32PollingInterval]);
 
   useEffect(() => {
+    // Actualizar ref cuando cambia el estado del modal
+    showESP32ModalRef.current = showESP32Modal;
+    
     if (!showESP32Modal) {
       // Detener polling cuando el modal se cierra
       if (esp32PollingInterval) {
@@ -500,6 +509,7 @@ export default function Test() {
       // Limpiar estados relacionados para evitar conflictos
       // No limpiar esp32Estado completamente porque puede contener datos útiles
       // Solo detener las actualizaciones activas
+      // El listener del WebSocket se removerá automáticamente por el cleanup del useEffect anterior
       return;
     }
     

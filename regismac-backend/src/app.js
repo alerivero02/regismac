@@ -248,20 +248,32 @@ const strictLimiter = rateLimit({
 
 // Sensor: límite muy alto para polling (frontend) y envío ESP32 en tiempo real
 // Con polling cada 2 segundos = 30 req/min por usuario
-// Permitimos hasta 10 usuarios simultáneos con polling activo = 300 req/min
-// Más margen para ESP32 y otros usuarios = 600 req/min
+// Permitimos hasta 20 usuarios simultáneos con polling activo = 600 req/min
+// Más margen para ESP32, código legacy (100ms polling), y otros usuarios = 3600 req/min
+// Usar keyGenerator basado en sesión si está autenticado, sino IP
 const sensorLimiter = rateLimit({
   windowMs: 1 * 60 * 1000, // 1 minuto
-  max: isDevelopment ? 3600 : 1800, // ~30-60 req/s por IP (muy permisivo para polling frecuente)
+  max: isDevelopment ? 7200 : 3600, // ~60-120 req/s por IP/sesión (muy permisivo)
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => disableRateLimit,
+  // Usar sesión del usuario si está autenticado, sino IP
+  keyGenerator: (req) => {
+    // Si el usuario está autenticado, usar su sesión ID para rate limiting por usuario
+    // Esto permite que múltiples usuarios desde la misma IP no se bloqueen entre sí
+    if (req.session && req.session.id) {
+      return `sensor:${req.session.id}`;
+    }
+    // Si no hay sesión, usar IP (para ESP32 que envía datos sin autenticación)
+    return `sensor:${req.ip}`;
+  },
   handler: (req, res) => {
     logSecurityEvent(SecurityEventType.RATE_LIMIT_EXCEEDED, {
       ip: req.ip,
       path: req.path,
       method: req.method,
-      type: 'sensor'
+      type: 'sensor',
+      sessionId: req.session?.id || 'no-session'
     });
     res.status(429).json({
       error: 'Troppi tentativi',

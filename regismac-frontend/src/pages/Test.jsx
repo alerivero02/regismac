@@ -264,79 +264,6 @@ export default function Test() {
     };
   }, [showESP32Modal, testESP32Activo]);
 
-  const iniciarTestESP32 = async () => {
-    try {
-      await sensorAPI.iniciarTest(esp32Estado.temperatura);
-      setTestESP32Activo(true);
-      // Guardar la fecha y hora de inicio del test
-      setFechaHoraInicioTestESP32(new Date().toISOString());
-      showNotification('Test iniciado. Monitoreando temperatura...', 'success');
-    } catch (error) {
-      showNotification(error.message || 'Error al iniciar el test', 'error');
-    }
-  };
-
-  const finalizarTestESP32 = async () => {
-    try {
-      // Validar que se haya seleccionado una máquina
-      if (!selectedMaquina) {
-        showNotification('Selecciona una máquina antes de finalizar el test', 'error');
-        return;
-      }
-
-      // Validar que se haya seleccionado un técnico
-      if (!formData.tecnicoId) {
-        showNotification('Selecciona un técnico antes de finalizar el test', 'error');
-        return;
-      }
-
-      const resultado = await sensorAPI.finalizarTest();
-      setTestESP32Activo(false);
-      // Detener el polling explícitamente
-      if (esp32PollingInterval) {
-        clearInterval(esp32PollingInterval);
-        setEsp32PollingInterval(null);
-      }
-      
-      if (resultado.resultado.tiempo0Grados && resultado.resultado.tiempoMenos8Grados) {
-        // Reproducir alarma sonora cuando se alcanza -8°C
-        reproducirAlarmaSonora();
-      }
-    } catch (error) {
-      console.error('Error al finalizar test ESP32:', error);
-      showNotification(error.message || 'Error al finalizar el test', 'error');
-      setTestESP32Activo(false);
-      setFechaHoraInicioTestESP32(null);
-      // Detener el polling explícitamente incluso si hay error
-      if (esp32PollingInterval) {
-        clearInterval(esp32PollingInterval);
-        setEsp32PollingInterval(null);
-      }
-    }
-  };
-
-  const cancelarTestESP32 = async () => {
-    try {
-      await sensorAPI.cancelarTest();
-      setTestESP32Activo(false);
-      setFechaHoraInicioTestESP32(null);
-      // Detener el polling explícitamente
-      if (esp32PollingInterval) {
-        clearInterval(esp32PollingInterval);
-        setEsp32PollingInterval(null);
-      }
-      showNotification('Test cancelado', 'info');
-    } catch (error) {
-      showNotification(error.message || 'Error al cancelar el test', 'error');
-      // Asegurar que el polling se detenga incluso si hay error
-      setTestESP32Activo(false);
-      if (esp32PollingInterval) {
-        clearInterval(esp32PollingInterval);
-        setEsp32PollingInterval(null);
-      }
-    }
-  };
-
   const loadCurrentUser = async () => {
     try {
       const user = await authAPI.getCurrentUser();
@@ -927,6 +854,11 @@ export default function Test() {
       setTestESP32Activo(false);
       testESP32ActivoRef.current = false;
       alarmaMenos8ActivadaRef.current = false; // Resetear alarma al finalizar test
+      // Detener el polling explícitamente
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
       
       // Guardar SIEMPRE el test, incluso si no se alcanzaron todas las temperaturas objetivo
       const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
@@ -1028,10 +960,15 @@ export default function Test() {
       testESP32ActivoRef.current = false;
       alarmaMenos8ActivadaRef.current = false; // Resetear alarma en caso de error
       setFechaHoraInicioTestESP32(null);
+      // Detener el polling explícitamente incluso si hay error
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, selectedMaquina, formData, fechaHoraInicioTestESP32, showNotification]);
+  }, [isSubmitting, selectedMaquina, formData, fechaHoraInicioTestESP32, showNotification, esp32PollingInterval]);
 
   const cancelarTestESP32 = useCallback(async () => {
     try {
@@ -1058,11 +995,23 @@ export default function Test() {
       setTiempoTranscurridoDisplay('0:00');
       setIsIniciandoTest(false);
       
+      // Detener el polling explícitamente
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
+      
       showNotification('Test cancelado', 'info');
     } catch (error) {
       showNotification(error.message || 'Error al cancelar el test', 'error');
+      // Asegurar que el polling se detenga incluso si hay error
+      setTestESP32Activo(false);
+      if (esp32PollingInterval) {
+        clearInterval(esp32PollingInterval);
+        setEsp32PollingInterval(null);
+      }
     }
-  }, [showNotification]);
+  }, [showNotification, esp32PollingInterval]);
 
 
   const startTimer = useCallback(() => {

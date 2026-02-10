@@ -2,10 +2,13 @@
 nixPkgs = ["nodejs-18_x", "npm"]
 
 [phases.install]
-cmds = ["rm -f package-lock.json", "npm install"]
+cmds = ["rm -f package-lock.json", "npm install --legacy-peer-deps"]
 
 [phases.build]
 cmds = ["npm run build:render"]
 
 [start]
 cmd = "npm start"
+
+[variables]
+NPM_CONFIG_LEGACY_PEER_DEPS = "true"

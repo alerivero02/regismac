@@ -265,7 +265,7 @@ const sensorLimiter = rateLimit({
   legacyHeaders: false,
   skip: () => disableRateLimit,
   // Desactivar validación de IPv6 ya que usamos keyGenerator personalizado con sesión
-  validate: { ipAddress: false },
+  validate: { keyGeneratorIpFallback: false },
   // Usar sesión del usuario si está autenticado, sino IP
   keyGenerator: (req) => {
     if (req.session && req.session.id) {

@@ -455,7 +455,9 @@ export default function Test() {
 
         if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
           const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
-          if (tiempo0GradosRef.current === null && tempRef >= -0.5 && tempRef <= 0.5) {
+          // Para registro de 0°C y -8°C, usar sensor D2 (serbatoio) directamente, sin promediar
+          const tempD2Ref = tempD2 !== null && !isNaN(tempD2) ? tempD2 : tempRef;
+          if (tiempo0GradosRef.current === null && tempD2Ref >= -0.5 && tempD2Ref <= 0.5) {
             tiempo0GradosRef.current = tiempoTranscurrido;
             const minutos0 = Math.floor(tiempoTranscurrido / 60);
             const segundos0 = tiempoTranscurrido % 60;
@@ -463,9 +465,9 @@ export default function Test() {
               ...prev,
               tiempo_0_manual: `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`,
             }));
-            showNotification(`✅ Temperatura 0°C detectada`, 'success');
+            showNotification(`✅ Temperatura 0°C detectada (D2: ${tempD2Ref.toFixed(1)}°C)`, 'success');
           }
-          if (tiempoMenos8GradosRef.current === null && tempRef >= -8.5 && tempRef <= -7.5) {
+          if (tiempoMenos8GradosRef.current === null && tempD2Ref >= -8.5 && tempD2Ref <= -7.5) {
             tiempoMenos8GradosRef.current = tiempoTranscurrido;
             const minutosMenos8 = Math.floor(tiempoTranscurrido / 60);
             const segundosMenos8 = tiempoTranscurrido % 60;
@@ -473,9 +475,9 @@ export default function Test() {
               ...prev,
               tiempo_meno8_manual: `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`,
             }));
-            showNotification(`✅ Temperatura -8°C detectada`, 'success');
+            showNotification(`✅ Temperatura -8°C detectada (D2: ${tempD2Ref.toFixed(1)}°C)`, 'success');
           }
-          if (tempRef <= -8.0 && !alarmaMenos8ActivadaRef.current) {
+          if (tempD2Ref <= -8.0 && !alarmaMenos8ActivadaRef.current) {
             alarmaMenos8ActivadaRef.current = true;
             reproducirAlarmaSonora();
             showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');

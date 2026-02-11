@@ -407,8 +407,8 @@ void enviarDatos() {
   Serial.print(okD4 ? String(tempD4, 2) : "ERR");
   Serial.print("Ã‚Â°C | ");
 
-  // JSON: temperatura = promedio o D2 si solo uno vÃƒÂ¡lido (compatibilidad); temperatura_d2 y temperatura_d4
-  float temperatura = okD2 && okD4 ? (tempD2 + tempD4) / 2.0f : (okD2 ? tempD2 : tempD4);
+  // JSON: temperatura = D2 (serbatoio) directamente, sin promediar con D4; temperatura_d2 y temperatura_d4
+  float temperatura = okD2 ? tempD2 : tempD4;
   String jsonData = "{";
   jsonData += "\"temperatura\":" + String(temperatura, 2);
   jsonData += ",\"temperatura_d2\":" + String(okD2 ? tempD2 : -999, 2);

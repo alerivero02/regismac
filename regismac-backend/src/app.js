@@ -264,14 +264,13 @@ const sensorLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => disableRateLimit,
+  // Desactivar validación de IPv6 ya que usamos keyGenerator personalizado con sesión
+  validate: { ipAddress: false },
   // Usar sesión del usuario si está autenticado, sino IP
   keyGenerator: (req) => {
-    // Si el usuario está autenticado, usar su sesión ID para rate limiting por usuario
-    // Esto permite que múltiples usuarios desde la misma IP no se bloqueen entre sí
     if (req.session && req.session.id) {
       return `sensor:${req.session.id}`;
     }
-    // Si no hay sesión, usar IP (para ESP32 que envía datos sin autenticación)
     return `sensor:${req.ip}`;
   },
   handler: (req, res) => {

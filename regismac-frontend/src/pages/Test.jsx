@@ -659,13 +659,13 @@ export default function Test() {
               timestamp: timestamp
             }));
               
-              if (tempRef <= -8.0 && !alarmaMenos8ActivadaRef.current) {
-                alarmaMenos8ActivadaRef.current = true;
-                reproducirAlarmaSonora();
-                showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
-              } else if (tempRef > -8.0 && alarmaMenos8ActivadaRef.current) {
-                alarmaMenos8ActivadaRef.current = false;
-              }
+            if (tempRef <= -8.0 && !alarmaMenos8ActivadaRef.current) {
+              alarmaMenos8ActivadaRef.current = true;
+              reproducirAlarmaSonora();
+              showNotification(`🔔 ALARMA: Temperatura alcanzó -8°C!`, 'error');
+            } else if (tempRef > -8.0 && alarmaMenos8ActivadaRef.current) {
+              alarmaMenos8ActivadaRef.current = false;
+            }
           }
           
           // Actualizar estado completo del sensor (incluyendo testActivo, tiempos, etc.)
@@ -676,235 +676,211 @@ export default function Test() {
             temperatura_d2: tempD2 !== null ? tempD2 : (estado.temperatura_d2 !== undefined && estado.temperatura_d2 !== null ? estado.temperatura_d2 : prev?.temperatura_d2),
             temperatura_d4: tempD4 !== null ? tempD4 : (estado.temperatura_d4 !== undefined && estado.temperatura_d4 !== null ? estado.temperatura_d4 : prev?.temperatura_d4),
           }));
+        
+          // Actualizar temperatura inicial cuando se inicia el test
+          if (estado.testActivo && estado.temperaturaInicial && !formData.temperatura_iniziale) {
+            setFormData(prev => ({
+              ...prev,
+              temperatura_iniziale: estado.temperaturaInicial.toString(),
+            }));
+          }
           
-          const isDev = import.meta.env.DEV;
-          if (isDev) {
-            console.log('[Test] Estado del sensor obtenido vía polling (fallback):', estado);
+          // Actualizar cuando se detecta 0°C
+          if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempo0Grados !== undefined) {
+            const minutos0 = Math.floor(estado.tiempo0Grados / 60);
+            const segundos0 = estado.tiempo0Grados % 60;
+            const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+            
+            setFormData(prev => {
+              if (prev.tiempo_0_manual !== tiempo0Formato) {
+                showNotification(`✅ Temperatura 0°C detectada en ${tiempo0Formato}`, 'success');
+                return {
+                  ...prev,
+                  tiempo_0_manual: tiempo0Formato,
+                };
+              }
+              return prev;
+            });
+          }
+          
+          // Actualizar cuando se detecta -8°C
+          if (estado.testActivo && estado.tiempoMenos8Grados !== null && estado.tiempoMenos8Grados !== undefined) {
+            const minutosMenos8 = Math.floor(estado.tiempoMenos8Grados / 60);
+            const segundosMenos8 = estado.tiempoMenos8Grados % 60;
+            const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+            
+            setFormData(prev => {
+              if (prev.tiempo_meno8_manual !== tiempoMenos8Formato) {
+                showNotification(`✅ Temperatura -8°C detectada en ${tiempoMenos8Formato}`, 'success');
+                return {
+                  ...prev,
+                  tiempo_meno8_manual: tiempoMenos8Formato,
+                };
+              }
+              return prev;
+            });
           }
         
-        // Actualizar temperatura inicial cuando se inicia el test
-        if (estado.testActivo && estado.temperaturaInicial && !formData.temperatura_iniziale) {
-          setFormData(prev => ({
-            ...prev,
-            temperatura_iniziale: estado.temperaturaInicial.toString(),
-          }));
-        }
-        
-        // Actualizar cuando se detecta 0°C
-        if (estado.testActivo && estado.tiempo0Grados !== null && estado.tiempo0Grados !== undefined) {
-          const minutos0 = Math.floor(estado.tiempo0Grados / 60);
-          const segundos0 = estado.tiempo0Grados % 60;
-          const tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+          // Cuando ambas temperaturas están detectadas, guardar automáticamente
+          if (estado.testActivo && 
+              estado.tiempo0Grados !== null && 
+              estado.tiempoMenos8Grados !== null &&
+              selectedMaquina &&
+              formData.tecnicoId &&
+              !isSubmitting &&
+              !autoSaveRef.current) {
+            // Marcar que ya estamos guardando para evitar múltiples guardados
+            autoSaveRef.current = true;
+            
+            // Esperar 3 segundos antes de guardar automáticamente
+            setTimeout(async () => {
+              try {
+                const resultado = await sensorAPI.finalizarTest();
+                
+                const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
+                
+                let tiempo0Formato = null;
+                let tiempoMenos8Formato = null;
+                
+                if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempo0Grados !== undefined) {
+                  const minutos0 = Math.floor(resultado.resultado.tiempo0Grados / 60);
+                  const segundos0 = resultado.resultado.tiempo0Grados % 60;
+                  tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+                }
+                
+                if (resultado.resultado.tiempoMenos8Grados !== null && resultado.resultado.tiempoMenos8Grados !== undefined) {
+                  const minutosMenos8 = Math.floor(resultado.resultado.tiempoMenos8Grados / 60);
+                  const segundosMenos8 = resultado.resultado.tiempoMenos8Grados % 60;
+                  tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+                }
+                
+                let temperaturaFinal = null;
+                if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
+                  if (temperaturaActual !== null && temperaturaActual !== undefined) {
+                    temperaturaFinal = temperaturaActual;
+                  } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
+                    temperaturaFinal = esp32Estado.temperatura;
+                  } else if (resultado.resultado.temperaturaInicial !== null && resultado.resultado.temperaturaInicial !== undefined) {
+                    temperaturaFinal = resultado.resultado.temperaturaInicial;
+                  }
+                }
+                
+                let observacionesFinal = formData.observazioni || '';
+                if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
+                  const temperaturasNoAlcanzadas = [];
+                  if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
+                  if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
+                  const nota = `Test completato senza raggiungere le temperature obiettivo (${temperaturasNoAlcanzadas.join(', ')}). `;
+                  observacionesFinal = nota + (observacionesFinal || '');
+                  if (temperaturaFinal !== null && temperaturaFinal !== undefined) {
+                    observacionesFinal += `Temperatura al momento della finalizzazione: ${temperaturaFinal.toFixed(1)}°C.`;
+                  }
+                }
+                
+                const dataToSend = {
+                  maquinaId: parseInt(selectedMaquina),
+                  tecnicoId: parseInt(formData.tecnicoId),
+                  temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
+                  temperatura_final: temperaturaFinal !== null && temperaturaFinal !== undefined ? temperaturaFinal : undefined,
+                  tiempo_0_gradi: resultado.resultado.tiempo0Grados || undefined,
+                  tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados || undefined,
+                  humedad_ambiente: resultado.resultado.humedad || undefined,
+                  regolazione_vite: formData.regolazione_vite || undefined,
+                  quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
+                  observazioni: formData.observazioni || 
+                    (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null
+                      ? 'Test completado sin alcanzar todas las temperaturas objetivo. ' + (formData.observazioni || '')
+                      : formData.observazioni) || undefined,
+                  hora_test: fechaHoraTest,
+                };
+
+                await testsAPI.create(dataToSend);
+                
+                const testsActualizados = await testsAPI.getAll();
+                setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
+                
+                setFormData(prev => ({
+                  ...prev,
+                  temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
+                  tiempo_0_manual: tiempo0Formato || prev.tiempo_0_manual,
+                  tiempo_meno8_manual: tiempoMenos8Formato || prev.tiempo_meno8_manual,
+                  humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
+                }));
+                
+                setTestESP32Activo(false);
+                testESP32ActivoRef.current = false;
+                alarmaMenos8ActivadaRef.current = false;
+                setFechaHoraInicioTestESP32(null);
+                setShowESP32Modal(false);
+                autoSaveRef.current = false;
+                
+                if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempoMenos8Grados !== null) {
+                  showNotification('✅ Test completado y guardado automáticamente!', 'success');
+                } else {
+                  const temperaturasNoAlcanzadas = [];
+                  if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
+                  if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
+                  showNotification(`✅ Test guardado automáticamente. Temperaturas no alcanzadas: ${temperaturasNoAlcanzadas.join(', ')}`, 'info');
+                }
+              } catch (autoSaveError) {
+                const isDev = import.meta.env.DEV;
+                if (isDev) {
+                  console.error('Error al guardar test automáticamente:', autoSaveError);
+                }
+                autoSaveRef.current = false;
+                showNotification('Error al guardar test automáticamente. Puedes guardarlo manualmente.', 'error');
+              }
+            }, 3000);
+          }
+        } catch (error) {
+          erroresConsecutivos++;
           
-          setFormData(prev => {
-            if (prev.tiempo_0_manual !== tiempo0Formato) {
-              showNotification(`✅ Temperatura 0°C detectada en ${tiempo0Formato}`, 'success');
-              return {
-                ...prev,
-                tiempo_0_manual: tiempo0Formato,
-              };
-            }
-            return prev;
-          });
-        }
-        
-        // Actualizar cuando se detecta -8°C
-        if (estado.testActivo && estado.tiempoMenos8Grados !== null && estado.tiempoMenos8Grados !== undefined) {
-          const minutosMenos8 = Math.floor(estado.tiempoMenos8Grados / 60);
-          const segundosMenos8 = estado.tiempoMenos8Grados % 60;
-          const tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+          // Silenciar errores 401/403
+          if (error.status === 401 || error.status === 403) {
+            return;
+          }
           
-          setFormData(prev => {
-            if (prev.tiempo_meno8_manual !== tiempoMenos8Formato) {
-              showNotification(`✅ Temperatura -8°C detectada en ${tiempoMenos8Formato}`, 'success');
-              return {
-                ...prev,
-                tiempo_meno8_manual: tiempoMenos8Formato,
-              };
+          // Silenciar timeouts con backoff exponencial
+          const esTimeout = error.message?.includes('Timeout') || 
+                           error.message?.includes('timeout') || 
+                           error.message?.includes('Il server non risponde');
+          
+          if (esTimeout) {
+            if (erroresConsecutivos >= maxErroresConsecutivos) {
+              const nuevoIntervalo = Math.min(intervaloActual * 2, 30000);
+              if (nuevoIntervalo !== intervaloActual) {
+                intervaloActual = nuevoIntervalo;
+                clearInterval(interval);
+                setEsp32PollingInterval(null);
+                setTimeout(() => {
+                  verificarYConfigurarPolling();
+                }, nuevoIntervalo);
+                return;
+              }
             }
-            return prev;
-          });
-        }
-      } catch (error) {
-        erroresConsecutivos++;
-        
-        // Silenciar completamente los errores de timeout - son esperados cuando el servidor está lento
-        const esTimeout = error.message?.includes('Timeout') || 
-                         error.message?.includes('timeout') || 
-                         error.message?.includes('Il server non risponde');
-        
-        if (esTimeout) {
-          // Si hay muchos timeouts consecutivos, aumentar el intervalo de polling (backoff exponencial)
+            return;
+          }
+          
+          // Otros errores: loguear solo en desarrollo
+          const isDev = import.meta.env.DEV;
+          if (isDev && erroresConsecutivos <= 1) {
+            console.warn('[Polling] Error al obtener estado:', error.message);
+          }
+          
           if (erroresConsecutivos >= maxErroresConsecutivos) {
-            const nuevoIntervalo = Math.min(intervaloActual * 2, 30000); // Máximo 30 segundos
+            const nuevoIntervalo = Math.min(intervaloActual * 2, 30000);
             if (nuevoIntervalo !== intervaloActual) {
               intervaloActual = nuevoIntervalo;
               clearInterval(interval);
               setEsp32PollingInterval(null);
-              // Reiniciar polling con nuevo intervalo
               setTimeout(() => {
                 verificarYConfigurarPolling();
               }, nuevoIntervalo);
               return;
             }
           }
-          // No loguear timeouts - son esperados cuando el servidor está lento o no disponible
-          return;
         }
-        
-        // Para otros errores, solo loguear en desarrollo y solo ocasionalmente
-        const isDev = import.meta.env.DEV;
-        if (isDev && erroresConsecutivos <= 1) {
-          console.warn('[Polling] Error al obtener estado:', error.message);
-        }
-        
-        // Si hay muchos errores consecutivos, aumentar el intervalo
-        if (erroresConsecutivos >= maxErroresConsecutivos) {
-          const nuevoIntervalo = Math.min(intervaloActual * 2, 30000);
-          if (nuevoIntervalo !== intervaloActual) {
-            intervaloActual = nuevoIntervalo;
-            clearInterval(interval);
-            setEsp32PollingInterval(null);
-            setTimeout(() => {
-              verificarYConfigurarPolling();
-            }, nuevoIntervalo);
-            return;
-          }
-        }
-      }
-        
-        // Cuando ambas temperaturas están detectadas, guardar automáticamente
-        if (estado.testActivo && 
-            estado.tiempo0Grados !== null && 
-            estado.tiempoMenos8Grados !== null &&
-            selectedMaquina &&
-            formData.tecnicoId &&
-            !isSubmitting &&
-            !autoSaveRef.current) {
-          // Marcar que ya estamos guardando para evitar múltiples guardados
-          autoSaveRef.current = true;
-          
-          // Esperar 3 segundos antes de guardar automáticamente para asegurar que los datos estén actualizados
-          setTimeout(async () => {
-            try {
-              const resultado = await sensorAPI.finalizarTest();
-              
-              // Guardar SIEMPRE el test, incluso si no se alcanzaron todas las temperaturas objetivo
-              const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
-              
-              // Formatear tiempos si están disponibles
-              let tiempo0Formato = null;
-              let tiempoMenos8Formato = null;
-              
-              if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempo0Grados !== undefined) {
-                const minutos0 = Math.floor(resultado.resultado.tiempo0Grados / 60);
-                const segundos0 = resultado.resultado.tiempo0Grados % 60;
-                tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
-              }
-              
-              if (resultado.resultado.tiempoMenos8Grados !== null && resultado.resultado.tiempoMenos8Grados !== undefined) {
-                const minutosMenos8 = Math.floor(resultado.resultado.tiempoMenos8Grados / 60);
-                const segundosMenos8 = resultado.resultado.tiempoMenos8Grados % 60;
-                tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
-              }
-              
-              // Obtener temperatura actual al momento de finalizar si no se alcanzaron las temperaturas objetivo
-              let temperaturaFinal = null;
-              if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
-                // Intentar obtener temperatura actual del sensor
-                if (temperaturaActual !== null && temperaturaActual !== undefined) {
-                  temperaturaFinal = temperaturaActual;
-                } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
-                  temperaturaFinal = esp32Estado.temperatura;
-                } else if (resultado.resultado.temperaturaInicial !== null && resultado.resultado.temperaturaInicial !== undefined) {
-                  // Si no hay temperatura actual, usar la inicial como referencia
-                  temperaturaFinal = resultado.resultado.temperaturaInicial;
-                }
-              }
-              
-              // Preparar observaciones: agregar nota si no se alcanzaron las temperaturas objetivo
-              let observacionesFinal = formData.observazioni || '';
-              if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
-                const temperaturasNoAlcanzadas = [];
-                if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
-                if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
-                const nota = `Test completato senza raggiungere le temperature obiettivo (${temperaturasNoAlcanzadas.join(', ')}). `;
-                observacionesFinal = nota + (observacionesFinal || '');
-                if (temperaturaFinal !== null && temperaturaFinal !== undefined) {
-                  observacionesFinal += `Temperatura al momento della finalizzazione: ${temperaturaFinal.toFixed(1)}°C.`;
-                }
-              }
-              
-              const dataToSend = {
-                maquinaId: parseInt(selectedMaquina),
-                tecnicoId: parseInt(formData.tecnicoId),
-                temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
-                temperatura_final: temperaturaFinal !== null && temperaturaFinal !== undefined ? temperaturaFinal : undefined,
-                tiempo_0_gradi: resultado.resultado.tiempo0Grados || undefined,
-                tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados || undefined,
-                humedad_ambiente: resultado.resultado.humedad || undefined,
-                regolazione_vite: formData.regolazione_vite || undefined,
-                quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
-                observazioni: formData.observazioni || 
-                  (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null
-                    ? 'Test completado sin alcanzar todas las temperaturas objetivo. ' + (formData.observazioni || '')
-                    : formData.observazioni) || undefined,
-                hora_test: fechaHoraTest,
-              };
-
-              await testsAPI.create(dataToSend);
-              
-              const testsActualizados = await testsAPI.getAll();
-              setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
-              
-              setFormData(prev => ({
-                ...prev,
-                temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
-                tiempo_0_manual: tiempo0Formato || prev.tiempo_0_manual,
-                tiempo_meno8_manual: tiempoMenos8Formato || prev.tiempo_meno8_manual,
-                humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
-              }));
-              
-              setTestESP32Activo(false);
-      testESP32ActivoRef.current = false;
-      alarmaMenos8ActivadaRef.current = false; // Resetear alarma al finalizar test automáticamente
-              setFechaHoraInicioTestESP32(null);
-              setShowESP32Modal(false);
-              autoSaveRef.current = false;
-              
-              // Mensaje según si se alcanzaron todas las temperaturas
-              if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempoMenos8Grados !== null) {
-                showNotification('✅ Test completado y guardado automáticamente!', 'success');
-              } else {
-                const temperaturasNoAlcanzadas = [];
-                if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
-                if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
-                showNotification(`✅ Test guardado automáticamente. Temperaturas no alcanzadas: ${temperaturasNoAlcanzadas.join(', ')}`, 'info');
-              }
-            } catch (error) {
-              const isDev = import.meta.env.DEV;
-              if (isDev) {
-                console.error('Error al guardar test automáticamente:', error);
-              }
-              autoSaveRef.current = false;
-              showNotification('Error al guardar test automáticamente. Puedes guardarlo manualmente.', 'error');
-            }
-          }, 3000);
-        }
-      } catch (error) {
-        // Silenciar errores 401/403 esperados cuando el usuario no está autenticado
-        if (error.status === 401 || error.status === 403) {
-          return;
-        }
-        // Manejar errores silenciosamente durante polling para evitar spam
-        if (!error.message?.includes('Timeout') && !error.message?.includes('timeout')) {
-          const isDev = import.meta.env.DEV;
-          if (isDev) {
-            console.warn('[Polling] Error no crítico:', error.message);
-          }
-        }
-      }
-    }, intervaloActual);
+      }, intervaloActual);
     
     setEsp32PollingInterval(interval);
     };

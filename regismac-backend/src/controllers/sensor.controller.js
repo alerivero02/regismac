@@ -19,17 +19,6 @@ let sensorState = {
 // Endpoint para que el ESP32 envíe datos de temperatura
 export const recibirDatosSensor = async (req, res, next) => {
   try {
-    // Log solo en desarrollo
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📡 recibirDatosSensor - Request recibido:', {
-      body: req.body,
-      headers: {
-        'content-type': req.headers['content-type'],
-        'origin': req.headers['origin'],
-        'user-agent': req.headers['user-agent']
-      }
-    });
-
     const { temperatura, temperatura_d2, temperatura_d4, humedad } = req.body;
 
     const temp = temperatura !== undefined && temperatura !== null ? parseFloat(temperatura) : null;
@@ -37,12 +26,10 @@ export const recibirDatosSensor = async (req, res, next) => {
     const tempD4 = temperatura_d4 !== undefined && temperatura_d4 !== null && temperatura_d4 !== -999 ? parseFloat(temperatura_d4) : null;
 
     if (temp === null && tempD2 === null && tempD4 === null) {
-      console.error('❌ recibirDatosSensor - Ninguna temperatura proporcionada');
       throw new ApiError("Al menos una temperatura es requerida (temperatura, temperatura_d2 o temperatura_d4)", 400);
     }
 
     const temperaturaFinal = temp !== null ? temp : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
-    console.log('✅ recibirDatosSensor - Datos válidos:', { temperatura: temperaturaFinal, temperatura_d2: tempD2, temperatura_d4: tempD4, humedad });
 
     // Actualizar estado del sensor
     sensorState.temperatura = temperaturaFinal;
@@ -51,47 +38,35 @@ export const recibirDatosSensor = async (req, res, next) => {
     sensorState.humedad = humedad ? parseFloat(humedad) : null;
     sensorState.timestamp = new Date();
 
-    console.log('✅ recibirDatosSensor - Estado actualizado:', {
-      temperatura: sensorState.temperatura,
-      temperatura_d2: sensorState.temperatura_d2,
-      temperatura_d4: sensorState.temperatura_d4,
-      humedad: sensorState.humedad,
-      timestamp: sensorState.timestamp.toISOString()
-    });
-
-    // Emitir actualización vía WebSocket
+    // Emitir actualización vía WebSocket (silencioso)
     try {
-      const updateData = {
+      emitSensorUpdate({
         temperatura: sensorState.temperatura,
         temperatura_d2: sensorState.temperatura_d2,
         temperatura_d4: sensorState.temperatura_d4,
         humedad: sensorState.humedad,
         timestamp: sensorState.timestamp.toISOString()
-      };
-      emitSensorUpdate(updateData);
-      console.log('✅ recibirDatosSensor - Actualización emitida vía WebSocket:', {
-        temperatura: updateData.temperatura,
-        timestamp: updateData.timestamp
       });
     } catch (wsError) {
-      console.error('⚠️ recibirDatosSensor - Error al emitir WebSocket:', wsError.message);
       // No fallar si WebSocket falla
     }
 
-    // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo (usamos temperatura promedio)
+    // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo
     const tempRef = sensorState.temperatura;
     if (sensorState.testActivo && sensorState.tiempoInicio && tempRef !== null) {
       const tiempoTranscurrido = Math.floor((Date.now() - sensorState.tiempoInicio) / 1000);
 
       if (sensorState.tiempo0Grados === null && tempRef >= -0.5 && tempRef <= 0.5) {
         sensorState.tiempo0Grados = tiempoTranscurrido;
+        console.log(`[Sensor] 0°C alcanzado en ${tiempoTranscurrido}s`);
       }
       if (sensorState.tiempoMenos8Grados === null && tempRef >= -8.5 && tempRef <= -7.5) {
         sensorState.tiempoMenos8Grados = tiempoTranscurrido;
+        console.log(`[Sensor] -8°C alcanzado en ${tiempoTranscurrido}s`);
       }
     }
 
-    const response = {
+    res.json({
       success: true,
       message: "Datos recibidos correctamente",
       estado: sensorState.testActivo ? {
@@ -100,14 +75,12 @@ export const recibirDatosSensor = async (req, res, next) => {
         tiempo0Grados: sensorState.tiempo0Grados,
         tiempoMenos8Grados: sensorState.tiempoMenos8Grados,
       } : null
-    };
-    
-    res.json(response);
-  } catch (err) {
-    console.error('❌ recibirDatosSensor - Error:', {
-      message: err.message,
-      stack: err.stack
     });
+  } catch (err) {
+    // Solo loguear errores reales, no datos del sensor
+    if (err.statusCode !== 400) {
+      console.error('[Sensor] Error:', err.message);
+    }
     next(err);
   }
 };

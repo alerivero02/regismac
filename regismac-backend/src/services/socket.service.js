@@ -38,27 +38,14 @@ export function initializeSocketIO(httpServer) {
   return io;
 }
 
-let ultimaEmisionRef = null;
-
 export function emitSensorUpdate(data) {
-  if (io) {
-    const tiempoEmision = Date.now();
-    const tiempoDesdeUltima = ultimaEmisionRef ? tiempoEmision - ultimaEmisionRef : 0;
-    ultimaEmisionRef = tiempoEmision;
-    
-    const horaEmision = new Date().toLocaleTimeString('es-ES', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', fractionalSecondDigits: 3 });
-    
-    // Obtener lista de sockets conectados de forma más confiable
-    const socketsArray = Array.from(io.sockets.sockets.values());
-    const clientesConectados = socketsArray.length;
-    
-    if (process.env.NODE_ENV !== 'production') {
-      if (clientesConectados > 0) {
-        console.log('[Socket] sensor:update', { temp: data.temperatura, clientes: clientesConectados });
-      }
-    }
-    io.emit('sensor:update', data);
-  }
+  if (!io) return;
+  
+  // Solo emitir si hay clientes conectados (evitar trabajo innecesario)
+  const clientesConectados = io.sockets.sockets.size;
+  if (clientesConectados === 0) return;
+  
+  io.emit('sensor:update', data);
 }
 
 export function getIO() {

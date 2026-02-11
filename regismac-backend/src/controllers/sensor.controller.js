@@ -29,7 +29,8 @@ export const recibirDatosSensor = async (req, res, next) => {
       throw new ApiError("Al menos una temperatura es requerida (temperatura, temperatura_d2 o temperatura_d4)", 400);
     }
 
-    const temperaturaFinal = temp !== null ? temp : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
+    // Temperatura de referencia: D2 (serbatoio) es la principal
+    const temperaturaFinal = temp !== null ? temp : (tempD2 !== null ? tempD2 : tempD4);
 
     // Actualizar estado del sensor
     sensorState.temperatura = temperaturaFinal;

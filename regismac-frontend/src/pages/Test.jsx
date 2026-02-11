@@ -431,7 +431,8 @@ export default function Test() {
       const hasTemp = (temperatura !== null && !isNaN(temperatura)) || (tempD2 !== null && !isNaN(tempD2)) || (tempD4 !== null && !isNaN(tempD4));
 
       if (hasTemp) {
-        const tempRef = temperatura !== null && !isNaN(temperatura) ? temperatura : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
+        // Temperatura de referencia: D2 (serbatoio) es la principal
+        const tempRef = temperatura !== null && !isNaN(temperatura) ? temperatura : (tempD2 !== null ? tempD2 : tempD4);
 
         setTemperaturaActual(tempRef);
         temperaturaActualRef.current = tempRef;
@@ -643,7 +644,8 @@ export default function Test() {
           const temp = estado.temperatura !== null && estado.temperatura !== undefined ? parseFloat(estado.temperatura) : null;
           const tempD2 = estado.temperatura_d2 !== null && estado.temperatura_d2 !== undefined ? parseFloat(estado.temperatura_d2) : null;
           const tempD4 = estado.temperatura_d4 !== null && estado.temperatura_d4 !== undefined ? parseFloat(estado.temperatura_d4) : null;
-          const tempRef = temp !== null && !isNaN(temp) ? temp : (tempD2 !== null && tempD4 !== null ? (tempD2 + tempD4) / 2 : (tempD2 !== null ? tempD2 : tempD4));
+          // Temperatura de referencia: D2 (serbatoio) es la principal
+          const tempRef = temp !== null && !isNaN(temp) ? temp : (tempD2 !== null ? tempD2 : tempD4);
 
           if (tempRef !== null && !isNaN(tempRef)) {
             setTemperaturaActual(tempRef);

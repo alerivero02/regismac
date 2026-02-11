@@ -61,12 +61,22 @@ function handleSessionExpired(sessionReplaced = false) {
     return;
   }
 
+  // Solo mostrar alerta de sesion expirada si el usuario habia iniciado sesion previamente
+  // Esto evita que al abrir la app sin estar logueado aparezca "Sessione scaduta"
+  const wasLoggedIn = sessionStorage.getItem('wasLoggedIn');
+  
   isRedirecting = true;
-  sessionStorage.setItem('sessionExpired', 'true');
-  if (sessionReplaced) {
-    sessionStorage.setItem('sessionReplaced', 'true');
+  
+  if (wasLoggedIn) {
+    sessionStorage.setItem('sessionExpired', 'true');
+    if (sessionReplaced) {
+      sessionStorage.setItem('sessionReplaced', 'true');
+    }
+    window.location.href = '/login?sessionExpired=true' + (sessionReplaced ? '&sessionReplaced=true' : '');
+  } else {
+    // Primera visita sin sesion: redirigir al login sin alerta
+    window.location.href = '/login';
   }
-  window.location.href = '/login?sessionExpired=true' + (sessionReplaced ? '&sessionReplaced=true' : '');
 
   setTimeout(() => {
     isRedirecting = false;

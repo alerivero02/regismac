@@ -66,6 +66,8 @@ export default function Test() {
   const alarmaMenos8ActivadaRef = useRef(false); // Ref para controlar que la alarma solo suene una vez
   
   const [showCronometroModal, setShowCronometroModal] = useState(false);
+  const [showCompletarTestModal, setShowCompletarTestModal] = useState(false);
+  const [datosTestFinalizado, setDatosTestFinalizado] = useState(null);
 
   const [formData, setFormData] = useState({
     temperatura_iniziale: '',
@@ -723,116 +725,40 @@ export default function Test() {
             });
           }
         
-          // Cuando ambas temperaturas están detectadas, guardar automáticamente
+          // Cuando ambas temperaturas están detectadas, finalizar test y mostrar modal para completar datos
           if (estado.testActivo && 
               estado.tiempo0Grados !== null && 
               estado.tiempoMenos8Grados !== null &&
-              selectedMaquina &&
-              formData.tecnicoId &&
               !isSubmitting &&
               !autoSaveRef.current) {
-            // Marcar que ya estamos guardando para evitar múltiples guardados
             autoSaveRef.current = true;
             
-            // Esperar 3 segundos antes de guardar automáticamente
             setTimeout(async () => {
               try {
                 const resultado = await sensorAPI.finalizarTest();
                 
-                const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
-                
-                let tiempo0Formato = null;
-                let tiempoMenos8Formato = null;
-                
-                if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempo0Grados !== undefined) {
-                  const minutos0 = Math.floor(resultado.resultado.tiempo0Grados / 60);
-                  const segundos0 = resultado.resultado.tiempo0Grados % 60;
-                  tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
-                }
-                
-                if (resultado.resultado.tiempoMenos8Grados !== null && resultado.resultado.tiempoMenos8Grados !== undefined) {
-                  const minutosMenos8 = Math.floor(resultado.resultado.tiempoMenos8Grados / 60);
-                  const segundosMenos8 = resultado.resultado.tiempoMenos8Grados % 60;
-                  tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
-                }
-                
-                let temperaturaFinal = null;
-                if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
-                  if (temperaturaActual !== null && temperaturaActual !== undefined) {
-                    temperaturaFinal = temperaturaActual;
-                  } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
-                    temperaturaFinal = esp32Estado.temperatura;
-                  } else if (resultado.resultado.temperaturaInicial !== null && resultado.resultado.temperaturaInicial !== undefined) {
-                    temperaturaFinal = resultado.resultado.temperaturaInicial;
-                  }
-                }
-                
-                let observacionesFinal = formData.observazioni || '';
-                if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
-                  const temperaturasNoAlcanzadas = [];
-                  if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
-                  if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
-                  const nota = `Test completato senza raggiungere le temperature obiettivo (${temperaturasNoAlcanzadas.join(', ')}). `;
-                  observacionesFinal = nota + (observacionesFinal || '');
-                  if (temperaturaFinal !== null && temperaturaFinal !== undefined) {
-                    observacionesFinal += `Temperatura al momento della finalizzazione: ${temperaturaFinal.toFixed(1)}°C.`;
-                  }
-                }
-                
-                const dataToSend = {
-                  maquinaId: parseInt(selectedMaquina),
-                  tecnicoId: parseInt(formData.tecnicoId),
-                  temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
-                  temperatura_final: temperaturaFinal !== null && temperaturaFinal !== undefined ? temperaturaFinal : undefined,
-                  tiempo_0_gradi: resultado.resultado.tiempo0Grados || undefined,
-                  tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados || undefined,
-                  humedad_ambiente: resultado.resultado.humedad || undefined,
-                  regolazione_vite: formData.regolazione_vite || undefined,
-                  quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
-                  observazioni: formData.observazioni || 
-                    (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null
-                      ? 'Test completado sin alcanzar todas las temperaturas objetivo. ' + (formData.observazioni || '')
-                      : formData.observazioni) || undefined,
-                  hora_test: fechaHoraTest,
-                };
-
-                await testsAPI.create(dataToSend);
-                
-                const testsActualizados = await testsAPI.getAll();
-                setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
-                
-                setFormData(prev => ({
-                  ...prev,
-                  temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
-                  tiempo_0_manual: tiempo0Formato || prev.tiempo_0_manual,
-                  tiempo_meno8_manual: tiempoMenos8Formato || prev.tiempo_meno8_manual,
-                  humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
-                }));
-                
                 setTestESP32Activo(false);
                 testESP32ActivoRef.current = false;
                 alarmaMenos8ActivadaRef.current = false;
-                setFechaHoraInicioTestESP32(null);
-                setShowESP32Modal(false);
-                autoSaveRef.current = false;
                 
-                if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempoMenos8Grados !== null) {
-                  showNotification('✅ Test completado y guardado automáticamente!', 'success');
-                } else {
-                  const temperaturasNoAlcanzadas = [];
-                  if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
-                  if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
-                  showNotification(`✅ Test guardado automáticamente. Temperaturas no alcanzadas: ${temperaturasNoAlcanzadas.join(', ')}`, 'info');
-                }
+                // Guardar datos del test para el modal de completar
+                setDatosTestFinalizado({
+                  resultado: resultado.resultado,
+                  fechaHoraTest: fechaHoraInicioTestESP32 || new Date().toISOString(),
+                  temperaturaFinal: temperaturaActual,
+                });
+                setShowCompletarTestModal(true);
+                
+                showNotification('Test completato! Compila i dati per salvare.', 'success');
               } catch (autoSaveError) {
                 const isDev = import.meta.env.DEV;
                 if (isDev) {
-                  console.error('Error al guardar test automáticamente:', autoSaveError);
+                  console.error('Error al finalizar test:', autoSaveError);
                 }
                 autoSaveRef.current = false;
-                showNotification('Error al guardar test automáticamente. Puedes guardarlo manualmente.', 'error');
+                showNotification('Errore nella finalizzazione del test.', 'error');
               }
-            }, 3000);
+            }, 2000);
           }
         } catch (error) {
           erroresConsecutivos++;
@@ -926,10 +852,12 @@ export default function Test() {
       } catch (error) {
         // Si el servidor no está disponible pero tenemos USB, continuar solo con USB
         // Verificar si hay datos disponibles
-        if (temperaturaActual !== null || esp32Estado?.temperatura !== null) {
+        if (temperaturaActual !== null || esp32Estado?.temperatura_d4 !== null || esp32Estado?.temperatura !== null) {
           console.warn('Servidor no disponible, continuando solo con USB:', error.message);
-          // Usar temperatura local como fallback
-          const temperaturaInicial = temperaturaActual !== null ? temperaturaActual : esp32Estado?.temperatura;
+          // Usar temperatura D4 (testina) como fallback, luego temperatura general
+          const temperaturaInicial = esp32Estado?.temperatura_d4 !== null && esp32Estado?.temperatura_d4 !== undefined
+            ? esp32Estado.temperatura_d4
+            : (temperaturaActual !== null ? temperaturaActual : esp32Estado?.temperatura);
           resultado = {
             temperaturaInicial,
             tiempoInicio: Date.now()
@@ -978,122 +906,37 @@ export default function Test() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     try {
-      if (!selectedMaquina || !formData.tecnicoId) {
-        showNotification('Seleziona macchina e tecnico per salvare il test', 'error');
-        setIsSubmitting(false);
-        return;
-      }
       const resultado = await sensorAPI.finalizarTest();
+      
       setTestESP32Activo(false);
       testESP32ActivoRef.current = false;
-      alarmaMenos8ActivadaRef.current = false; // Resetear alarma al finalizar test
-      // Detener el polling explícitamente
+      alarmaMenos8ActivadaRef.current = false;
+      
+      // Detener el polling
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
         setEsp32PollingInterval(null);
       }
       
-      // Guardar SIEMPRE el test, incluso si no se alcanzaron todas las temperaturas objetivo
-      const fechaHoraTest = fechaHoraInicioTestESP32 || new Date().toISOString();
+      // Guardar datos del test y mostrar modal para completar campos
+      setDatosTestFinalizado({
+        resultado: resultado.resultado,
+        fechaHoraTest: fechaHoraInicioTestESP32 || new Date().toISOString(),
+        temperaturaFinal: temperaturaActual,
+      });
+      setShowCompletarTestModal(true);
       
-      // Calcular tiempo transcurrido total del test
-      const tiempoTranscurridoTotal = resultado.resultado.tiempoTranscurrido || 0;
-      
-      // Formatear tiempos si están disponibles
-      let tiempo0Formato = null;
-      let tiempoMenos8Formato = null;
-      
-      if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempo0Grados !== undefined) {
-        const minutos0 = Math.floor(resultado.resultado.tiempo0Grados / 60);
-        const segundos0 = resultado.resultado.tiempo0Grados % 60;
-        tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
-      }
-      
-      if (resultado.resultado.tiempoMenos8Grados !== null && resultado.resultado.tiempoMenos8Grados !== undefined) {
-        const minutosMenos8 = Math.floor(resultado.resultado.tiempoMenos8Grados / 60);
-        const segundosMenos8 = resultado.resultado.tiempoMenos8Grados % 60;
-        tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
-      }
-      
-      // Obtener temperatura actual al momento de finalizar si no se alcanzaron las temperaturas objetivo
-      let temperaturaFinal = null;
-      if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
-        // Intentar obtener temperatura actual del sensor
-        if (temperaturaActual !== null && temperaturaActual !== undefined) {
-          temperaturaFinal = temperaturaActual;
-        } else if (esp32Estado && esp32Estado.temperatura !== null && esp32Estado.temperatura !== undefined) {
-          temperaturaFinal = esp32Estado.temperatura;
-        } else if (resultado.resultado.temperaturaInicial !== null && resultado.resultado.temperaturaInicial !== undefined) {
-          // Si no hay temperatura actual, usar la inicial como referencia
-          temperaturaFinal = resultado.resultado.temperaturaInicial;
-        }
-      }
-      
-      // Preparar observaciones: agregar nota si no se alcanzaron las temperaturas objetivo
-      let observacionesFinal = formData.observazioni || '';
-      if (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null) {
-        const temperaturasNoAlcanzadas = [];
-        if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
-        if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
-        const nota = `Test completato senza raggiungere le temperature obiettivo (${temperaturasNoAlcanzadas.join(', ')}). `;
-        observacionesFinal = nota + (observacionesFinal || '');
-        if (temperaturaFinal !== null && temperaturaFinal !== undefined) {
-          observacionesFinal += `Temperatura al momento della finalizzazione: ${temperaturaFinal.toFixed(1)}°C.`;
-        }
-      }
-      
-      // Preparar datos para enviar - incluir todos los campos disponibles
-      const dataToSend = {
-        maquinaId: parseInt(selectedMaquina),
-        tecnicoId: parseInt(formData.tecnicoId),
-        temperatura_iniziale: resultado.resultado.temperaturaInicial || undefined,
-        temperatura_final: temperaturaFinal !== null && temperaturaFinal !== undefined ? temperaturaFinal : undefined,
-        tiempo_0_gradi: resultado.resultado.tiempo0Grados || undefined,
-        tiempo_meno8_gradi: resultado.resultado.tiempoMenos8Grados || undefined,
-        humedad_ambiente: resultado.resultado.humedad || undefined,
-        regolazione_vite: formData.regolazione_vite || undefined,
-        quantita_liquido: formData.quantita_liquido ? parseFloat(formData.quantita_liquido) : undefined,
-        observazioni: formData.observazioni || 
-          (resultado.resultado.tiempo0Grados === null || resultado.resultado.tiempoMenos8Grados === null
-            ? 'Test completado sin alcanzar todas las temperaturas objetivo. ' + (formData.observazioni || '')
-            : formData.observazioni) || undefined,
-        hora_test: fechaHoraTest,
-      };
-
-      await testsAPI.create(dataToSend);
-
-      const testsActualizados = await testsAPI.getAll();
-      setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
-
-      setFormData(prev => ({
-        ...prev,
-        temperatura_iniziale: resultado.resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
-        tiempo_0_manual: tiempo0Formato || prev.tiempo_0_manual,
-        tiempo_meno8_manual: tiempoMenos8Formato || prev.tiempo_meno8_manual,
-        humedad_ambiente: resultado.resultado.humedad?.toString() || prev.humedad_ambiente,
-      }));
-
-      setFechaHoraInicioTestESP32(null);
-      // No cerrar modal: permitir reiniciar test (Inicio Test de nuevo)
-      if (resultado.resultado.tiempo0Grados !== null && resultado.resultado.tiempoMenos8Grados !== null) {
-        showNotification('✅ Test completato e salvato. Puoi avviare un nuovo test.', 'success');
-      } else {
-        const temperaturasNoAlcanzadas = [];
-        if (resultado.resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
-        if (resultado.resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
-        showNotification(`✅ Test salvato. Puoi avviare un nuovo test. Non raggiunte: ${temperaturasNoAlcanzadas.join(', ')}`, 'info');
-      }
+      showNotification('Test finalizzato! Compila i dati per salvare.', 'success');
     } catch (error) {
       const isDev = import.meta.env.DEV;
       if (isDev) {
         console.error('Error al finalizar test ESP32:', error);
       }
-      showNotification(error.message || 'Error al finalizar el test', 'error');
+      showNotification(error.message || 'Errore nella finalizzazione del test', 'error');
       setTestESP32Activo(false);
       testESP32ActivoRef.current = false;
-      alarmaMenos8ActivadaRef.current = false; // Resetear alarma en caso de error
+      alarmaMenos8ActivadaRef.current = false;
       setFechaHoraInicioTestESP32(null);
-      // Detener el polling explícitamente incluso si hay error
       if (esp32PollingInterval) {
         clearInterval(esp32PollingInterval);
         setEsp32PollingInterval(null);
@@ -1101,7 +944,98 @@ export default function Test() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, selectedMaquina, formData, fechaHoraInicioTestESP32, showNotification, esp32PollingInterval]);
+  }, [isSubmitting, fechaHoraInicioTestESP32, temperaturaActual, showNotification, esp32PollingInterval]);
+
+  // Guardar test completado desde el modal de completar datos
+  const guardarTestCompletado = useCallback(async (modalData) => {
+    if (isSubmitting || !datosTestFinalizado) return;
+    setIsSubmitting(true);
+    try {
+      const { resultado, fechaHoraTest, temperaturaFinal: tempFinal } = datosTestFinalizado;
+      
+      // Formatear tiempos
+      let tiempo0Formato = null;
+      let tiempoMenos8Formato = null;
+      
+      if (resultado.tiempo0Grados !== null && resultado.tiempo0Grados !== undefined) {
+        const minutos0 = Math.floor(resultado.tiempo0Grados / 60);
+        const segundos0 = resultado.tiempo0Grados % 60;
+        tiempo0Formato = `${minutos0.toString().padStart(2, '0')}:${segundos0.toString().padStart(2, '0')}`;
+      }
+      
+      if (resultado.tiempoMenos8Grados !== null && resultado.tiempoMenos8Grados !== undefined) {
+        const minutosMenos8 = Math.floor(resultado.tiempoMenos8Grados / 60);
+        const segundosMenos8 = resultado.tiempoMenos8Grados % 60;
+        tiempoMenos8Formato = `${minutosMenos8.toString().padStart(2, '0')}:${segundosMenos8.toString().padStart(2, '0')}`;
+      }
+      
+      // Temperatura final
+      let temperaturaFinal = tempFinal;
+      if ((resultado.tiempo0Grados === null || resultado.tiempoMenos8Grados === null) && temperaturaFinal === null) {
+        if (esp32Estado?.temperatura !== null && esp32Estado?.temperatura !== undefined) {
+          temperaturaFinal = esp32Estado.temperatura;
+        } else if (resultado.temperaturaInicial !== null) {
+          temperaturaFinal = resultado.temperaturaInicial;
+        }
+      }
+      
+      // Observaciones
+      let observacionesFinal = modalData.observazioni || '';
+      if (resultado.tiempo0Grados === null || resultado.tiempoMenos8Grados === null) {
+        const temperaturasNoAlcanzadas = [];
+        if (resultado.tiempo0Grados === null) temperaturasNoAlcanzadas.push('0°C');
+        if (resultado.tiempoMenos8Grados === null) temperaturasNoAlcanzadas.push('-8°C');
+        const nota = `Test completato senza raggiungere le temperature obiettivo (${temperaturasNoAlcanzadas.join(', ')}). `;
+        observacionesFinal = nota + observacionesFinal;
+        if (temperaturaFinal !== null && temperaturaFinal !== undefined) {
+          observacionesFinal += ` Temperatura alla finalizzazione: ${temperaturaFinal.toFixed(1)}°C.`;
+        }
+      }
+      
+      const dataToSend = {
+        maquinaId: parseInt(modalData.maquinaId),
+        tecnicoId: parseInt(modalData.tecnicoId),
+        temperatura_iniziale: resultado.temperaturaInicial || undefined,
+        temperatura_final: temperaturaFinal !== null && temperaturaFinal !== undefined ? temperaturaFinal : undefined,
+        tiempo_0_gradi: resultado.tiempo0Grados || undefined,
+        tiempo_meno8_gradi: resultado.tiempoMenos8Grados || undefined,
+        humedad_ambiente: resultado.humedad || undefined,
+        regolazione_vite: modalData.regolazione_vite || undefined,
+        quantita_liquido: modalData.quantita_liquido ? parseFloat(modalData.quantita_liquido) : undefined,
+        observazioni: observacionesFinal || undefined,
+        hora_test: fechaHoraTest,
+      };
+
+      await testsAPI.create(dataToSend);
+      
+      const testsActualizados = await testsAPI.getAll();
+      setTests(Array.isArray(testsActualizados) ? testsActualizados : []);
+      
+      setFormData(prev => ({
+        ...prev,
+        temperatura_iniziale: resultado.temperaturaInicial?.toString() || prev.temperatura_iniziale,
+        tiempo_0_manual: tiempo0Formato || prev.tiempo_0_manual,
+        tiempo_meno8_manual: tiempoMenos8Formato || prev.tiempo_meno8_manual,
+        humedad_ambiente: resultado.humedad?.toString() || prev.humedad_ambiente,
+      }));
+      
+      setFechaHoraInicioTestESP32(null);
+      setShowCompletarTestModal(false);
+      setDatosTestFinalizado(null);
+      setShowESP32Modal(false);
+      autoSaveRef.current = false;
+      
+      showNotification('Test salvato con successo!', 'success');
+    } catch (error) {
+      const isDev = import.meta.env.DEV;
+      if (isDev) {
+        console.error('Error al guardar test:', error);
+      }
+      showNotification(error.message || 'Errore nel salvataggio del test', 'error');
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [isSubmitting, datosTestFinalizado, esp32Estado, showNotification]);
 
   const cancelarTestESP32 = useCallback(async () => {
     try {
@@ -2753,6 +2687,175 @@ export default function Test() {
                 <li>Clicca su "Finalizza Test" per completare e caricare i dati nel formulario</li>
               </ol>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para completar datos del test finalizado */}
+      {showCompletarTestModal && datosTestFinalizado && (
+        <div 
+          className="fixed inset-0 flex items-center justify-center z-[60] p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+        >
+          <div className="bg-white rounded-xl shadow-2xl p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-green-50 p-3 rounded-xl">
+                <FiCheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Test completato</h2>
+                <p className="text-sm text-gray-600">Compila i dati per salvare il test</p>
+              </div>
+            </div>
+
+            {/* Resumen del test */}
+            <div className="bg-gray-50 rounded-lg p-4 mb-6 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Temp. Iniziale (testina):</span>
+                <span className="font-semibold">{datosTestFinalizado.resultado.temperaturaInicial?.toFixed(2) || '--'}°C</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Tempo 0°C:</span>
+                <span className="font-semibold">
+                  {datosTestFinalizado.resultado.tiempo0Grados !== null 
+                    ? `${Math.floor(datosTestFinalizado.resultado.tiempo0Grados / 60).toString().padStart(2, '0')}:${(datosTestFinalizado.resultado.tiempo0Grados % 60).toString().padStart(2, '0')}`
+                    : 'Non raggiunto'}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Tempo -8°C:</span>
+                <span className="font-semibold">
+                  {datosTestFinalizado.resultado.tiempoMenos8Grados !== null
+                    ? `${Math.floor(datosTestFinalizado.resultado.tiempoMenos8Grados / 60).toString().padStart(2, '0')}:${(datosTestFinalizado.resultado.tiempoMenos8Grados % 60).toString().padStart(2, '0')}`
+                    : 'Non raggiunto'}
+                </span>
+              </div>
+            </div>
+
+            {/* Formulario */}
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const form = e.target;
+              const maquinaId = form.maquinaId.value;
+              const tecnicoId = form.tecnicoId.value;
+              if (!maquinaId) {
+                showNotification('Seleziona una macchina', 'error');
+                return;
+              }
+              if (!tecnicoId) {
+                showNotification('Seleziona un tecnico', 'error');
+                return;
+              }
+              guardarTestCompletado({
+                maquinaId,
+                tecnicoId,
+                regolazione_vite: form.regolazione_vite.value,
+                quantita_liquido: form.quantita_liquido.value,
+                observazioni: form.observazioni.value,
+              });
+            }} className="space-y-4">
+              {/* Macchina */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Macchina *</label>
+                <select
+                  name="maquinaId"
+                  defaultValue={selectedMaquina || ''}
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">Seleziona macchina</option>
+                  {maquinasOrdenadas.map((maquina) => (
+                    <option key={maquina.id_maquina} value={maquina.id_maquina}>
+                      {maquina.numero_telaio} {maquina.modello ? `- ${maquina.modello}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Tecnico */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tecnico *</label>
+                <select
+                  name="tecnicoId"
+                  defaultValue={formData.tecnicoId || ''}
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                >
+                  <option value="">Seleziona tecnico</option>
+                  {tecnicos.map((tecnico) => (
+                    <option key={tecnico.id_tecnico} value={tecnico.id_tecnico}>
+                      {tecnico.nome} {tecnico.cognome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Regolazione vite */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Regolazione vite</label>
+                <input
+                  type="text"
+                  name="regolazione_vite"
+                  defaultValue={formData.regolazione_vite || ''}
+                  placeholder="Es: 1.5 giri"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              {/* Quantita liquido */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quantit&agrave; liquido (ml)</label>
+                <input
+                  type="number"
+                  name="quantita_liquido"
+                  defaultValue={formData.quantita_liquido || ''}
+                  placeholder="Es: 500"
+                  step="0.1"
+                  min="0"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                />
+              </div>
+
+              {/* Osservazioni */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Osservazioni</label>
+                <textarea
+                  name="observazioni"
+                  defaultValue={formData.observazioni || ''}
+                  placeholder="Note o osservazioni..."
+                  rows="3"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
+                />
+              </div>
+
+              {/* Botones */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:bg-gray-400 text-white font-semibold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                >
+                  {isSubmitting ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <FiCheckCircle className="w-5 h-5" />
+                  )}
+                  <span>Salva Test</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCompletarTestModal(false);
+                    setDatosTestFinalizado(null);
+                    setFechaHoraInicioTestESP32(null);
+                    autoSaveRef.current = false;
+                  }}
+                  className="px-6 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold py-3 rounded-lg transition-colors"
+                >
+                  Annulla
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

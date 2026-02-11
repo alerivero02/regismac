@@ -33,9 +33,13 @@ export default function ProtectedRoute({ children }) {
         if (isMounted) {
           if (user && user.id_usuario && user.tiene_password) {
         setIsAuthenticated(true);
+        // Marcar que el usuario tiene sesion activa (para distinguir sesion expirada vs nunca logueado)
+        sessionStorage.setItem('wasLoggedIn', 'true');
       } else {
             // Si no tiene contraseña, aún está autenticado pero el Layout mostrará el modal obligatorio
-            setIsAuthenticated(user && user.id_usuario ? true : false);
+            const isAuth = user && user.id_usuario ? true : false;
+            setIsAuthenticated(isAuth);
+            if (isAuth) sessionStorage.setItem('wasLoggedIn', 'true');
           }
           setLoading(false);
       }

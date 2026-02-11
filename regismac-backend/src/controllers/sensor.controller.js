@@ -116,20 +116,25 @@ export const iniciarTest = async (req, res, next) => {
       throw new ApiError("Ya hay un test activo. Debe finalizar el test actual primero.", 400);
     }
 
-    // Tomar la temperatura actual del sensor ESP32 al momento de iniciar el test
-    if (sensorState.temperatura === null || sensorState.temperatura === undefined) {
+    // Tomar la temperatura de la testina (D4) al momento de iniciar el test
+    // Fallback a temperatura general si D4 no está disponible
+    const tempTestina = sensorState.temperatura_d4 !== null && sensorState.temperatura_d4 !== undefined
+      ? sensorState.temperatura_d4
+      : sensorState.temperatura;
+
+    if (tempTestina === null || tempTestina === undefined) {
       throw new ApiError("No hay datos de temperatura disponibles del sensor. Asegúrese de que el ESP32 esté conectado y enviando datos.", 400);
     }
 
-    // Usar la temperatura actual del sensor como temperatura inicial
-    const temperaturaInicial = parseFloat(sensorState.temperatura);
+    // Usar la temperatura de la testina (D4) como temperatura inicial
+    const temperaturaInicial = parseFloat(tempTestina);
 
     // Validar que la temperatura sea válida
     if (isNaN(temperaturaInicial) || temperaturaInicial < -55 || temperaturaInicial > 125) {
-      throw new ApiError(`Temperatura del sensor inválida: ${sensorState.temperatura}°C. Verifique la conexión del sensor.`, 400);
+      throw new ApiError(`Temperatura del sensor inválida: ${tempTestina}°C. Verifique la conexión del sensor.`, 400);
     }
 
-    // Iniciar nuevo test con la temperatura actual del sensor
+    // Iniciar nuevo test con la temperatura de la testina
     sensorState.testActivo = true;
     sensorState.temperaturaInicial = temperaturaInicial;
     sensorState.tiempoInicio = Date.now();
@@ -140,6 +145,7 @@ export const iniciarTest = async (req, res, next) => {
       success: true,
       message: "Test iniciado correctamente",
       temperaturaInicial: sensorState.temperaturaInicial,
+      temperatura_d4: sensorState.temperatura_d4,
       tiempoInicio: sensorState.tiempoInicio,
     });
   } catch (err) {

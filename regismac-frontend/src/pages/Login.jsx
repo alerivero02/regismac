@@ -49,6 +49,7 @@ export default function Login() {
     // Limpiar sessionStorage
     if (sessionExpired) sessionStorage.removeItem('sessionExpired');
     if (sessionReplaced) sessionStorage.removeItem('sessionReplaced');
+    sessionStorage.removeItem('wasLoggedIn');
 
     if (sessionExpired) {
       setNotification({

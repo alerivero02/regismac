@@ -208,6 +208,17 @@ const demoState = {
     },
   ],
   ordiniMateriali: [],
+  lotti: [
+    {
+      id_lotto: 1,
+      numero_lotto: 'LOTTO-2025-001',
+      anno: 2025,
+      descrizione: 'Lotto demo',
+      numero_telaio_da: null,
+      numero_telaio_a: null,
+      maquinas: [],
+    },
+  ],
   currentUser: {
     id_usuario: 999,
     nombre: 'Usuario',
@@ -342,6 +353,54 @@ async function fetchAPIDemo(endpoint, options = {}) {
       humedad_actual: 60,
       modo: 'demo',
     };
+  }
+
+  // Lotti
+  if (path === '/api/lotti' && method === 'GET') {
+    return demoState.lotti;
+  }
+  if (path.match(/^\/api\/lotti\/\d+$/) && method === 'GET') {
+    const id = parseInt(path.split('/').pop(), 10);
+    return demoState.lotti.find((l) => l.id_lotto === id) || null;
+  }
+  if (path === '/api/lotti' && method === 'POST') {
+    const body = options.body || {};
+    const nuovo = {
+      id_lotto: demoState.lotti.length + 1,
+      numero_lotto: body.numero_lotto || `LOTTO-${body.anno || new Date().getFullYear()}-${String(demoState.lotti.length + 1).padStart(3, '0')}`,
+      anno: body.anno || new Date().getFullYear(),
+      descrizione: body.descrizione || '',
+      numero_telaio_da: body.numero_telaio_da || null,
+      numero_telaio_a: body.numero_telaio_a || null,
+      maquinas: [],
+    };
+    demoState.lotti.push(nuovo);
+    return nuovo;
+  }
+  if (path.match(/^\/api\/lotti\/\d+$/) && method === 'PUT') {
+    const id = parseInt(path.split('/').pop(), 10);
+    const body = options.body || {};
+    const lotto = demoState.lotti.find((l) => l.id_lotto === id);
+    if (lotto) {
+      Object.assign(lotto, body);
+      return lotto;
+    }
+    return null;
+  }
+  if (path.match(/^\/api\/lotti\/\d+$/) && method === 'DELETE') {
+    const id = parseInt(path.split('/').pop(), 10);
+    const idx = demoState.lotti.findIndex((l) => l.id_lotto === id);
+    if (idx !== -1) demoState.lotti.splice(idx, 1);
+    return { ok: true };
+  }
+  if (path.match(/^\/api\/lotti\/\d+\/asignar-rango$/) && method === 'POST') {
+    return { ok: true, message: 'Demo: asignación simulada' };
+  }
+  if (path.match(/^\/api\/lotti\/\d+\/quitar-maquina$/) && method === 'POST') {
+    return { ok: true, message: 'Demo: máquina quitada (simulado)' };
+  }
+  if (path === '/api/lotti/disponibles' && method === 'GET') {
+    return demoState.maquinas.map((m) => ({ ...m, tecnico: m.id_tecnico ? demoState.tecnicos.find((t) => t.id_tecnico === m.id_tecnico) || null : null, tests: demoState.tests.filter((t) => t.id_maquina === m.id_maquina) }));
   }
 
   // Por defecto, devolver objeto informativo sin romper la UI

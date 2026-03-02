@@ -99,90 +99,119 @@ const demoState = {
   maquinas: [
     {
       id_maquina: 1,
+      numero_telaio: '1001',
       codice: 'RM-1001',
       modello: 'RegisMAC Basic',
       cliente: 'Cliente Demo A',
       stato: 'in_produzione',
       data_creazione: '2025-01-10',
       data_consegna: null,
+      id_tecnico: 1,
+      tecnico: null,
+      tests: [],
     },
     {
       id_maquina: 2,
+      numero_telaio: '1002',
       codice: 'RM-1002',
       modello: 'RegisMAC Pro',
       cliente: 'Cliente Demo B',
       stato: 'in_test',
       data_creazione: '2025-01-12',
       data_consegna: null,
+      id_tecnico: 1,
+      tecnico: null,
+      tests: [],
     },
     {
       id_maquina: 3,
+      numero_telaio: '1003',
       codice: 'RM-1003',
       modello: 'RegisMAC Pro',
       cliente: 'Cliente Demo C',
       stato: 'ok',
       data_creazione: '2025-01-14',
       data_consegna: null,
+      id_tecnico: 2,
+      tecnico: null,
+      tests: [],
     },
     {
       id_maquina: 4,
+      numero_telaio: '1004',
       codice: 'RM-1004',
       modello: 'RegisMAC Plus',
       cliente: 'Cliente Demo D',
       stato: 'consegnata',
       data_creazione: '2025-01-05',
       data_consegna: '2025-01-20',
+      id_tecnico: null,
+      tecnico: null,
+      tests: [],
     },
   ],
   tests: [
     {
       id_test: 1,
       id_maquina: 2,
+      id_tecnico: 1,
       tempo_0_gradi: 480,
       tempo_meno8_gradi: 900,
       hora_test: '2025-01-15T10:00:00Z',
+      fecha_test: '2025-01-15T10:00:00Z',
     },
     {
       id_test: 2,
       id_maquina: 3,
+      id_tecnico: 2,
       tempo_0_gradi: 520,
       tempo_meno8_gradi: 960,
       hora_test: '2025-01-16T11:00:00Z',
+      fecha_test: '2025-01-16T11:00:00Z',
     },
     {
       id_test: 3,
       id_maquina: 3,
+      id_tecnico: 2,
       tempo_0_gradi: 510,
       tempo_meno8_gradi: 930,
       hora_test: '2025-01-17T09:30:00Z',
+      fecha_test: '2025-01-17T09:30:00Z',
     },
   ],
   tecnicos: [
-    { id_tecnico: 1, nombre: 'Técnico Demo 1' },
-    { id_tecnico: 2, nombre: 'Técnico Demo 2' },
+    { id_tecnico: 1, nome: 'Técnico', cognome: 'Demo 1' },
+    { id_tecnico: 2, nome: 'Técnico', cognome: 'Demo 2' },
   ],
   materiali: [
     {
       id_materiale: 1,
+      cod_articolo: 'MAT-001',
       codice: 'MAT-001',
       descrizione: 'Compresor demo',
-      stock_attuale: 8,
+      stock_comprado: 8,
+      stock_utilizado: 0,
       stock_minimo: 5,
       fornitore: 'Proveedor Demo',
+      unita_misura: 'pz',
     },
     {
       id_materiale: 2,
+      cod_articolo: 'MAT-002',
       codice: 'MAT-002',
       descrizione: 'Evaporatore demo',
-      stock_attuale: 2,
+      stock_comprado: 2,
+      stock_utilizado: 0,
       stock_minimo: 5,
       fornitore: 'Proveedor Demo',
+      unita_misura: 'pz',
     },
   ],
   ordiniMateriali: [],
   currentUser: {
     id_usuario: 999,
-    nombre: 'Usuario Demo',
+    nombre: 'Usuario',
+    apellido: 'Demo',
     email: 'demo@regismac.site',
     rol: 'admin',
     tiene_password: true,
@@ -221,10 +250,16 @@ async function fetchAPIDemo(endpoint, options = {}) {
     return { status: 'ok', mode: 'demo' };
   }
 
-  // Máquinas
+  // Máquinas (con técnico y tests para la UI)
   if (path === '/api/maquinas') {
     if (method === 'GET') {
-      return demoState.maquinas;
+      return demoState.maquinas.map((m) => ({
+        ...m,
+        tecnico: m.id_tecnico
+          ? demoState.tecnicos.find((t) => t.id_tecnico === m.id_tecnico) || null
+          : null,
+        tests: demoState.tests.filter((t) => t.id_maquina === m.id_maquina),
+      }));
     }
   }
 
@@ -250,16 +285,15 @@ async function fetchAPIDemo(endpoint, options = {}) {
   }
 
   if (path.startsWith('/api/materiali/') && method === 'PATCH') {
-    const id = parseInt(path.split('/').pop(), 10);
+    const parts = path.split('/').filter(Boolean);
+    const id = parts[2] ? parseInt(parts[2], 10) : NaN;
     const body = options.body || {};
     const material = demoState.materiali.find((m) => m.id_materiale === id);
     if (material) {
-      if (body.stock_attuale !== undefined) {
-        material.stock_attuale = body.stock_attuale;
-      }
-      if (body.stock_minimo !== undefined) {
-        material.stock_minimo = body.stock_minimo;
-      }
+      if (body.stock_comprado !== undefined) material.stock_comprado = body.stock_comprado;
+      if (body.stock_utilizado !== undefined) material.stock_utilizado = body.stock_utilizado;
+      if (body.stock_attuale !== undefined) material.stock_comprado = body.stock_attuale;
+      if (body.stock_minimo !== undefined) material.stock_minimo = body.stock_minimo;
     }
     return material || null;
   }

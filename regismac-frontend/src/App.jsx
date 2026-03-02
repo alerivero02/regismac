@@ -13,6 +13,8 @@ import Lotti from './pages/Lotti';
 import ProtectedRoute from './components/ProtectedRoute';
 import { healthAPI } from './services/api';
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 // Componente para mantener la app activa en Render (solo en producción)
 function KeepAlive() {
   useEffect(() => {
@@ -22,7 +24,8 @@ function KeepAlive() {
                         window.location.hostname !== '127.0.0.1' &&
                         !window.location.hostname.match(/^192\.168\./);
 
-    if (!isProduction) {
+    // En modo demo no hacemos ping al backend
+    if (!isProduction || DEMO_MODE) {
       // En local, no hacer nada
       return;
     }

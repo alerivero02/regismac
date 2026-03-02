@@ -23,6 +23,8 @@ import EstablecerPasswordModal from './EstablecerPasswordModal';
 import logoHorizontal from '../assets/regismac-logo.png';
 import logoIso from '../assets/regismac-iso.png';
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -540,6 +542,12 @@ export default function Layout() {
               </div>
             </div>
           </div>
+
+          {DEMO_MODE && (
+            <div className="w-full bg-gradient-to-r from-purple-600 via-pink-500 to-orange-400 text-white text-xs sm:text-sm font-semibold text-center py-2 px-4 shadow-inner">
+              Demo frontend – Datos simulados. Ninguna acción impacta sistemas reales.
+            </div>
+          )}
         </header>
 
         {/* Mobile Menu */}

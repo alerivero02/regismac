@@ -1,3 +1,5 @@
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 export const getApiBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
@@ -92,7 +94,233 @@ function fetchWithTimeout(url, options = {}, timeout = 15000) {
   ]);
 }
 
-async function fetchAPI(endpoint, options = {}) {
+// --- Implementación DEMO (sin backend real) ---
+const demoState = {
+  maquinas: [
+    {
+      id_maquina: 1,
+      codice: 'RM-1001',
+      modello: 'RegisMAC Basic',
+      cliente: 'Cliente Demo A',
+      stato: 'in_produzione',
+      data_creazione: '2025-01-10',
+      data_consegna: null,
+    },
+    {
+      id_maquina: 2,
+      codice: 'RM-1002',
+      modello: 'RegisMAC Pro',
+      cliente: 'Cliente Demo B',
+      stato: 'in_test',
+      data_creazione: '2025-01-12',
+      data_consegna: null,
+    },
+    {
+      id_maquina: 3,
+      codice: 'RM-1003',
+      modello: 'RegisMAC Pro',
+      cliente: 'Cliente Demo C',
+      stato: 'ok',
+      data_creazione: '2025-01-14',
+      data_consegna: null,
+    },
+    {
+      id_maquina: 4,
+      codice: 'RM-1004',
+      modello: 'RegisMAC Plus',
+      cliente: 'Cliente Demo D',
+      stato: 'consegnata',
+      data_creazione: '2025-01-05',
+      data_consegna: '2025-01-20',
+    },
+  ],
+  tests: [
+    {
+      id_test: 1,
+      id_maquina: 2,
+      tempo_0_gradi: 480,
+      tempo_meno8_gradi: 900,
+      hora_test: '2025-01-15T10:00:00Z',
+    },
+    {
+      id_test: 2,
+      id_maquina: 3,
+      tempo_0_gradi: 520,
+      tempo_meno8_gradi: 960,
+      hora_test: '2025-01-16T11:00:00Z',
+    },
+    {
+      id_test: 3,
+      id_maquina: 3,
+      tempo_0_gradi: 510,
+      tempo_meno8_gradi: 930,
+      hora_test: '2025-01-17T09:30:00Z',
+    },
+  ],
+  tecnicos: [
+    { id_tecnico: 1, nombre: 'Técnico Demo 1' },
+    { id_tecnico: 2, nombre: 'Técnico Demo 2' },
+  ],
+  materiali: [
+    {
+      id_materiale: 1,
+      codice: 'MAT-001',
+      descrizione: 'Compresor demo',
+      stock_attuale: 8,
+      stock_minimo: 5,
+      fornitore: 'Proveedor Demo',
+    },
+    {
+      id_materiale: 2,
+      codice: 'MAT-002',
+      descrizione: 'Evaporatore demo',
+      stock_attuale: 2,
+      stock_minimo: 5,
+      fornitore: 'Proveedor Demo',
+    },
+  ],
+  ordiniMateriali: [],
+  currentUser: {
+    id_usuario: 999,
+    nombre: 'Usuario Demo',
+    email: 'demo@regismac.site',
+    rol: 'admin',
+    tiene_password: true,
+  },
+};
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function fetchAPIDemo(endpoint, options = {}) {
+  // Pequeño retardo para simular latencia
+  await wait(300);
+
+  const method = (options.method || 'GET').toUpperCase();
+
+  // Normalizar endpoint básico (sin parámetros de query)
+  const [path, queryString] = endpoint.split('?');
+  const query = new URLSearchParams(queryString || '');
+
+  // Auth y usuario actual
+  if (path === '/api/auth/me') {
+    return demoState.currentUser;
+  }
+
+  if (path === '/api/usuarios/login' && method === 'POST') {
+    return { usuario: demoState.currentUser };
+  }
+
+  if (path === '/api/usuarios/reset-password' && method === 'POST') {
+    return { message: 'Password reimpostata (demo).' };
+  }
+
+  // Health check
+  if (path === '/api/health') {
+    return { status: 'ok', mode: 'demo' };
+  }
+
+  // Máquinas
+  if (path === '/api/maquinas') {
+    if (method === 'GET') {
+      return demoState.maquinas;
+    }
+  }
+
+  // Tests
+  if (path === '/api/tests') {
+    if (method === 'GET') {
+      return demoState.tests;
+    }
+  }
+
+  // Técnicos
+  if (path === '/api/tecnicos') {
+    if (method === 'GET') {
+      return demoState.tecnicos;
+    }
+  }
+
+  // Materiali
+  if (path === '/api/materiali') {
+    if (method === 'GET') {
+      return demoState.materiali;
+    }
+  }
+
+  if (path.startsWith('/api/materiali/') && method === 'PATCH') {
+    const id = parseInt(path.split('/').pop(), 10);
+    const body = options.body || {};
+    const material = demoState.materiali.find((m) => m.id_materiale === id);
+    if (material) {
+      if (body.stock_attuale !== undefined) {
+        material.stock_attuale = body.stock_attuale;
+      }
+      if (body.stock_minimo !== undefined) {
+        material.stock_minimo = body.stock_minimo;
+      }
+    }
+    return material || null;
+  }
+
+  // Ordini Materiali
+  if (path === '/api/ordini-materiali' && method === 'GET') {
+    const stato = query.get('stato') || null;
+    if (!stato) return demoState.ordiniMateriali;
+    return demoState.ordiniMateriali.filter((o) => o.stato === stato);
+  }
+
+  if (path === '/api/ordini-materiali' && method === 'POST') {
+    const body = options.body || {};
+    const nuovo = {
+      id_ordine: demoState.ordiniMateriali.length + 1,
+      stato: 'inviato',
+      data_creazione: new Date().toISOString(),
+      ...body,
+    };
+    demoState.ordiniMateriali.push(nuovo);
+    return nuovo;
+  }
+
+  if (path === '/api/ordini-materiali/bulk' && method === 'POST') {
+    const body = options.body || {};
+    const { items = [], ...commonData } = body;
+    const creati = items.map((item, index) => {
+      const nuovo = {
+        id_ordine: demoState.ordiniMateriali.length + 1 + index,
+        stato: 'inviato',
+        data_creazione: new Date().toISOString(),
+        ...commonData,
+        ...item,
+      };
+      demoState.ordiniMateriali.push(nuovo);
+      return nuovo;
+    });
+    return creati;
+  }
+
+  // Sensor endpoints: devolver estado fijo
+  if (path.startsWith('/api/sensor/')) {
+    return {
+      estado: 'idle',
+      temperatura_actual: 4,
+      humedad_actual: 60,
+      modo: 'demo',
+    };
+  }
+
+  // Por defecto, devolver objeto informativo sin romper la UI
+  return {
+    demo: true,
+    endpoint,
+    method,
+    message: 'Esta operación no está implementada en la demo y no realiza cambios reales.',
+  };
+}
+
+// --- Implementación REAL (usa backend) ---
+async function fetchAPIReal(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
   const config = {
     credentials: 'include',
@@ -209,6 +437,14 @@ async function fetchAPI(endpoint, options = {}) {
     console.error('Errore API:', error);
     throw error;
   }
+}
+
+// Selector entre modo demo y modo real
+async function fetchAPI(endpoint, options = {}) {
+  if (DEMO_MODE) {
+    return fetchAPIDemo(endpoint, options);
+  }
+  return fetchAPIReal(endpoint, options);
 }
 
 // API de Máquinas

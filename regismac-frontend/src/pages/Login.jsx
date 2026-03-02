@@ -5,6 +5,8 @@ import { authAPI, usuariosAPI } from '../services/api';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Notification from '../components/Notification';
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -17,27 +19,33 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    // Pre-warm del servicio: hacer ping inmediatamente al cargar la página de login
-    // Esto despertará el servicio ANTES de que el usuario intente hacer login
-    // Usar fire-and-forget para no bloquear la renderización
-    const preWarmServer = () => {
-      // Hacer ping silencioso sin bloquear la UI (fire-and-forget)
-      fetch(`${window.location.origin}/api/health`, {
-        method: 'GET',
-        credentials: 'include',
-        cache: 'no-cache',
-        keepalive: true // Mantener la conexión viva
-      }).catch(() => {
-        // Ignorar errores silenciosamente
-      });
-    };
-    
-    // Pre-warm inmediatamente (sin bloquear)
-    // Usar setTimeout con 0 para que se ejecute después de la renderización inicial
-    setTimeout(preWarmServer, 0);
-    
-    // Verificar si ya está autenticado
-    checkAuth();
+    if (!DEMO_MODE) {
+      // Pre-warm del servicio: hacer ping inmediatamente al cargar la página de login
+      // Esto despertará el servicio ANTES de que el usuario intente hacer login
+      // Usar fire-and-forget para no bloquear la renderización
+      const preWarmServer = () => {
+        // Hacer ping silencioso sin bloquear la UI (fire-and-forget)
+        fetch(`${window.location.origin}/api/health`, {
+          method: 'GET',
+          credentials: 'include',
+          cache: 'no-cache',
+          keepalive: true // Mantener la conexión viva
+        }).catch(() => {
+          // Ignorar errores silenciosamente
+        });
+      };
+      
+      // Pre-warm inmediatamente (sin bloquear)
+      // Usar setTimeout con 0 para que se ejecute después de la renderización inicial
+      setTimeout(preWarmServer, 0);
+      
+      // Verificar si ya está autenticado
+      checkAuth();
+    } else {
+      // En modo demo, navegar directamente al dashboard sin autenticación real
+      navigate('/', { replace: true });
+      return;
+    }
     
     // Verificar si hay error en la URL
     const urlParams = new URLSearchParams(window.location.search);

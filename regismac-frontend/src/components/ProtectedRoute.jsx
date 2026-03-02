@@ -3,6 +3,8 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import LoadingSpinner from './LoadingSpinner';
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 export default function ProtectedRoute({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -13,6 +15,12 @@ export default function ProtectedRoute({ children }) {
     let isMounted = true;
 
   const checkAuth = async () => {
+    if (DEMO_MODE) {
+      // En modo demo, consideramos siempre autenticado con usuario simulado
+      setIsAuthenticated(true);
+      setLoading(false);
+      return;
+    }
     try {
         // Timeout de seguridad: si la petición tarda más de 10 segundos, considerar no autenticado
         timeoutId = setTimeout(() => {

@@ -1,3 +1,5 @@
+import { isPrimaryKeyCollision, syncSequence } from './sequenceSync.service.js';
+
 export class MaquinasService {
   constructor(prisma) {
     this.prisma = prisma;
@@ -223,7 +225,19 @@ export class MaquinasService {
         prismaData.stato = 'consegnata';
       }
       
-      return await this.prisma.maquina.create({ data: prismaData });
+      // Nunca permitir que el cliente fuerce el ID autoincremental
+      delete prismaData.id_maquina;
+
+      try {
+        return await this.prisma.maquina.create({ data: prismaData });
+      } catch (error) {
+        if (isPrimaryKeyCollision(error, 'maquina')) {
+          console.warn('⚠️ Secuencia de Maquina desfasada. Sincronizando y reintentando create...');
+          await syncSequence(this.prisma, 'maquina');
+          return await this.prisma.maquina.create({ data: prismaData });
+        }
+        throw error;
+      }
     } catch (error) {
       console.error('❌ Error en create de MaquinasService:', {
         message: error.message,

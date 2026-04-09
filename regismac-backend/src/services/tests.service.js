@@ -1,3 +1,5 @@
+import { isPrimaryKeyCollision, syncSequence } from './sequenceSync.service.js';
+
 export class TestsService {
     constructor(prisma) {
       this.prisma = prisma;
@@ -98,7 +100,10 @@ export class TestsService {
         prismaData[key] === undefined && delete prismaData[key]
       );
       
-      return this.prisma.test.create({ 
+      // Nunca permitir que el cliente fuerce el ID autoincremental
+      delete prismaData.id_test;
+
+      const payload = {
         data: prismaData,
         include: {
           tecnico: {
@@ -107,6 +112,15 @@ export class TestsService {
             }
           }
         }
+      };
+
+      return this.prisma.test.create(payload).catch(async (error) => {
+        if (isPrimaryKeyCollision(error, 'test')) {
+          console.warn('⚠️ Secuencia de Test desfasada. Sincronizando y reintentando create...');
+          await syncSequence(this.prisma, 'test');
+          return this.prisma.test.create(payload);
+        }
+        throw error;
       });
     }
   

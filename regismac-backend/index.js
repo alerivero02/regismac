@@ -5,6 +5,7 @@ import https from 'https';
 import { URL } from 'url';
 import app from "./src/app.js";
 import { PrismaClient } from "@prisma/client";
+import { syncKnownSequences } from "./src/services/sequenceSync.service.js";
 
 const prisma = new PrismaClient({
   log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
@@ -141,6 +142,11 @@ function startAutomaticBackups() {
 async function startServer() {
   try {
     await prisma.$connect();
+    try {
+      await syncKnownSequences(prisma);
+    } catch (sequenceError) {
+      logError("⚠️ No se pudieron sincronizar secuencias al inicio:", sequenceError.message);
+    }
     
     const PORT = process.env.PORT || 3000;
     const HOST = process.env.HOST || '0.0.0.0';

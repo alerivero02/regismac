@@ -3,20 +3,57 @@
  * Estos valores determinan si una máquina cumple las condiciones para ser considerada "pronta"
  */
 
-// Límites de tiempo en segundos
-export const TEST_LIMITS = {
-  // Tiempo máximo para alcanzar 0°C (en segundos)
-  // Valor actual: 540 segundos = 9 minutos
-  TEMPO_0_GRADI_MAX: 540,
-  
-  // Tiempo mínimo para alcanzar -8°C (en segundos)
-  // Valor actual: 540 segundos = 9 minutos
-  TEMPO_MENO8_GRADI_MIN: 540,
-  
-  // Tiempo máximo para alcanzar -8°C (en segundos)
-  // Valor actual: 1200 segundos = 20 minutos
-  TEMPO_MENO8_GRADI_MAX: 1200,
+const DEFAULT_TEST_LIMITS = {
+  TEMPO_0_GRADI_MAX: Number(process.env.TEMPO_0_GRADI_MAX) || 540,
+  TEMPO_MENO8_GRADI_MIN: Number(process.env.TEMPO_MENO8_GRADI_MIN) || 540,
+  TEMPO_MENO8_GRADI_MAX: Number(process.env.TEMPO_MENO8_GRADI_MAX) || 1200,
 };
+
+const TEST_LIMIT_KEYS = {
+  TEMPO_0_GRADI_MAX: "test.tempo_0_gradi_max",
+  TEMPO_MENO8_GRADI_MIN: "test.tempo_meno8_gradi_min",
+  TEMPO_MENO8_GRADI_MAX: "test.tempo_meno8_gradi_max",
+};
+
+function validateAndNormalizeLimits(rawLimits = {}) {
+  const nextLimits = {
+    ...DEFAULT_TEST_LIMITS,
+    ...rawLimits,
+  };
+
+  const numericKeys = ["TEMPO_0_GRADI_MAX", "TEMPO_MENO8_GRADI_MIN", "TEMPO_MENO8_GRADI_MAX"];
+  for (const key of numericKeys) {
+    const value = Number(nextLimits[key]);
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Valore non valido per ${key}`);
+    }
+    nextLimits[key] = value;
+  }
+
+  if (nextLimits.TEMPO_MENO8_GRADI_MIN > nextLimits.TEMPO_MENO8_GRADI_MAX) {
+    throw new Error("TEMPO_MENO8_GRADI_MIN non può essere maggiore di TEMPO_MENO8_GRADI_MAX");
+  }
+
+  return nextLimits;
+}
+
+export async function getTestLimits(prisma) {
+  const rows = await prisma.systemConfig.findMany({
+    where: {
+      key: { in: Object.values(TEST_LIMIT_KEYS) },
+    },
+  });
+
+  const persistedLimits = {};
+  for (const [limitName, configKey] of Object.entries(TEST_LIMIT_KEYS)) {
+    const row = rows.find((item) => item.key === configKey);
+    if (row) {
+      persistedLimits[limitName] = Number(row.value);
+    }
+  }
+
+  return validateAndNormalizeLimits(persistedLimits);
+}
 
 /**
  * Verifica si un test cumple con los límites establecidos
@@ -24,11 +61,12 @@ export const TEST_LIMITS = {
  * @param {number} tempoMeno8Gradi - Tiempo en segundos para alcanzar -8°C
  * @returns {boolean} - true si cumple las condiciones, false en caso contrario
  */
-export function verificarLimitesTest(tempo0Gradi, tempoMeno8Gradi) {
-  const cumple0Grados = tempo0Gradi <= TEST_LIMITS.TEMPO_0_GRADI_MAX;
+export async function verificarLimitesTest(prisma, tempo0Gradi, tempoMeno8Gradi) {
+  const limits = await getTestLimits(prisma);
+  const cumple0Grados = tempo0Gradi <= limits.TEMPO_0_GRADI_MAX;
   const cumpleMenos8Grados = 
-    tempoMeno8Gradi >= TEST_LIMITS.TEMPO_MENO8_GRADI_MIN && 
-    tempoMeno8Gradi <= TEST_LIMITS.TEMPO_MENO8_GRADI_MAX;
+    tempoMeno8Gradi >= limits.TEMPO_MENO8_GRADI_MIN &&
+    tempoMeno8Gradi <= limits.TEMPO_MENO8_GRADI_MAX;
   
   return cumple0Grados && cumpleMenos8Grados;
 }
@@ -37,21 +75,41 @@ export function verificarLimitesTest(tempo0Gradi, tempoMeno8Gradi) {
  * Obtiene los límites en formato legible
  * @returns {Object} - Objeto con los límites en formato legible
  */
-export function obtenerLimitesLegibles() {
+export async function obtenerLimitesLegibles(prisma) {
+  const limits = await getTestLimits(prisma);
   return {
     tempo0Gradi: {
-      max: TEST_LIMITS.TEMPO_0_GRADI_MAX,
-      maxMinutos: TEST_LIMITS.TEMPO_0_GRADI_MAX / 60,
-      descripcion: `Máximo ${TEST_LIMITS.TEMPO_0_GRADI_MAX / 60} minutos (${TEST_LIMITS.TEMPO_0_GRADI_MAX} segundos)`
+      max: limits.TEMPO_0_GRADI_MAX,
+      maxMinutos: limits.TEMPO_0_GRADI_MAX / 60,
+      descripcion: `Máximo ${limits.TEMPO_0_GRADI_MAX / 60} minutos (${limits.TEMPO_0_GRADI_MAX} segundos)`
     },
     tempoMeno8Gradi: {
-      min: TEST_LIMITS.TEMPO_MENO8_GRADI_MIN,
-      max: TEST_LIMITS.TEMPO_MENO8_GRADI_MAX,
-      minMinutos: TEST_LIMITS.TEMPO_MENO8_GRADI_MIN / 60,
-      maxMinutos: TEST_LIMITS.TEMPO_MENO8_GRADI_MAX / 60,
-      descripcion: `Entre ${TEST_LIMITS.TEMPO_MENO8_GRADI_MIN / 60} y ${TEST_LIMITS.TEMPO_MENO8_GRADI_MAX / 60} minutos (${TEST_LIMITS.TEMPO_MENO8_GRADI_MIN}-${TEST_LIMITS.TEMPO_MENO8_GRADI_MAX} segundos)`
+      min: limits.TEMPO_MENO8_GRADI_MIN,
+      max: limits.TEMPO_MENO8_GRADI_MAX,
+      minMinutos: limits.TEMPO_MENO8_GRADI_MIN / 60,
+      maxMinutos: limits.TEMPO_MENO8_GRADI_MAX / 60,
+      descripcion: `Entre ${limits.TEMPO_MENO8_GRADI_MIN / 60} y ${limits.TEMPO_MENO8_GRADI_MAX / 60} minutos (${limits.TEMPO_MENO8_GRADI_MIN}-${limits.TEMPO_MENO8_GRADI_MAX} segundos)`
     }
   };
+}
+
+export async function updateTestLimits(prisma, partialLimits = {}) {
+  const currentLimits = await getTestLimits(prisma);
+  const nextLimits = validateAndNormalizeLimits({
+    ...currentLimits,
+    ...partialLimits,
+  });
+
+  const writeOps = Object.entries(TEST_LIMIT_KEYS).map(([limitName, configKey]) =>
+    prisma.systemConfig.upsert({
+      where: { key: configKey },
+      create: { key: configKey, value: String(nextLimits[limitName]) },
+      update: { value: String(nextLimits[limitName]) },
+    })
+  );
+
+  await prisma.$transaction(writeOps);
+  return nextLimits;
 }
 
 

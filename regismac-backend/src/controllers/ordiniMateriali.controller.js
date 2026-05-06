@@ -64,8 +64,13 @@ export const createOrdine = async (req, res, next) => {
         // Obtener todos los comerciales
         const comerciales = await prisma.usuario.findMany({
           where: {
-            rol: 'comercial',
+            rol: {
+              in: ['comercial', 'commerciale'],
+            },
             estado: 'aprobado',
+            email: {
+              not: null,
+            },
           },
           select: {
             email: true,
@@ -249,8 +254,13 @@ export const createOrdiniBulk = async (req, res, next) => {
         // Obtener todos los comerciales
         const comerciales = await prisma.usuario.findMany({
           where: {
-            rol: 'comercial',
+            rol: {
+              in: ['comercial', 'commerciale'],
+            },
             estado: 'aprobado',
+            email: {
+              not: null,
+            },
           },
           select: {
             email: true,
@@ -341,8 +351,13 @@ export const resendEmailOrdine = async (req, res, next) => {
     // Obtener todos los comerciales
     const comerciales = await prisma.usuario.findMany({
       where: {
-        rol: 'comercial',
+        rol: {
+          in: ['comercial', 'commerciale'],
+        },
         estado: 'aprobado',
+        email: {
+          not: null,
+        },
       },
       select: {
         email: true,

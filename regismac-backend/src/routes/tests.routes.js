@@ -6,6 +6,8 @@ import {
   updateTest,
   deleteTest,
   getTestsByMaquina,
+  getLimits,
+  patchLimits,
 } from "../controllers/tests.controller.js";
 
 import { requireAuth } from "../middleware/auth.js";
@@ -17,9 +19,11 @@ const router = Router();
 // Todas las rutas requieren autenticación
 router.use(requireAuth);
 
+router.get("/limits", getLimits);
+router.patch("/limits", patchLimits);
 router.get("/", getTests);
-router.get("/:id", getTestById);
 router.get("/maquina/:maquinaId", getTestsByMaquina);
+router.get("/:id", getTestById);
 router.post("/", validateSchema(testSchema), createTest);
 router.put("/:id", validateSchema(testSchema), updateTest);
 router.delete("/:id", deleteTest);

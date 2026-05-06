@@ -1,7 +1,7 @@
 import { ApiError } from "../utils/apiError.js";
 import { TestsService } from "../services/tests.service.js";
 import { MaquinasService } from "../services/maquinas.service.js";
-import { verificarLimitesTest } from "../config/testLimits.js";
+import { verificarLimitesTest, getTestLimits, obtenerLimitesLegibles, updateTestLimits } from "../config/testLimits.js";
 
 export const getTests = async (req, res, next) => {
   try {
@@ -33,6 +33,47 @@ export const getTestsByMaquina = async (req, res, next) => {
     const maquinaId = Number(req.params.maquinaId);
     const data = await service.findByMaquina(maquinaId);
     res.json(data);
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const getLimits = async (req, res, next) => {
+  try {
+    const prisma = req.app.locals.prisma;
+    res.json({
+      raw: await getTestLimits(prisma),
+      readable: await obtenerLimitesLegibles(prisma),
+    });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const patchLimits = async (req, res, next) => {
+  try {
+    if (!req.user || (req.user.rol !== "admin" && req.user.rol !== "comercial" && req.user.rol !== "commerciale")) {
+      throw new ApiError("No autorizado. Solo admin/comercial puede modificar límites de test", 403);
+    }
+
+    const prisma = req.app.locals.prisma;
+    const { tempo0Max, tempoMeno8Min, tempoMeno8Max } = req.body || {};
+    const patch = {};
+
+    if (tempo0Max !== undefined) patch.TEMPO_0_GRADI_MAX = tempo0Max;
+    if (tempoMeno8Min !== undefined) patch.TEMPO_MENO8_GRADI_MIN = tempoMeno8Min;
+    if (tempoMeno8Max !== undefined) patch.TEMPO_MENO8_GRADI_MAX = tempoMeno8Max;
+
+    if (Object.keys(patch).length === 0) {
+      throw new ApiError("Nessun limite fornito da aggiornare", 400);
+    }
+
+    const updated = await updateTestLimits(prisma, patch);
+    res.json({
+      ok: true,
+      raw: updated,
+      readable: await obtenerLimitesLegibles(prisma),
+    });
   } catch (e) {
     next(e);
   }
@@ -146,9 +187,12 @@ export const createTest = async (req, res, next) => {
           
           // Tomar las últimas 2 pruebas (más recientes)
           const ultimas2Tests = testsOrdenados.slice(-2);
-          const cumplenCondiciones = ultimas2Tests.every(test => {
-            return verificarLimitesTest(test.tempo_0_gradi, test.tempo_meno8_gradi);
-          });
+          const resultadosLimites = await Promise.all(
+            ultimas2Tests.map(test =>
+              verificarLimitesTest(req.app.locals.prisma, test.tempo_0_gradi, test.tempo_meno8_gradi)
+            )
+          );
+          const cumplenCondiciones = resultadosLimites.every(Boolean);
           
           if (cumplenCondiciones) {
             // Obtener la máquina para verificar si ya tiene fecha_estado_ok

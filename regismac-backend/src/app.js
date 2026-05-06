@@ -409,6 +409,24 @@ app.get("/healthz", (req, res) => {
   });
 });
 
+// Compatibilidad con healthchecks por defecto que consultan "/".
+// Si el request parece de navegador (acepta HTML), seguimos al flujo normal
+// para servir la SPA; si no, devolvemos 200 JSON para probes.
+app.get("/", (req, res, next) => {
+  const acceptHeader = (req.headers.accept || "").toLowerCase();
+  const wantsHtml = acceptHeader.includes("text/html");
+
+  if (wantsHtml) {
+    return next();
+  }
+
+  return res.status(200).json({
+    status: "ok",
+    service: "regismac",
+    healthcheck: true,
+  });
+});
+
 // Rutas de API primero (deben tener prioridad sobre el frontend)
 app.use("/api/auth", authRoutes);
 app.use("/api/usuarios", usuariosRoutes);

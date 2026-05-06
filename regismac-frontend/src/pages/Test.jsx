@@ -14,6 +14,7 @@ import {
   FiX,
   FiPlay,
   FiRotateCw,
+  FiSliders,
 } from 'react-icons/fi';
 import { maquinasAPI, testsAPI, tecnicosAPI, authAPI, lottiAPI, sensorAPI } from '../services/api';
 import { connectSocket, disconnectSocket, onSensorUpdate, offSensorUpdate } from '../services/socket.js';
@@ -31,6 +32,14 @@ export default function Test() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
+  const [testLimits, setTestLimits] = useState(null);
+  const [testLimitsForm, setTestLimitsForm] = useState({
+    tempo0Max: '',
+    tempoMeno8Min: '',
+    tempoMeno8Max: '',
+  });
+  const [limitsLoading, setLimitsLoading] = useState(false);
+  const [limitsSaving, setLimitsSaving] = useState(false);
   const dataLoadedRef = useRef(false);
   
   const [showMaquinaSelector, setShowMaquinaSelector] = useState(true);
@@ -93,6 +102,10 @@ export default function Test() {
       setNotification(prev => ({ ...prev, show: false }));
     }, 5000);
   }, []);
+
+  const canEditTestLimits = useMemo(() => {
+    return ['admin', 'comercial', 'commerciale'].includes(currentUser?.rol);
+  }, [currentUser?.rol]);
 
   // Función para reproducir señal sonora de alarma
   const reproducirAlarmaSonora = useCallback(() => {
@@ -292,11 +305,13 @@ export default function Test() {
     try {
       dataLoadedRef.current = true;
       setLoading(true);
-      const [maquinasData, testsData, tecnicosData, lottiData] = await Promise.all([
+      setLimitsLoading(true);
+      const [maquinasData, testsData, tecnicosData, lottiData, limitsData] = await Promise.all([
         maquinasAPI.getAll(),
         testsAPI.getAll().catch(() => []),
         tecnicosAPI.getAll(),
-        lottiAPI.getAll().catch(() => [])
+        lottiAPI.getAll().catch(() => []),
+        testsAPI.getLimits().catch(() => null),
       ]);
       setMaquinas(Array.isArray(maquinasData) ? maquinasData : []);
       setTests(Array.isArray(testsData) ? testsData : []);
@@ -305,14 +320,68 @@ export default function Test() {
         : [];
       setTecnicos(tecnicosFiltrados);
       setLotti(Array.isArray(lottiData) ? lottiData : []);
+      if (limitsData?.raw) {
+        setTestLimits(limitsData.raw);
+        setTestLimitsForm({
+          tempo0Max: String(limitsData.raw.TEMPO_0_GRADI_MAX ?? ''),
+          tempoMeno8Min: String(limitsData.raw.TEMPO_MENO8_GRADI_MIN ?? ''),
+          tempoMeno8Max: String(limitsData.raw.TEMPO_MENO8_GRADI_MAX ?? ''),
+        });
+      }
     } catch (error) {
       console.error('Error al cargar datos:', error);
       showNotification(error.message || 'Errore nel caricamento dei dati', 'error');
       dataLoadedRef.current = false; // Permitir reintento en caso de error
     } finally {
+      setLimitsLoading(false);
       setLoading(false);
     }
   }, [showNotification]);
+
+  const handleLimitsInputChange = useCallback((e) => {
+    const { name, value } = e.target;
+    setTestLimitsForm((prev) => ({ ...prev, [name]: value }));
+  }, []);
+
+  const handleSaveLimits = useCallback(async () => {
+    if (!canEditTestLimits) {
+      showNotification('No autorizado para modificar límites', 'error');
+      return;
+    }
+
+    const payload = {
+      tempo0Max: Number(testLimitsForm.tempo0Max),
+      tempoMeno8Min: Number(testLimitsForm.tempoMeno8Min),
+      tempoMeno8Max: Number(testLimitsForm.tempoMeno8Max),
+    };
+
+    if (
+      !Number.isFinite(payload.tempo0Max) ||
+      !Number.isFinite(payload.tempoMeno8Min) ||
+      !Number.isFinite(payload.tempoMeno8Max)
+    ) {
+      showNotification('Inserisci valori numerici validi per i limiti', 'error');
+      return;
+    }
+
+    setLimitsSaving(true);
+    try {
+      const result = await testsAPI.updateLimits(payload);
+      if (result?.raw) {
+        setTestLimits(result.raw);
+        setTestLimitsForm({
+          tempo0Max: String(result.raw.TEMPO_0_GRADI_MAX ?? ''),
+          tempoMeno8Min: String(result.raw.TEMPO_MENO8_GRADI_MIN ?? ''),
+          tempoMeno8Max: String(result.raw.TEMPO_MENO8_GRADI_MAX ?? ''),
+        });
+      }
+      showNotification('Limiti di test aggiornati con successo', 'success');
+    } catch (error) {
+      showNotification(error.message || 'Errore aggiornando limiti di test', 'error');
+    } finally {
+      setLimitsSaving(false);
+    }
+  }, [canEditTestLimits, showNotification, testLimitsForm]);
 
   // Cargar datos solo una vez al montar el componente
   useEffect(() => {
@@ -1622,6 +1691,73 @@ export default function Test() {
         <h2 className="text-xl sm:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 leading-tight">
           Registro di Prove
         </h2>
+      </div>
+
+      <div className="card">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <FiSliders className="w-5 h-5 text-primary-600" />
+            Limiti Test (secondi)
+          </h3>
+          {!canEditTestLimits && (
+            <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">Solo lettura</span>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo 0°C (max)</label>
+            <input
+              type="number"
+              min="0"
+              name="tempo0Max"
+              value={testLimitsForm.tempo0Max}
+              onChange={handleLimitsInputChange}
+              disabled={!canEditTestLimits || limitsLoading}
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo -8°C (min)</label>
+            <input
+              type="number"
+              min="0"
+              name="tempoMeno8Min"
+              value={testLimitsForm.tempoMeno8Min}
+              onChange={handleLimitsInputChange}
+              disabled={!canEditTestLimits || limitsLoading}
+              className="input-field"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo -8°C (max)</label>
+            <input
+              type="number"
+              min="0"
+              name="tempoMeno8Max"
+              value={testLimitsForm.tempoMeno8Max}
+              onChange={handleLimitsInputChange}
+              disabled={!canEditTestLimits || limitsLoading}
+              className="input-field"
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <p className="text-xs text-gray-500">
+            {testLimits
+              ? `Actual: 0°C<=${testLimits.TEMPO_0_GRADI_MAX}s | -8°C ${testLimits.TEMPO_MENO8_GRADI_MIN}-${testLimits.TEMPO_MENO8_GRADI_MAX}s`
+              : 'No se pudieron cargar los límites desde backend'}
+          </p>
+          <button
+            type="button"
+            onClick={handleSaveLimits}
+            disabled={!canEditTestLimits || limitsSaving || limitsLoading}
+            className="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {limitsSaving ? 'Salvando...' : 'Guardar límites'}
+          </button>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">

@@ -308,9 +308,11 @@ export const tecnicosAPI = {
 // API de Tests
 export const testsAPI = {
   getAll: () => fetchAPI('/api/tests'),
+  getLimits: () => fetchAPI('/api/tests/limits'),
   getById: (id) => fetchAPI(`/api/tests/${id}`),
   getByMaquina: (maquinaId) => fetchAPI(`/api/tests/maquina/${maquinaId}`),
   create: (data) => fetchAPI('/api/tests', { method: 'POST', body: data }),
+  updateLimits: (data) => fetchAPI('/api/tests/limits', { method: 'PATCH', body: data }),
   update: (id, data) => fetchAPI(`/api/tests/${id}`, { method: 'PUT', body: data }),
   delete: (id) => fetchAPI(`/api/tests/${id}`, { method: 'DELETE' }),
 };

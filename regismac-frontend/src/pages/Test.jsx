@@ -107,6 +107,16 @@ export default function Test() {
     return ['admin', 'comercial', 'commerciale'].includes(currentUser?.rol);
   }, [currentUser?.rol]);
 
+  const secondsToMinutes = useCallback((seconds) => {
+    if (!Number.isFinite(Number(seconds))) return '';
+    return (Number(seconds) / 60).toString();
+  }, []);
+
+  const minutesToSeconds = useCallback((minutes) => {
+    if (!Number.isFinite(Number(minutes))) return NaN;
+    return Math.round(Number(minutes) * 60);
+  }, []);
+
   // Función para reproducir señal sonora de alarma
   const reproducirAlarmaSonora = useCallback(() => {
     try {
@@ -323,9 +333,9 @@ export default function Test() {
       if (limitsData?.raw) {
         setTestLimits(limitsData.raw);
         setTestLimitsForm({
-          tempo0Max: String(limitsData.raw.TEMPO_0_GRADI_MAX ?? ''),
-          tempoMeno8Min: String(limitsData.raw.TEMPO_MENO8_GRADI_MIN ?? ''),
-          tempoMeno8Max: String(limitsData.raw.TEMPO_MENO8_GRADI_MAX ?? ''),
+          tempo0Max: secondsToMinutes(limitsData.raw.TEMPO_0_GRADI_MAX),
+          tempoMeno8Min: secondsToMinutes(limitsData.raw.TEMPO_MENO8_GRADI_MIN),
+          tempoMeno8Max: secondsToMinutes(limitsData.raw.TEMPO_MENO8_GRADI_MAX),
         });
       }
     } catch (error) {
@@ -336,7 +346,7 @@ export default function Test() {
       setLimitsLoading(false);
       setLoading(false);
     }
-  }, [showNotification]);
+  }, [secondsToMinutes, showNotification]);
 
   const handleLimitsInputChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -350,9 +360,9 @@ export default function Test() {
     }
 
     const payload = {
-      tempo0Max: Number(testLimitsForm.tempo0Max),
-      tempoMeno8Min: Number(testLimitsForm.tempoMeno8Min),
-      tempoMeno8Max: Number(testLimitsForm.tempoMeno8Max),
+      tempo0Max: minutesToSeconds(testLimitsForm.tempo0Max),
+      tempoMeno8Min: minutesToSeconds(testLimitsForm.tempoMeno8Min),
+      tempoMeno8Max: minutesToSeconds(testLimitsForm.tempoMeno8Max),
     };
 
     if (
@@ -370,9 +380,9 @@ export default function Test() {
       if (result?.raw) {
         setTestLimits(result.raw);
         setTestLimitsForm({
-          tempo0Max: String(result.raw.TEMPO_0_GRADI_MAX ?? ''),
-          tempoMeno8Min: String(result.raw.TEMPO_MENO8_GRADI_MIN ?? ''),
-          tempoMeno8Max: String(result.raw.TEMPO_MENO8_GRADI_MAX ?? ''),
+          tempo0Max: secondsToMinutes(result.raw.TEMPO_0_GRADI_MAX),
+          tempoMeno8Min: secondsToMinutes(result.raw.TEMPO_MENO8_GRADI_MIN),
+          tempoMeno8Max: secondsToMinutes(result.raw.TEMPO_MENO8_GRADI_MAX),
         });
       }
       showNotification('Limiti di test aggiornati con successo', 'success');
@@ -381,7 +391,7 @@ export default function Test() {
     } finally {
       setLimitsSaving(false);
     }
-  }, [canEditTestLimits, showNotification, testLimitsForm]);
+  }, [canEditTestLimits, minutesToSeconds, secondsToMinutes, showNotification, testLimitsForm]);
 
   // Cargar datos solo una vez al montar el componente
   useEffect(() => {
@@ -1697,7 +1707,7 @@ export default function Test() {
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
             <FiSliders className="w-5 h-5 text-primary-600" />
-            Limiti Test (secondi)
+            Limiti Test (minuti)
           </h3>
           {!canEditTestLimits && (
             <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-600">Solo lettura</span>
@@ -1706,10 +1716,11 @@ export default function Test() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo 0°C (max)</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo 0°C (max, min)</label>
             <input
               type="number"
               min="0"
+              step="0.1"
               name="tempo0Max"
               value={testLimitsForm.tempo0Max}
               onChange={handleLimitsInputChange}
@@ -1718,10 +1729,11 @@ export default function Test() {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo -8°C (min)</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo -8°C (min, min)</label>
             <input
               type="number"
               min="0"
+              step="0.1"
               name="tempoMeno8Min"
               value={testLimitsForm.tempoMeno8Min}
               onChange={handleLimitsInputChange}
@@ -1730,10 +1742,11 @@ export default function Test() {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo -8°C (max)</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo -8°C (max, min)</label>
             <input
               type="number"
               min="0"
+              step="0.1"
               name="tempoMeno8Max"
               value={testLimitsForm.tempoMeno8Max}
               onChange={handleLimitsInputChange}
@@ -1746,7 +1759,7 @@ export default function Test() {
         <div className="mt-4 flex items-center justify-between">
           <p className="text-xs text-gray-500">
             {testLimits
-              ? `Actual: 0°C<=${testLimits.TEMPO_0_GRADI_MAX}s | -8°C ${testLimits.TEMPO_MENO8_GRADI_MIN}-${testLimits.TEMPO_MENO8_GRADI_MAX}s`
+              ? `Actual: 0°C<=${(testLimits.TEMPO_0_GRADI_MAX / 60).toFixed(1)} min | -8°C ${(testLimits.TEMPO_MENO8_GRADI_MIN / 60).toFixed(1)}-${(testLimits.TEMPO_MENO8_GRADI_MAX / 60).toFixed(1)} min`
               : 'No se pudieron cargar los límites desde backend'}
           </p>
           <button

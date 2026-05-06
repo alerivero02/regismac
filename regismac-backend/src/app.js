@@ -401,17 +401,12 @@ app.get("/api/health", async (req, res) => {
   });
 });
 
-// Healthcheck básico en raíz para plataformas como Railway
-// que suelen consultar "/" por defecto para marcar el servicio como healthy.
-app.get("/", (req, res, next) => {
-  if (process.env.NODE_ENV === 'production') {
-    return res.status(200).json({
-      status: "ok",
-      service: "regismac",
-      environment: "production"
-    });
-  }
-  return next();
+// Healthcheck adicional para plataformas de deploy
+app.get("/healthz", (req, res) => {
+  res.status(200).json({
+    status: "ok",
+    service: "regismac",
+  });
 });
 
 // Rutas de API primero (deben tener prioridad sobre el frontend)

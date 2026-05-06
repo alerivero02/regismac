@@ -57,11 +57,10 @@ export const patchLimits = async (req, res, next) => {
     }
 
     const prisma = req.app.locals.prisma;
-    const { tempo0Max, tempoMeno8Min, tempoMeno8Max } = req.body || {};
+    const { tempo0Max, tempoMeno8Max } = req.body || {};
     const patch = {};
 
     if (tempo0Max !== undefined) patch.TEMPO_0_GRADI_MAX = tempo0Max;
-    if (tempoMeno8Min !== undefined) patch.TEMPO_MENO8_GRADI_MIN = tempoMeno8Min;
     if (tempoMeno8Max !== undefined) patch.TEMPO_MENO8_GRADI_MAX = tempoMeno8Max;
 
     if (Object.keys(patch).length === 0) {

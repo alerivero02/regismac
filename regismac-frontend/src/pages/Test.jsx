@@ -35,7 +35,6 @@ export default function Test() {
   const [testLimits, setTestLimits] = useState(null);
   const [testLimitsForm, setTestLimitsForm] = useState({
     tempo0Max: '',
-    tempoMeno8Min: '',
     tempoMeno8Max: '',
   });
   const [limitsLoading, setLimitsLoading] = useState(false);
@@ -334,7 +333,6 @@ export default function Test() {
         setTestLimits(limitsData.raw);
         setTestLimitsForm({
           tempo0Max: secondsToMinutes(limitsData.raw.TEMPO_0_GRADI_MAX),
-          tempoMeno8Min: secondsToMinutes(limitsData.raw.TEMPO_MENO8_GRADI_MIN),
           tempoMeno8Max: secondsToMinutes(limitsData.raw.TEMPO_MENO8_GRADI_MAX),
         });
       }
@@ -361,13 +359,11 @@ export default function Test() {
 
     const payload = {
       tempo0Max: minutesToSeconds(testLimitsForm.tempo0Max),
-      tempoMeno8Min: minutesToSeconds(testLimitsForm.tempoMeno8Min),
       tempoMeno8Max: minutesToSeconds(testLimitsForm.tempoMeno8Max),
     };
 
     if (
       !Number.isFinite(payload.tempo0Max) ||
-      !Number.isFinite(payload.tempoMeno8Min) ||
       !Number.isFinite(payload.tempoMeno8Max)
     ) {
       showNotification('Inserisci valori numerici validi per i limiti', 'error');
@@ -381,7 +377,6 @@ export default function Test() {
         setTestLimits(result.raw);
         setTestLimitsForm({
           tempo0Max: secondsToMinutes(result.raw.TEMPO_0_GRADI_MAX),
-          tempoMeno8Min: secondsToMinutes(result.raw.TEMPO_MENO8_GRADI_MIN),
           tempoMeno8Max: secondsToMinutes(result.raw.TEMPO_MENO8_GRADI_MAX),
         });
       }
@@ -1714,7 +1709,7 @@ export default function Test() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo 0°C (max, min)</label>
             <input
@@ -1723,19 +1718,6 @@ export default function Test() {
               step="0.1"
               name="tempo0Max"
               value={testLimitsForm.tempo0Max}
-              onChange={handleLimitsInputChange}
-              disabled={!canEditTestLimits || limitsLoading}
-              className="input-field"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Tempo -8°C (min, min)</label>
-            <input
-              type="number"
-              min="0"
-              step="0.1"
-              name="tempoMeno8Min"
-              value={testLimitsForm.tempoMeno8Min}
               onChange={handleLimitsInputChange}
               disabled={!canEditTestLimits || limitsLoading}
               className="input-field"
@@ -1759,7 +1741,7 @@ export default function Test() {
         <div className="mt-4 flex items-center justify-between">
           <p className="text-xs text-gray-500">
             {testLimits
-              ? `Actual: 0°C<=${(testLimits.TEMPO_0_GRADI_MAX / 60).toFixed(1)} min | -8°C ${(testLimits.TEMPO_MENO8_GRADI_MIN / 60).toFixed(1)}-${(testLimits.TEMPO_MENO8_GRADI_MAX / 60).toFixed(1)} min`
+              ? `Actual: 0°C<=${(testLimits.TEMPO_0_GRADI_MAX / 60).toFixed(1)} min | -8°C<=${(testLimits.TEMPO_MENO8_GRADI_MAX / 60).toFixed(1)} min`
               : 'No se pudieron cargar los límites desde backend'}
           </p>
           <button

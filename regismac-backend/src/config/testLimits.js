@@ -5,13 +5,11 @@
 
 const DEFAULT_TEST_LIMITS = {
   TEMPO_0_GRADI_MAX: Number(process.env.TEMPO_0_GRADI_MAX) || 540,
-  TEMPO_MENO8_GRADI_MIN: Number(process.env.TEMPO_MENO8_GRADI_MIN) || 540,
   TEMPO_MENO8_GRADI_MAX: Number(process.env.TEMPO_MENO8_GRADI_MAX) || 1200,
 };
 
 const TEST_LIMIT_KEYS = {
   TEMPO_0_GRADI_MAX: "test.tempo_0_gradi_max",
-  TEMPO_MENO8_GRADI_MIN: "test.tempo_meno8_gradi_min",
   TEMPO_MENO8_GRADI_MAX: "test.tempo_meno8_gradi_max",
 };
 
@@ -21,17 +19,13 @@ function validateAndNormalizeLimits(rawLimits = {}) {
     ...rawLimits,
   };
 
-  const numericKeys = ["TEMPO_0_GRADI_MAX", "TEMPO_MENO8_GRADI_MIN", "TEMPO_MENO8_GRADI_MAX"];
+  const numericKeys = ["TEMPO_0_GRADI_MAX", "TEMPO_MENO8_GRADI_MAX"];
   for (const key of numericKeys) {
     const value = Number(nextLimits[key]);
     if (!Number.isFinite(value) || value < 0) {
       throw new Error(`Valore non valido per ${key}`);
     }
     nextLimits[key] = value;
-  }
-
-  if (nextLimits.TEMPO_MENO8_GRADI_MIN > nextLimits.TEMPO_MENO8_GRADI_MAX) {
-    throw new Error("TEMPO_MENO8_GRADI_MIN non può essere maggiore di TEMPO_MENO8_GRADI_MAX");
   }
 
   return nextLimits;
@@ -64,9 +58,7 @@ export async function getTestLimits(prisma) {
 export async function verificarLimitesTest(prisma, tempo0Gradi, tempoMeno8Gradi) {
   const limits = await getTestLimits(prisma);
   const cumple0Grados = tempo0Gradi <= limits.TEMPO_0_GRADI_MAX;
-  const cumpleMenos8Grados = 
-    tempoMeno8Gradi >= limits.TEMPO_MENO8_GRADI_MIN &&
-    tempoMeno8Gradi <= limits.TEMPO_MENO8_GRADI_MAX;
+  const cumpleMenos8Grados = tempoMeno8Gradi <= limits.TEMPO_MENO8_GRADI_MAX;
   
   return cumple0Grados && cumpleMenos8Grados;
 }
@@ -84,11 +76,9 @@ export async function obtenerLimitesLegibles(prisma) {
       descripcion: `Máximo ${limits.TEMPO_0_GRADI_MAX / 60} minutos (${limits.TEMPO_0_GRADI_MAX} segundos)`
     },
     tempoMeno8Gradi: {
-      min: limits.TEMPO_MENO8_GRADI_MIN,
       max: limits.TEMPO_MENO8_GRADI_MAX,
-      minMinutos: limits.TEMPO_MENO8_GRADI_MIN / 60,
       maxMinutos: limits.TEMPO_MENO8_GRADI_MAX / 60,
-      descripcion: `Entre ${limits.TEMPO_MENO8_GRADI_MIN / 60} y ${limits.TEMPO_MENO8_GRADI_MAX / 60} minutos (${limits.TEMPO_MENO8_GRADI_MIN}-${limits.TEMPO_MENO8_GRADI_MAX} segundos)`
+      descripcion: `Máximo ${limits.TEMPO_MENO8_GRADI_MAX / 60} minutos (${limits.TEMPO_MENO8_GRADI_MAX} segundos)`
     }
   };
 }

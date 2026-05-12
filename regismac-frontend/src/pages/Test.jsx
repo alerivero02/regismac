@@ -530,8 +530,9 @@ export default function Test() {
         if (testESP32ActivoRef.current && tiempoInicioTestRef.current) {
           const tiempoTranscurrido = Math.floor((Date.now() - tiempoInicioTestRef.current) / 1000);
           // Para registro de 0°C y -8°C, usar sensor D2 (serbatoio) directamente, sin promediar
+          // Bandas hacia frío: 0°C en [-0.5, 0]; -8°C en [-8.5, -8]
           const tempD2Ref = tempD2 !== null && !isNaN(tempD2) ? tempD2 : tempRef;
-          if (tiempo0GradosRef.current === null && tempD2Ref >= -0.5 && tempD2Ref <= 0.5) {
+          if (tiempo0GradosRef.current === null && tempD2Ref >= -0.5 && tempD2Ref <= 0) {
             tiempo0GradosRef.current = tiempoTranscurrido;
             const minutos0 = Math.floor(tiempoTranscurrido / 60);
             const segundos0 = tiempoTranscurrido % 60;
@@ -541,7 +542,7 @@ export default function Test() {
             }));
             showNotification(`✅ Temperatura 0°C detectada (D2: ${tempD2Ref.toFixed(1)}°C)`, 'success');
           }
-          if (tiempoMenos8GradosRef.current === null && tempD2Ref >= -8.5 && tempD2Ref <= -7.5) {
+          if (tiempoMenos8GradosRef.current === null && tempD2Ref >= -8.5 && tempD2Ref <= -8) {
             tiempoMenos8GradosRef.current = tiempoTranscurrido;
             const minutosMenos8 = Math.floor(tiempoTranscurrido / 60);
             const segundosMenos8 = tiempoTranscurrido % 60;

@@ -54,15 +54,16 @@ export const recibirDatosSensor = async (req, res, next) => {
 
     // Si hay un test activo, verificar si se alcanzaron las temperaturas objetivo
     // Para registro de 0°C y -8°C, usar sensor D2 (serbatoio) directamente, sin promediar
+    // Bandas hacia frío: 0°C en [-0.5, 0]; -8°C en [-8.5, -8] (evita saltos entre muestreos)
     const tempRef = sensorState.temperatura_d2 !== null ? sensorState.temperatura_d2 : sensorState.temperatura;
     if (sensorState.testActivo && sensorState.tiempoInicio && tempRef !== null) {
       const tiempoTranscurrido = Math.floor((Date.now() - sensorState.tiempoInicio) / 1000);
 
-      if (sensorState.tiempo0Grados === null && tempRef >= -0.5 && tempRef <= 0.5) {
+      if (sensorState.tiempo0Grados === null && tempRef >= -0.5 && tempRef <= 0) {
         sensorState.tiempo0Grados = tiempoTranscurrido;
         console.log(`[Sensor] 0°C alcanzado en ${tiempoTranscurrido}s`);
       }
-      if (sensorState.tiempoMenos8Grados === null && tempRef >= -8.5 && tempRef <= -7.5) {
+      if (sensorState.tiempoMenos8Grados === null && tempRef >= -8.5 && tempRef <= -8) {
         sensorState.tiempoMenos8Grados = tiempoTranscurrido;
         console.log(`[Sensor] -8°C alcanzado en ${tiempoTranscurrido}s`);
       }

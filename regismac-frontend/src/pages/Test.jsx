@@ -824,6 +824,7 @@ export default function Test() {
                   fechaHoraTest: fechaHoraInicioTestESP32 || new Date().toISOString(),
                   temperaturaFinal: temperaturaActual,
                 });
+                setShowESP32Modal(false);
                 setShowCompletarTestModal(true);
                 
                 showNotification('Test completato! Compila i dati per salvare.', 'success');
@@ -1001,6 +1002,7 @@ export default function Test() {
         fechaHoraTest: fechaHoraInicioTestESP32 || new Date().toISOString(),
         temperaturaFinal: temperaturaActual,
       });
+      setShowESP32Modal(false);
       setShowCompletarTestModal(true);
       
       showNotification('Test finalizzato! Compila i dati per salvare.', 'success');
@@ -2529,8 +2531,7 @@ export default function Test() {
           }}
         >
           <div 
-            className="bg-white rounded-xl shadow-xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative z-[10000]"
-            style={{ zIndex: 10000 }}
+            className="bg-white rounded-xl shadow-2xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
@@ -2828,18 +2829,53 @@ export default function Test() {
       {/* Modal para completar datos del test finalizado */}
       {showCompletarTestModal && datosTestFinalizado && (
         <div 
-          className="fixed inset-0 flex items-center justify-center z-[60] p-4"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
+          className="fixed inset-0 flex items-center justify-center z-[10050] p-4"
+          style={{ 
+            backgroundColor: 'rgba(0, 0, 0, 0.02)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
+            animation: 'backdropFadeIn 0.2s ease-out'
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCompletarTestModal(false);
+              setDatosTestFinalizado(null);
+              setFechaHoraInicioTestESP32(null);
+              autoSaveRef.current = false;
+            }
+          }}
         >
-          <div className="bg-white rounded-xl shadow-2xl p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="bg-green-50 p-3 rounded-xl">
-                <FiCheckCircle className="w-6 h-6 text-green-600" />
+          <div 
+            className="bg-white rounded-xl shadow-2xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative"
+            style={{ 
+              animation: 'modalAppear 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
+              willChange: 'transform, opacity'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-50 p-3 rounded-xl">
+                  <FiCheckCircle className="w-6 h-6 text-green-600" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Test completato</h2>
+                  <p className="text-sm text-gray-600">Compila i dati per salvare il test</p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">Test completato</h2>
-                <p className="text-sm text-gray-600">Compila i dati per salvare il test</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCompletarTestModal(false);
+                  setDatosTestFinalizado(null);
+                  setFechaHoraInicioTestESP32(null);
+                  autoSaveRef.current = false;
+                }}
+                className="text-gray-400 hover:text-gray-600 p-2"
+                aria-label="Chiudi"
+              >
+                <FiX className="w-6 h-6" />
+              </button>
             </div>
 
             {/* Resumen del test */}
